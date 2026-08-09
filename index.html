@@ -178,6 +178,20 @@
   .cropbox::after{background:
     linear-gradient(180deg,transparent 33.33%,rgba(255,255,255,.28) 33.33% calc(33.33% + 1px),
     transparent calc(33.33% + 1px) 66.66%,rgba(255,255,255,.28) 66.66% calc(66.66% + 1px),transparent calc(66.66% + 1px))}
+  .scanrow{display:none;align-items:center;gap:8px;margin-top:14px;flex-wrap:wrap}
+  .scanrow.on{display:flex}
+  .scanrow button.wide{margin-top:0}
+  .scanrow #brescan{padding:9px 13px}
+  .scanrow .eyebrow{flex:1;text-align:right}
+  .motion{position:absolute;left:0;top:11px;width:100%;height:26px;pointer-events:none}
+  .group{margin-top:18px;padding-top:14px;border-top:1px solid var(--rule)}
+  .group .eyebrow{display:block;margin-bottom:9px}
+  .group .row2{margin-top:0}
+  .group button.wide{margin-top:7px}
+  .scancard{position:relative;background:var(--deck);border:1px solid var(--rule);
+    border-radius:3px;padding:5px;cursor:pointer;-webkit-user-select:none;user-select:none}
+  .scancard canvas{width:100%;height:auto;display:block;border-radius:2px;background:#000}
+  .scanlab{font-family:var(--mono);font-size:10px;color:var(--dim);margin-top:5px;text-align:center}
   .zoomrow{display:none;align-items:center;gap:7px;margin-top:12px}
   .zoomrow.on{display:flex}
   .zoomrow .eyebrow{flex:1}
@@ -197,6 +211,7 @@
     text-align:center;margin-bottom:10px;line-height:1.6}
   .cmpgrid{flex:1;min-height:0;overflow-y:auto;display:grid;grid-template-columns:1fr 1fr;
     gap:8px;-webkit-overflow-scrolling:touch;align-content:start}
+  #scangrid{grid-template-columns:1fr 1fr 1fr;gap:6px}
   .cmpcard{position:relative;background:var(--deck);border:1px solid var(--rule);
     border-radius:3px;padding:6px;cursor:pointer;text-align:left;display:block;
     -webkit-user-select:none;user-select:none}
@@ -293,9 +308,16 @@
     </div>
   </div>
 
+  <div class="scanrow" id="scanrow">
+    <button class="t wide primary" id="bscan">Scan the whole clip</button>
+    <button class="hidden" id="brescan">Scan again</button>
+    <span class="eyebrow" id="scannote"></span>
+  </div>
+
   <div class="scrub" id="scrub" role="slider" tabindex="0" aria-disabled="true"
        aria-label="Position in the video" aria-valuemin="0" aria-valuemax="0" aria-valuenow="0">
     <div class="track"></div>
+    <canvas class="motion" id="motion"></canvas>
     <div class="fill" id="scrubfill"></div>
     <div class="playhead" id="playhead"></div>
   </div>
@@ -317,15 +339,23 @@
   </div>
 
   <button class="t wide primary" id="bsave" disabled>Save this frame</button>
-  <div class="row2">
-    <button class="t" id="bmark" disabled>Mark frame</button>
-    <button class="t" id="bburst" disabled>Mark &plusmn;5</button>
+
+  <div class="group">
+    <span class="eyebrow">Shortlist &mdash; when it is too close to call</span>
+    <div class="row2">
+      <button class="t" id="bmark" disabled>Mark frame</button>
+      <button class="t" id="bburst" disabled>Mark &plusmn;5</button>
+    </div>
+    <button class="t wide" id="bcompare" disabled>Compare marks</button>
   </div>
-  <div class="row2">
-    <button class="t" id="bcrop" disabled>Crop</button>
-    <button class="t" id="bcompare" disabled>Compare marks</button>
+
+  <div class="group">
+    <span class="eyebrow">Setup</span>
+    <div class="row2">
+      <button class="t" id="bcrop" disabled>Crop</button>
+      <button class="t" id="bnew">Choose another video</button>
+    </div>
   </div>
-  <button class="t wide" id="bnew">Choose another video</button>
 
   <div class="settings">
     <div class="field">
@@ -372,6 +402,15 @@
     <span><b>Space</b> play</span>
     <span><b>S</b> save</span>
   </div>
+</div>
+
+<div class="sheet" id="scansheet">
+  <div class="cmpbar2">
+    <button class="t" id="bstillest" style="flex:1">Mark the 5 stillest</button>
+    <button class="t" id="bscanclose" style="flex:none;padding:15px 18px">Close</button>
+  </div>
+  <div class="cmphead" id="scanhead"></div>
+  <div class="cmpgrid" id="scangrid"></div>
 </div>
 
 <div class="sheet" id="cmp">
@@ -872,7 +911,7 @@ function injectPng(bytes, payload){
   var STD=[23.976,24,25,29.97,30,48,50,59.94,60,100,119.88,120,240];
   var PX_PER_FRAME = 12;
   var state = { url:null, base:'frame', fps:30, total:0, frame:0, marks:[], ready:false,
-                seeking:false, meta:{}, metaCount:0 };
+                seeking:false, seekAt:0, meta:{}, metaCount:0 };
   var pending = null, lastFile=null, lastError=null, canvasState='not tested', violations=[], sheetUrl=null;
 
   /* ---------- environment ---------- */
@@ -912,7 +951,9 @@ function injectPng(bytes, payload){
       'frame stepping '+(env.rvfc?'precise':'approximate'),
       'secure context '+env.secure+'  (needed to save into Photos)',
       'share sheet    '+(env.share?'available':'not available'),
-      'canvas export  '+canvasState
+      'canvas export  '+canvasState,
+      'seek state     '+(state.seeking?'in progress':'idle')+
+        (state.seekAt?(', last started '+Math.round((Date.now()-state.seekAt)/1000)+'s ago'):'')
     ];
     if(lastFile){
       L.push('','file           '+lastFile.name,
@@ -963,11 +1004,20 @@ function injectPng(bytes, payload){
   }
   function nextPresented(ms){
     return new Promise(function(res){
-      var done=false;
-      function fin(){ if(!done){done=true;res();} }
-      if(typeof video.requestVideoFrameCallback==='function') video.requestVideoFrameCallback(fin);
-      video.addEventListener('seeked',function h(){ video.removeEventListener('seeked',h); setTimeout(fin,20); });
-      setTimeout(fin,ms||2500);
+      var done=false, timer=null;
+      function onSeeked(){ setTimeout(function(){ fin('seeked'); },20); }
+      function fin(how){
+        if(done) return;
+        done=true;
+        video.removeEventListener('seeked',onSeeked);
+        if(timer) clearTimeout(timer);
+        res(how);
+      }
+      video.addEventListener('seeked',onSeeked);
+      timer=setTimeout(function(){ fin('timeout'); }, ms||2500);
+      if(typeof video.requestVideoFrameCallback==='function'){
+        video.requestVideoFrameCallback(function(){ fin('frame'); });
+      }
     });
   }
 
@@ -1055,7 +1105,7 @@ function injectPng(bytes, payload){
           fpsSel.appendChild(c);
         }
         video.currentTime=0; recomputeTotal(); setEnabled(true); working(false);
-        zoomFit(); setTimeout(layoutCrop,60);
+        zoomFit(); resetScan(); setTimeout(layoutCrop,60);
         goToFrame(0).then(function(){
           canvasState=testCanvas(); renderDiag();
           if(canvasState!=='working'){
@@ -1072,6 +1122,7 @@ function injectPng(bytes, payload){
     mTotal.textContent=String(state.total);
     mFps.textContent=state.fps+' fps';
     mRes.textContent=video.videoWidth+' \u00d7 '+video.videoHeight;
+    if(typeof drawMotion==='function') drawMotion();
   }
 
   function testCanvas(){
@@ -1101,11 +1152,26 @@ function injectPng(bytes, payload){
     paintTimecode(); paintJog();
   }
 
+  var seekToken=0, stalls=0;
+
   function runSeek(n){
+    var mine = ++seekToken;
     state.seeking = true;
-    video.currentTime = frameToTime(n);
-    return nextPresented().then(function(){
+    state.seekAt = Date.now();
+    // Under memory pressure iOS can drop the decoder and this assignment throws.
+    // Previously that left the seeking flag stuck on forever.
+    try { video.currentTime = frameToTime(n); }
+    catch(err){
       state.seeking = false;
+      lastError = { code:0, message:'seek failed: '+(err && err.message) };
+      renderDiag();
+      return Promise.resolve();
+    }
+    return nextPresented().then(function(how){
+      if(mine !== seekToken) return;        // a newer seek has taken over
+      state.seeking = false;
+      if(how === 'timeout'){ if(++stalls >= 2) recoverVideo(); }
+      else stalls = 0;
       if(pending !== null){
         var p = pending; pending = null;
         if(p !== n) return runSeek(p);
@@ -1113,9 +1179,30 @@ function injectPng(bytes, payload){
     });
   }
 
+  /* If no frame has been presented for two seeks running, the decoder has
+     given up. Re-open the same file and carry on from the same frame. */
+  function recoverVideo(){
+    if(!state.url) return;
+    var want = state.frame;
+    stalls = 0; pending = null; state.seeking = false;
+    working(true,'Reloading');
+    say('The video decoder stalled, usually because memory ran low. Reloading it and returning to your frame.', true);
+    video.addEventListener('loadeddata', function again(){
+      video.removeEventListener('loadeddata', again);
+      working(false);
+      state.seeking = false; pending = null;
+      goToFrame(want).then(function(){ say('Back at frame '+want+'.'); });
+    });
+    try { video.load(); } catch(err){ working(false); }
+  }
+
   function requestFrame(n){
     if(!state.ready) return;
     n = clampFrame(n);
+    // A seek still "in progress" after 3s is dead. Take the flag back.
+    if(state.seeking && Date.now() - (state.seekAt||0) > 3000){
+      state.seeking = false; pending = null;
+    }
     if(n === state.frame && !state.seeking) return;
     setFrameUI(n);
     if(state.seeking){ pending = n; return; }
@@ -1457,11 +1544,11 @@ function injectPng(bytes, payload){
   video.addEventListener('play',function(){ btns.bplay.textContent='\u2759\u2759'; });
   video.addEventListener('pause',function(){
     btns.bplay.textContent='\u25B6';
-    if(!state.ready||state.seeking||!state.total) return;
+    if(!state.ready||state.seeking||!state.total||scan.running) return;
     requestFrame(timeToFrame(video.currentTime));
   });
   video.addEventListener('timeupdate',function(){
-    if(video.paused||state.seeking) return;
+    if(video.paused||state.seeking||scan.running) return;
     setFrameUI(timeToFrame(video.currentTime));
   });
 
@@ -1675,7 +1762,7 @@ function injectPng(bytes, payload){
       bABBack=$('babback'), bFit=$('bfit'), bOne=$('bone'), bPin=$('bpin'),
       bPrev=$('bprev'), bNext=$('bnext'), bSaveAB=$('bsaveab');
 
-  var MAX_COMPARE=20, MAX_FULL=8;
+  var MAX_COMPARE=20, MAX_FULL=3;
   var cmpItems=[], cmpReturn=0, curIdx=0, pinIdx=0, showingPin=false, loadOrder=[];
   var abView={z:1,tx:0,ty:0};
 
@@ -1862,7 +1949,11 @@ function injectPng(bytes, payload){
 
   bCompare.addEventListener('click',buildCompare);
   bCmpClose.addEventListener('click',closeCmp);
-  bABBack.addEventListener('click',function(){ cmpAB.className='cmpab'; });
+  bABBack.addEventListener('click',function(){
+    cmpAB.className='cmpab';
+    // Let the browser release the two decoded full-size frames.
+    layPin.removeAttribute('src'); layCur.removeAttribute('src');
+  });
   bPrev.addEventListener('click',function(){ moveTo(curIdx-1); });
   bNext.addEventListener('click',function(){ moveTo(curIdx+1); });
   bFit.addEventListener('click',abFit);
@@ -1912,6 +2003,213 @@ function injectPng(bytes, payload){
       if(single && p && !p.moved) showLayer(!showingPin);   // a clean tap flips
     });
   });
+
+  /* ========================== SCAN ==========================
+     Sweep the whole clip once by playing it fast and sampling every frame
+     the browser presents. Gives a contact sheet plus a movement curve,
+     which turns "which of 400 frames" into "which of these dozen moments". */
+
+  var scanRow=$('scanrow'), bScan=$('bscan'), bRescan=$('brescan'), scanNote=$('scannote'),
+      scanSheet=$('scansheet'), scanGrid=$('scangrid'), scanHead=$('scanhead'),
+      bScanClose=$('bscanclose'), bStillest=$('bstillest'), motionCv=$('motion');
+
+  var scan={samples:[],cells:[],done:false,running:false};
+
+  function resetScan(){
+    scan={samples:[],cells:[],done:false,running:false};
+    scanGrid.textContent='';
+    scanRow.className='scanrow on';
+    bScan.className='t wide primary';
+    bRescan.className='hidden';
+    scanNote.textContent='';
+    drawMotion();
+  }
+
+  function cellSize(){
+    var r=cropRect();
+    var W=150, H=r ? Math.round(W*(r.h/r.w)) : 150;
+    return {w:W,h:Math.max(40,Math.min(H,320))};
+  }
+
+  function runScan(){
+    if(!state.ready || scan.running) return;
+    var back=state.frame;
+    scan.samples=[]; scan.cells=[]; scan.done=false; scan.running=true;
+    scanGrid.textContent='';
+    scanSheet.className='sheet on';
+    scanHead.textContent='Scanning\u2026';
+
+    var D=96, r0=cropRect();
+    var dw=D, dh=r0?Math.max(8,Math.round(D*(r0.h/r0.w))):D;
+    var dc=document.createElement('canvas'); dc.width=dw; dc.height=dh;
+    var dx=dc.getContext('2d',{willReadFrequently:true});
+    var prev=null;
+
+    var cs=cellSize();
+    var expect=Math.max(8, Math.min(state.total, Math.round((video.duration||1)/6*60)));
+    var stride=Math.max(1, Math.round(expect/48));
+    var seen=0, stopped=false;
+
+    function finish(){
+      if(stopped) return;
+      stopped=true; scan.running=false; scan.done=true;
+      try{ video.pause(); }catch(_){}
+      video.playbackRate=1;
+      video.removeEventListener('ended',finish);
+      scanHead.textContent=scan.cells.length+' moments across the clip \u00b7 tap one to go there';
+      scanNote.textContent=scan.samples.length+' frames sampled';
+      bScan.className='hidden';
+      bRescan.className='t';
+      drawMotion();
+      goToFrame(back);
+    }
+
+    function tick(now,meta){
+      if(stopped) return;
+      var r=cropRect();
+      if(r && dx){
+        try{
+          dx.drawImage(video,r.sx,r.sy,r.w,r.h,0,0,dw,dh);
+          var d=dx.getImageData(0,0,dw,dh).data;
+          var diff=0;
+          if(prev){
+            var acc=0;
+            for(var i=0;i<d.length;i+=4){
+              acc+=Math.abs(d[i]-prev[i])+Math.abs(d[i+1]-prev[i+1])+Math.abs(d[i+2]-prev[i+2]);
+            }
+            diff=acc/(d.length/4)/3;
+          }
+          prev=new Uint8ClampedArray(d);
+          var f=timeToFrame(meta.mediaTime);
+          scan.samples.push({frame:f,diff:diff});
+          if(seen % stride === 0) addCell(f,cs);
+          seen++;
+          if(seen % 6 === 0) scanHead.textContent='Scanning \u2014 '+
+            Math.min(99,Math.round(meta.mediaTime/(video.duration||1)*100))+'%';
+        }catch(_){}
+      }
+      if(video.currentTime >= (video.duration||0)-0.02){ finish(); return; }
+      video.requestVideoFrameCallback(tick);
+    }
+
+    function begin(){
+      if(typeof video.requestVideoFrameCallback!=='function'){
+        scan.running=false;
+        scanHead.textContent='This browser cannot sample frames while playing, so scanning is unavailable.';
+        return;
+      }
+      video.playbackRate=6;
+      video.addEventListener('ended',finish);
+      video.requestVideoFrameCallback(tick);
+      var p=video.play();
+      if(p&&p.catch) p.catch(function(){ finish(); });
+      setTimeout(function(){ if(!stopped) finish(); }, 90000);
+    }
+
+    goToFrame(0).then(begin);
+  }
+
+  function addCell(frame,cs){
+    var r=cropRect(); if(!r) return;
+    var c=document.createElement('canvas');
+    c.width=cs.w; c.height=cs.h;
+    var x=c.getContext('2d');
+    if(!x) return;
+    try{ x.drawImage(video,r.sx,r.sy,r.w,r.h,0,0,cs.w,cs.h); }catch(_){ return; }
+
+    var card=document.createElement('div');
+    card.className='scancard';
+    card.appendChild(c);
+    var t=timecode(frame,state.fps);
+    var lab=document.createElement('div');
+    lab.className='scanlab'; lab.textContent=t.m+':'+t.s+':'+t.f;
+    card.appendChild(lab);
+    card.addEventListener('click',function(){
+      scanSheet.className='sheet';
+      requestFrame(frame);
+      say('Jumped there. Use Mark \u00b15 and the zoom to settle on the exact frame.');
+    });
+    scanGrid.appendChild(card);
+    scan.cells.push(frame);
+  }
+
+  /* --- movement curve drawn into the scrubber --- */
+
+  function smoothed(){
+    var s=scan.samples, out=[];
+    for(var i=0;i<s.length;i++){
+      var a=Math.max(0,i-1), b=Math.min(s.length-1,i+1);
+      out.push((s[a].diff+s[i].diff+s[b].diff)/3);
+    }
+    return out;
+  }
+
+  function drawMotion(){
+    if(!motionCv) return;
+    var wCss=motionCv.clientWidth||scrubEl.clientWidth||300, hCss=26;
+    var dpr=window.devicePixelRatio||1;
+    motionCv.width=Math.round(wCss*dpr); motionCv.height=Math.round(hCss*dpr);
+    var g=motionCv.getContext('2d');
+    if(!g) return;
+    g.setTransform(dpr,0,0,dpr,0,0);
+    g.clearRect(0,0,wCss,hCss);
+    if(!scan.done || scan.samples.length<3) return;
+
+    var sm=smoothed(), max=0;
+    sm.forEach(function(v){ if(v>max) max=v; });
+    if(max<=0) max=1;
+    var total=Math.max(1,state.total-1);
+    g.beginPath();
+    g.moveTo(0,hCss);
+    scan.samples.forEach(function(s,i){
+      var x=(s.frame/total)*wCss;
+      var y=hCss-(sm[i]/max)*(hCss-3)-1;
+      g.lineTo(x,y);
+    });
+    g.lineTo(wCss,hCss);
+    g.closePath();
+    g.fillStyle='rgba(161,161,170,.16)';
+    g.fill();
+  }
+
+  /* Only frames that are genuinely settled relative to this clip.
+     If the camera never stopped, this returns few or none rather than
+     padding the list with moving frames. */
+  function stillestFrames(n){
+    var s=scan.samples;
+    if(s.length<3) return [];
+    var sm=smoothed();
+    var ranked=sm.slice().sort(function(a,b){ return a-b; });
+    var lo=ranked[0], mid=ranked[Math.floor(ranked.length/2)];
+    var thresh=lo+0.25*(mid-lo);
+    var idx=[];
+    for(var i=0;i<sm.length;i++) if(sm[i]<=thresh) idx.push(i);
+    idx.sort(function(a,b){ return sm[a]-sm[b]; });
+    var picked=[], sep=Math.max(1,Math.floor(s.length/(n*2)));
+    for(var k=0;k<idx.length && picked.length<n;k++){
+      var ok=true;
+      for(var j=0;j<picked.length;j++){ if(Math.abs(idx[k]-picked[j])<sep){ ok=false; break; } }
+      if(ok) picked.push(idx[k]);
+    }
+    picked.sort(function(a,b){ return a-b; });
+    return picked.map(function(i){ return s[i].frame; });
+  }
+
+  bScan.addEventListener('click',runScan);
+  bRescan.addEventListener('click',runScan);
+  bScanClose.addEventListener('click',function(){ scanSheet.className='sheet'; });
+  bStillest.addEventListener('click',function(){
+    var picks=stillestFrames(5);
+    if(!picks.length){ say('Scan the clip first.'); return; }
+    var added=0;
+    picks.forEach(function(f){ if(state.marks.indexOf(f)<0){ state.marks.push(f); added++; } });
+    paintMarks();
+    scanSheet.className='sheet';
+    say(added
+      ? 'Marked '+added+' settled moment'+(added===1?'':'s')+'. This is where the camera stopped moving, not a judgement about the picture \u2014 go and look.'
+      : 'The camera never really settled in this clip, so nothing stood out. Use the contact sheet instead.');
+  });
+  window.addEventListener('resize',drawMotion);
 
   setFrameUI(0); renderDiag();
 })();
