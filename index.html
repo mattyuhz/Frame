@@ -184,6 +184,10 @@
   .scanrow #brescan{padding:9px 13px}
   .scanrow .eyebrow{flex:1;text-align:right}
   .motion{position:absolute;left:0;top:11px;width:100%;height:26px;pointer-events:none}
+  .zebra{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;display:none;
+    image-rendering:pixelated}
+  .zebra.on{display:block}
+  .stage.flash{border-color:var(--phos)}
   .group{margin-top:18px;padding-top:14px;border-top:1px solid var(--rule)}
   .group .eyebrow{display:block;margin-bottom:9px}
   .group .row2{margin-top:0}
@@ -278,6 +282,7 @@
     <div class="viewport" id="viewport">
       <div class="vframe" id="vframe">
         <video id="video" playsinline muted preload="metadata"></video>
+        <canvas class="zebra" id="zebracv"></canvas>
         <div class="cropwrap" id="cropwrap"><div class="cropbox" id="cropbox"></div></div>
       </div>
     </div>
@@ -378,6 +383,7 @@
       </select>
     </div>
     <label class="toggle" for="p3"><input type="checkbox" id="p3"><span class="eyebrow">Wide colour</span></label>
+    <label class="toggle" for="zebra"><input type="checkbox" id="zebra"><span class="eyebrow">Zebras</span></label>
   </div>
 
   <div class="marks" id="marks">
@@ -406,7 +412,7 @@
 
 <div class="sheet" id="scansheet">
   <div class="cmpbar2">
-    <button class="t" id="bstillest" style="flex:1">Mark the 5 stillest</button>
+    <button class="t" id="bstillest" style="flex:1">Mark the calmest moments</button>
     <button class="t" id="bscanclose" style="flex:none;padding:15px 18px">Close</button>
   </div>
   <div class="cmphead" id="scanhead"></div>
@@ -1172,6 +1178,7 @@ function injectPng(bytes, payload){
       state.seeking = false;
       if(how === 'timeout'){ if(++stalls >= 2) recoverVideo(); }
       else stalls = 0;
+      zebraSoon();
       if(pending !== null){
         var p = pending; pending = null;
         if(p !== n) return runSeek(p);
@@ -1447,6 +1454,7 @@ function injectPng(bytes, payload){
     chipsEl.textContent='';
     marksEl.className=state.marks.length?'marks on':'marks';
     $('bcompare').disabled = !(state.ready && state.marks.length>=2);
+    drawMotion();
     state.marks.slice().sort(function(a,b){return a-b;}).forEach(function(f){
       var t=timecode(f,state.fps), b=document.createElement('button');
       b.className='chip'; b.type='button';
@@ -1541,10 +1549,14 @@ function injectPng(bytes, payload){
   btns.bplay.addEventListener('click',function(){
     if(video.paused) video.play().catch(function(){}); else video.pause();
   });
-  video.addEventListener('play',function(){ btns.bplay.textContent='\u2759\u2759'; });
+  video.addEventListener('play',function(){
+    btns.bplay.textContent='\u2759\u2759';
+    if(zebraCv) zebraCv.className='zebra';
+  });
   video.addEventListener('pause',function(){
     btns.bplay.textContent='\u25B6';
     if(!state.ready||state.seeking||!state.total||scan.running) return;
+    zebraSoon();
     requestFrame(timeToFrame(video.currentTime));
   });
   video.addEventListener('timeupdate',function(){
@@ -1559,6 +1571,17 @@ function injectPng(bytes, payload){
     if(e.target===scrubEl) return;   // the scrubber handles its own keys
     if(!state.ready) return;
     var k=e.key;
+    var openSheet=document.querySelector('.sheet.on'), openAB=document.querySelector('.cmpab.on');
+    if(openSheet||openAB){
+      if(k==='Escape'){
+        e.preventDefault();
+        if(openAB){ bABBack.click(); }
+        else if(openSheet.id==='scansheet'){ bScanClose.click(); }
+        else if(openSheet.id==='cmp'){ closeCmp(); }
+        else closeSheet();
+      }
+      return;
+    }
     if(k==='ArrowRight'){ e.preventDefault(); step(e.shiftKey?10:1); }
     else if(k==='ArrowLeft'){ e.preventDefault(); step(e.shiftKey?-10:-1); }
     else if(k===' '){ e.preventDefault(); btns.bplay.click(); }
@@ -2004,19 +2027,21 @@ function injectPng(bytes, payload){
     });
   });
 
-  /* ========================== SCAN ==========================
-     Sweep the whole clip once by playing it fast and sampling every frame
-     the browser presents. Gives a contact sheet plus a movement curve,
-     which turns "which of 400 frames" into "which of these dozen moments". */
+  /* ========================== SCAN v2 ==========================
+     Sweep the clip by playing it fast, sampling whatever the browser
+     actually presents. No assumptions about sample rate: thumbnails are
+     collected adaptively and thinned, so the contact sheet is dense no
+     matter how few frames this device decodes at speed. */
 
   var scanRow=$('scanrow'), bScan=$('bscan'), bRescan=$('brescan'), scanNote=$('scannote'),
       scanSheet=$('scansheet'), scanGrid=$('scangrid'), scanHead=$('scanhead'),
       bScanClose=$('bscanclose'), bStillest=$('bstillest'), motionCv=$('motion');
 
-  var scan={samples:[],cells:[],done:false,running:false};
+  var scan={samples:[],cells:[],done:false,running:false,stop:null};
 
   function resetScan(){
-    scan={samples:[],cells:[],done:false,running:false};
+    if(scan.running && scan.stop){ scan.stop(true); return; }
+    scan={samples:[],cells:[],done:false,running:false,stop:null};
     scanGrid.textContent='';
     scanRow.className='scanrow on';
     bScan.className='t wide primary';
@@ -2034,112 +2059,200 @@ function injectPng(bytes, payload){
   function runScan(){
     if(!state.ready || scan.running) return;
     var back=state.frame;
-    scan.samples=[]; scan.cells=[]; scan.done=false; scan.running=true;
+    scan={samples:[],cells:[],done:false,running:true,stop:null};
     scanGrid.textContent='';
     scanSheet.className='sheet on';
     scanHead.textContent='Scanning\u2026';
+    bStillest.disabled=true;
+
+    if(typeof video.requestVideoFrameCallback!=='function'){
+      scan.running=false;
+      scanHead.textContent='This browser cannot sample frames during playback, so scanning is unavailable here.';
+      return;
+    }
 
     var D=96, r0=cropRect();
     var dw=D, dh=r0?Math.max(8,Math.round(D*(r0.h/r0.w))):D;
     var dc=document.createElement('canvas'); dc.width=dw; dc.height=dh;
     var dx=dc.getContext('2d',{willReadFrequently:true});
-    var prev=null;
-
     var cs=cellSize();
-    var expect=Math.max(8, Math.min(state.total, Math.round((video.duration||1)/6*60)));
-    var stride=Math.max(1, Math.round(expect/48));
-    var seen=0, stopped=false;
+    var prev=null, lastT=-1, stopped=false;
+    var rate=4, wd=null, lastPos=0;
+    var cellEvery=1, cellCount=0;
 
-    function finish(){
-      if(stopped) return;
-      stopped=true; scan.running=false; scan.done=true;
+    /* Keep coverage even no matter how many samples arrive: when the
+       store fills, drop every other one and halve the intake. */
+    function grabCell(t){
+      if((cellCount++ % cellEvery)!==0) return;
+      var r=cropRect(); if(!r) return;
+      var c=document.createElement('canvas'); c.width=cs.w; c.height=cs.h;
+      var x=c.getContext('2d'); if(!x) return;
+      try{ x.drawImage(video,r.sx,r.sy,r.w,r.h,0,0,cs.w,cs.h); }catch(_){ return; }
+      scan.cells.push({t:t, cv:c});
+      if(scan.cells.length>=72){
+        scan.cells=scan.cells.filter(function(_,i){ return i%2===0; });
+        cellEvery*=2;
+      }
+    }
+
+    function onEnded(){ finish(false); }
+
+    function finish(byCancel){
+      if(stopped) return; stopped=true;
+      if(wd) clearInterval(wd);
       try{ video.pause(); }catch(_){}
       video.playbackRate=1;
-      video.removeEventListener('ended',finish);
-      scanHead.textContent=scan.cells.length+' moments across the clip \u00b7 tap one to go there';
-      scanNote.textContent=scan.samples.length+' frames sampled';
-      bScan.className='hidden';
-      bRescan.className='t';
-      drawMotion();
-      goToFrame(back);
+      video.removeEventListener('ended',onEnded);
+      scan.running=false; scan.stop=null;
+      if(byCancel){
+        scan={samples:[],cells:[],done:false,running:false,stop:null};
+        scanGrid.textContent='';
+        scanNote.textContent='';
+        drawMotion();
+        goToFrame(back);
+        return;
+      }
+      scan.done=true;
+      thinCells();
+      if(scan.cells.length<8 && state.total>1){ seedBySeeking(back); return; }
+      renderScan(back);
     }
+    scan.stop=finish;
 
     function tick(now,meta){
       if(stopped) return;
-      var r=cropRect();
-      if(r && dx){
-        try{
-          dx.drawImage(video,r.sx,r.sy,r.w,r.h,0,0,dw,dh);
-          var d=dx.getImageData(0,0,dw,dh).data;
-          var diff=0;
-          if(prev){
-            var acc=0;
-            for(var i=0;i<d.length;i+=4){
-              acc+=Math.abs(d[i]-prev[i])+Math.abs(d[i+1]-prev[i+1])+Math.abs(d[i+2]-prev[i+2]);
+      if(dx && meta.mediaTime>lastT){
+        lastT=meta.mediaTime;
+        var r=cropRect();
+        if(r){
+          try{
+            dx.drawImage(video,r.sx,r.sy,r.w,r.h,0,0,dw,dh);
+            var d=dx.getImageData(0,0,dw,dh).data;
+            if(prev){
+              var acc=0;
+              for(var i=0;i<d.length;i+=4){
+                acc+=Math.abs(d[i]-prev[i])+Math.abs(d[i+1]-prev[i+1])+Math.abs(d[i+2]-prev[i+2]);
+              }
+              scan.samples.push({t:meta.mediaTime, diff:acc/(d.length/4)/3});
             }
-            diff=acc/(d.length/4)/3;
-          }
-          prev=new Uint8ClampedArray(d);
-          var f=timeToFrame(meta.mediaTime);
-          scan.samples.push({frame:f,diff:diff});
-          if(seen % stride === 0) addCell(f,cs);
-          seen++;
-          if(seen % 6 === 0) scanHead.textContent='Scanning \u2014 '+
-            Math.min(99,Math.round(meta.mediaTime/(video.duration||1)*100))+'%';
-        }catch(_){}
+            prev=new Uint8ClampedArray(d);
+            grabCell(meta.mediaTime);
+            if(scan.samples.length%5===0){
+              scanHead.textContent='Scanning \u2014 '+
+                Math.min(99,Math.round(meta.mediaTime/(video.duration||1)*100))+'%';
+            }
+          }catch(_){}
+        }
       }
-      if(video.currentTime >= (video.duration||0)-0.02){ finish(); return; }
+      if(video.currentTime>=(video.duration||0)-0.05){ finish(false); return; }
       video.requestVideoFrameCallback(tick);
     }
 
-    function begin(){
-      if(typeof video.requestVideoFrameCallback!=='function'){
-        scan.running=false;
-        scanHead.textContent='This browser cannot sample frames while playing, so scanning is unavailable.';
-        return;
-      }
-      video.playbackRate=6;
-      video.addEventListener('ended',finish);
+    goToFrame(0).then(function(){
+      video.playbackRate=rate;
+      video.addEventListener('ended',onEnded);
       video.requestVideoFrameCallback(tick);
+      lastPos=video.currentTime;
+      /* If playback stalls at this rate, halve it and keep going. */
+      wd=setInterval(function(){
+        if(stopped){ clearInterval(wd); return; }
+        var adv=video.currentTime-lastPos; lastPos=video.currentTime;
+        if(adv<0.35 && rate>1){ rate=Math.max(1,rate/2); video.playbackRate=rate; }
+      },1500);
       var p=video.play();
-      if(p&&p.catch) p.catch(function(){ finish(); });
-      setTimeout(function(){ if(!stopped) finish(); }, 90000);
-    }
-
-    goToFrame(0).then(begin);
-  }
-
-  function addCell(frame,cs){
-    var r=cropRect(); if(!r) return;
-    var c=document.createElement('canvas');
-    c.width=cs.w; c.height=cs.h;
-    var x=c.getContext('2d');
-    if(!x) return;
-    try{ x.drawImage(video,r.sx,r.sy,r.w,r.h,0,0,cs.w,cs.h); }catch(_){ return; }
-
-    var card=document.createElement('div');
-    card.className='scancard';
-    card.appendChild(c);
-    var t=timecode(frame,state.fps);
-    var lab=document.createElement('div');
-    lab.className='scanlab'; lab.textContent=t.m+':'+t.s+':'+t.f;
-    card.appendChild(lab);
-    card.addEventListener('click',function(){
-      scanSheet.className='sheet';
-      requestFrame(frame);
-      say('Jumped there. Use Mark \u00b15 and the zoom to settle on the exact frame.');
+      if(p&&p.catch) p.catch(function(){ finish(false); });
+      setTimeout(function(){ finish(false); },120000);
     });
-    scanGrid.appendChild(card);
-    scan.cells.push(frame);
   }
 
-  /* --- movement curve drawn into the scrubber --- */
+  /* thin to at most 24 cells, spread evenly across what was collected */
+  function thinCells(){
+    var want=24, cl=scan.cells;
+    if(cl.length<=want) return;
+    var out=[], span=cl.length-1;
+    for(var i=0;i<want;i++){
+      var pick=cl[Math.round(i*span/(want-1))];
+      if(out[out.length-1]!==pick) out.push(pick);
+    }
+    scan.cells=out;
+  }
+
+  /* Sampling starved (a few presented frames only): guarantee a usable
+     sheet by seeking to 12 evenly spaced frames instead. */
+  function seedBySeeking(back){
+    scanHead.textContent='Building the contact sheet\u2026';
+    var want=Math.min(12,state.total), i=0, cs=cellSize();
+    scan.cells=[];
+    function next(){
+      if(i>=want){ renderScan(back); return; }
+      var f=Math.round(i*(state.total-1)/Math.max(1,want-1)); i++;
+      goToFrame(f).then(function(){
+        var r=cropRect();
+        if(r){
+          var c=document.createElement('canvas'); c.width=cs.w; c.height=cs.h;
+          var x=c.getContext('2d');
+          if(x){
+            try{
+              x.drawImage(video,r.sx,r.sy,r.w,r.h,0,0,cs.w,cs.h);
+              scan.cells.push({t:frameToTime(f), cv:c});
+            }catch(_){}
+          }
+        }
+        setTimeout(next,20);
+      });
+    }
+    next();
+  }
+
+  function renderScan(back){
+    scanGrid.textContent='';
+    var lastF=-1;
+    scan.cells.forEach(function(cell){
+      var f=timeToFrame(cell.t);
+      if(f===lastF) return;
+      lastF=f;
+      var card=document.createElement('div');
+      card.className='scancard';
+      card.appendChild(cell.cv);
+      var t=timecode(f,state.fps);
+      var lab=document.createElement('div');
+      lab.className='scanlab'; lab.textContent=t.m+':'+t.s+':'+t.f;
+      card.appendChild(lab);
+      card.addEventListener('click',function(){ jumpFromScan(timeToFrame(cell.t)); });
+      scanGrid.appendChild(card);
+    });
+    scanHead.textContent=scanGrid.children.length+' moments across the clip \u00b7 tap one to go there';
+    scanNote.textContent = scan.samples.length>=8
+      ? scan.samples.length+' frames measured'
+      : 'movement could not be measured well on this device';
+    bStillest.disabled = scan.samples.length<8;
+    bScan.className='hidden';
+    bRescan.className='t';
+    drawMotion();
+    goToFrame(back);
+  }
+
+  /* Jumping must be unmistakable: close, scroll to the video, flash it. */
+  function jumpFromScan(f){
+    scanSheet.className='sheet';
+    requestFrame(f);
+    try{ stage.scrollIntoView({block:'start'}); }catch(_){}
+    stage.classList.add('flash');
+    setTimeout(function(){ stage.classList.remove('flash'); },900);
+    var t=timecode(f,state.fps);
+    say('Jumped to '+t.m+':'+t.s+':'+t.f+'. Zoom in to check it, then Mark \u00b15 if it looks promising.');
+  }
+
+  /* ---- movement curve + mark ticks, drawn into the scrubber ---- */
 
   function smoothed(){
+    /* ±2 window: a calm moment must be sustained for several presented
+       frames, so a single lucky frame mid-pan does not count. */
     var s=scan.samples, out=[];
     for(var i=0;i<s.length;i++){
-      var a=Math.max(0,i-1), b=Math.min(s.length-1,i+1);
-      out.push((s[a].diff+s[i].diff+s[b].diff)/3);
+      var a=Math.max(0,i-2), b=Math.min(s.length-1,i+2), sum=0;
+      for(var k=a;k<=b;k++) sum+=s[k].diff;
+      out.push(sum/(b-a+1));
     }
     return out;
   }
@@ -2149,67 +2262,133 @@ function injectPng(bytes, payload){
     var wCss=motionCv.clientWidth||scrubEl.clientWidth||300, hCss=26;
     var dpr=window.devicePixelRatio||1;
     motionCv.width=Math.round(wCss*dpr); motionCv.height=Math.round(hCss*dpr);
-    var g=motionCv.getContext('2d');
-    if(!g) return;
+    var g=motionCv.getContext('2d'); if(!g) return;
     g.setTransform(dpr,0,0,dpr,0,0);
     g.clearRect(0,0,wCss,hCss);
-    if(!scan.done || scan.samples.length<3) return;
-
-    var sm=smoothed(), max=0;
-    sm.forEach(function(v){ if(v>max) max=v; });
-    if(max<=0) max=1;
     var total=Math.max(1,state.total-1);
-    g.beginPath();
-    g.moveTo(0,hCss);
-    scan.samples.forEach(function(s,i){
-      var x=(s.frame/total)*wCss;
-      var y=hCss-(sm[i]/max)*(hCss-3)-1;
-      g.lineTo(x,y);
-    });
-    g.lineTo(wCss,hCss);
-    g.closePath();
-    g.fillStyle='rgba(161,161,170,.16)';
-    g.fill();
+    if(scan.done && scan.samples.length>=3){
+      var sm=smoothed(), max=0;
+      sm.forEach(function(v){ if(v>max) max=v; });
+      if(max<=0) max=1;
+      g.beginPath(); g.moveTo(0,hCss);
+      scan.samples.forEach(function(s,i){
+        var x=(timeToFrame(s.t)/total)*wCss;
+        var y=hCss-(sm[i]/max)*(hCss-3)-1;
+        g.lineTo(x,y);
+      });
+      g.lineTo(wCss,hCss); g.closePath();
+      g.fillStyle='rgba(161,161,170,.16)';
+      g.fill();
+    }
+    if(state.total>1 && state.marks.length){
+      g.fillStyle='rgba(242,163,60,.85)';
+      state.marks.forEach(function(f){
+        g.fillRect((f/total)*wCss-0.75, 0, 1.5, hCss);
+      });
+    }
   }
 
-  /* Only frames that are genuinely settled relative to this clip.
-     If the camera never stopped, this returns few or none rather than
-     padding the list with moving frames. */
-  function stillestFrames(n){
+  /* Local minima of the movement curve: where the camera moved least,
+     relative to this clip. If movement is essentially uniform, say so
+     and mark nothing rather than inventing an answer. */
+  function calmestSpots(n){
     var s=scan.samples;
-    if(s.length<3) return [];
+    if(s.length<8) return null;
     var sm=smoothed();
-    var ranked=sm.slice().sort(function(a,b){ return a-b; });
-    var lo=ranked[0], mid=ranked[Math.floor(ranked.length/2)];
-    var thresh=lo+0.25*(mid-lo);
-    var idx=[];
-    for(var i=0;i<sm.length;i++) if(sm[i]<=thresh) idx.push(i);
-    idx.sort(function(a,b){ return sm[a]-sm[b]; });
-    var picked=[], sep=Math.max(1,Math.floor(s.length/(n*2)));
-    for(var k=0;k<idx.length && picked.length<n;k++){
+    var vals=sm.slice().sort(function(a,b){ return a-b; });
+    var min=vals[0], med=vals[Math.floor(vals.length/2)];
+    if(med<=0 || (med-min) < 0.15*med) return [];
+    /* A calm moment must sit well below typical movement for this clip,
+       not merely be a local dip in the jitter. */
+    var gate=med-0.3*(med-min);
+    var cand=[];
+    for(var i=2;i<sm.length-2;i++){
+      if(sm[i]<=gate && sm[i]<=sm[i-1] && sm[i]<=sm[i+1] &&
+         sm[i]<=sm[i-2] && sm[i]<=sm[i+2]) cand.push(i);
+    }
+    cand.sort(function(a,b){ return sm[a]-sm[b]; });
+    var picked=[], sep=Math.max(2,Math.floor(s.length/(n*2)));
+    for(var k=0;k<cand.length && picked.length<n;k++){
       var ok=true;
-      for(var j=0;j<picked.length;j++){ if(Math.abs(idx[k]-picked[j])<sep){ ok=false; break; } }
-      if(ok) picked.push(idx[k]);
+      for(var j=0;j<picked.length;j++){
+        if(Math.abs(cand[k]-picked[j])<sep){ ok=false; break; }
+      }
+      if(ok) picked.push(cand[k]);
     }
     picked.sort(function(a,b){ return a-b; });
-    return picked.map(function(i){ return s[i].frame; });
+    return picked.map(function(i){ return s[i].t; });
   }
 
   bScan.addEventListener('click',runScan);
   bRescan.addEventListener('click',runScan);
-  bScanClose.addEventListener('click',function(){ scanSheet.className='sheet'; });
+  bScanClose.addEventListener('click',function(){
+    if(scan.running && scan.stop){ scan.stop(true); }
+    scanSheet.className='sheet';
+  });
   bStillest.addEventListener('click',function(){
-    var picks=stillestFrames(5);
-    if(!picks.length){ say('Scan the clip first.'); return; }
+    var ts=calmestSpots(5);
+    if(ts===null){ scanHead.textContent='Not enough movement data \u2014 scan the clip again.'; return; }
+    if(!ts.length){
+      scanHead.textContent='Movement is basically uniform in this clip, so no moment stands out. Pick from the thumbnails instead.';
+      return;
+    }
     var added=0;
-    picks.forEach(function(f){ if(state.marks.indexOf(f)<0){ state.marks.push(f); added++; } });
+    ts.forEach(function(t){
+      var f=timeToFrame(t);
+      if(state.marks.indexOf(f)<0){ state.marks.push(f); added++; }
+    });
     paintMarks();
     scanSheet.className='sheet';
-    say(added
-      ? 'Marked '+added+' settled moment'+(added===1?'':'s')+'. This is where the camera stopped moving, not a judgement about the picture \u2014 go and look.'
-      : 'The camera never really settled in this clip, so nothing stood out. Use the contact sheet instead.');
+    try{ marksEl.scrollIntoView({block:'center'}); }catch(_){}
+    say('Marked '+added+' calm moment'+(added===1?'':'s')+' \u2014 where the camera moved least. That is navigation, not a verdict on the pictures.');
   });
   window.addEventListener('resize',drawMotion);
+
+  /* ========================== ZEBRAS ==========================
+     Diagonal stripes over pixels at pure white: detail that is gone
+     and cannot be recovered. Drawn only on paused frames. */
+
+  var zebraCv=$('zebracv'), zebraBox=$('zebra'), zebraTimer=null;
+
+  function drawZebra(){
+    if(!zebraBox || !zebraBox.checked || !video.videoWidth || !video.paused){
+      if(zebraCv) zebraCv.className='zebra';
+      return;
+    }
+    var W=192, H=Math.max(8,Math.round(W*video.videoHeight/video.videoWidth));
+    var c=document.createElement('canvas'); c.width=W; c.height=H;
+    var x=c.getContext('2d',{willReadFrequently:true});
+    if(!x) return;
+    var d;
+    try{ x.drawImage(video,0,0,W,H); d=x.getImageData(0,0,W,H).data; }
+    catch(_){ return; }
+    zebraCv.width=W; zebraCv.height=H;
+    var g=zebraCv.getContext('2d');
+    g.clearRect(0,0,W,H);
+    g.fillStyle='rgba(242,163,60,.85)';
+    for(var y=0;y<H;y++){
+      for(var xx=0;xx<W;xx++){
+        var i=(y*W+xx)*4;
+        if(d[i]>=250 && d[i+1]>=250 && d[i+2]>=250 && (((xx+y)>>2)&1)){
+          g.fillRect(xx,y,1,1);
+        }
+      }
+    }
+    zebraCv.className='zebra on';
+  }
+  function zebraSoon(){ clearTimeout(zebraTimer); zebraTimer=setTimeout(drawZebra,90); }
+
+  if(zebraBox){
+    zebraBox.addEventListener('change',function(){
+      if(zebraBox.checked){
+        zebraSoon();
+        say('Zebras on: stripes mark blown-out highlights \u2014 pure white with no detail left to recover.');
+      } else {
+        zebraCv.className='zebra';
+        say('Zebras off.');
+      }
+    });
+  }
 
   setFrameUI(0); renderDiag();
 })();
