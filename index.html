@@ -58,8 +58,11 @@
   .stage{position:relative;background:var(--deck);border:1px solid var(--rule);border-radius:3px;
     overflow:hidden;display:flex;align-items:center;justify-content:center;min-height:210px}
   .stage.dragging{border-color:var(--phos)}
-  video{display:block;max-width:100%;max-height:42vh;width:auto;height:auto;background:#000}
-  video:not(.live){display:none}
+  .viewport{position:relative;overflow:hidden;width:100%;display:none;
+    align-items:center;justify-content:center;touch-action:none}
+  .viewport.live{display:flex}
+  .vframe{position:relative;line-height:0;transform-origin:center center;will-change:transform}
+  video{display:block;max-width:100%;max-height:46vh;width:auto;height:auto;background:#000}
   .drop{padding:44px 22px;text-align:center;width:100%}
   .drop h1{font-size:18px;font-weight:450;margin-bottom:7px}
   .drop p{color:var(--dim);font-size:13px;line-height:1.6;max-width:36ch;margin:0 auto 20px}
@@ -164,7 +167,7 @@
     margin-bottom:12px;line-height:1.6}
 
   /* crop */
-  .cropwrap{position:absolute;display:none;pointer-events:none;touch-action:none;overflow:hidden}
+  .cropwrap{position:absolute;inset:0;display:none;pointer-events:none;touch-action:none;overflow:hidden}
   .cropwrap.editing{pointer-events:auto;cursor:move}
   .cropbox{position:absolute;box-shadow:0 0 0 9999px rgba(10,10,11,.62);
     border:1px solid rgba(255,255,255,.9);box-sizing:border-box}
@@ -175,6 +178,10 @@
   .cropbox::after{background:
     linear-gradient(180deg,transparent 33.33%,rgba(255,255,255,.28) 33.33% calc(33.33% + 1px),
     transparent calc(33.33% + 1px) 66.66%,rgba(255,255,255,.28) 66.66% calc(66.66% + 1px),transparent calc(66.66% + 1px))}
+  .zoomrow{display:none;align-items:center;gap:7px;margin-top:12px}
+  .zoomrow.on{display:flex}
+  .zoomrow .eyebrow{flex:1}
+  .zoomrow button{padding:9px 13px}
   .cropbar{display:none;margin-top:12px}
   .cropbar.on{display:block}
   .ratios{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;-webkit-overflow-scrolling:touch}
@@ -208,9 +215,12 @@
   .cmpstage{flex:1;min-height:0;position:relative;overflow:hidden;background:#000;
     touch-action:none;cursor:grab;border:1px solid var(--rule);border-radius:3px}
   .cmpstage img{position:absolute;inset:0;margin:auto;max-width:100%;max-height:100%;
-    width:auto;height:auto;transform-origin:center center;will-change:transform;
-    opacity:0;image-rendering:auto}
+    width:auto;height:auto;transform-origin:center center;will-change:transform;opacity:0}
   .cmpstage img.on{opacity:1}
+  .cmppin{position:absolute;top:8px;left:8px;font-family:var(--mono);font-size:9px;
+    letter-spacing:.12em;text-transform:uppercase;background:var(--phos);color:var(--void);
+    padding:3px 7px;border-radius:2px;z-index:2;display:none}
+  .cmppin.on{display:block}
   .cmpholder{position:relative}
   .focusdot{position:absolute;width:22px;height:22px;margin:-11px 0 0 -11px;
     border:1px solid var(--phos);border-radius:50%;pointer-events:none;
@@ -250,8 +260,12 @@
       <button class="pick" id="pick">Choose a video</button>
       <input type="file" id="file" accept="video/*" class="hidden">
     </div>
-    <video id="video" playsinline muted preload="metadata"></video>
-    <div class="cropwrap" id="cropwrap"><div class="cropbox" id="cropbox"></div></div>
+    <div class="viewport" id="viewport">
+      <div class="vframe" id="vframe">
+        <video id="video" playsinline muted preload="metadata"></video>
+        <div class="cropwrap" id="cropwrap"><div class="cropbox" id="cropbox"></div></div>
+      </div>
+    </div>
     <div class="busy" id="busy"><span id="busytext">Reading</span></div>
   </div>
 
@@ -262,6 +276,12 @@
       <button class="t" id="bcropreset" style="padding:9px 13px">Reset</button>
       <button class="t" id="bcropdone" style="padding:9px 13px">Done</button>
     </div>
+  </div>
+
+  <div class="zoomrow" id="zoomrow">
+    <span class="eyebrow" id="zoomlabel">Fit</span>
+    <button class="t" id="bzoomfit">Fit</button>
+    <button class="t" id="bzoomone">Actual pixels</button>
   </div>
 
   <div class="readout">
@@ -299,12 +319,13 @@
   <button class="t wide primary" id="bsave" disabled>Save this frame</button>
   <div class="row2">
     <button class="t" id="bmark" disabled>Mark frame</button>
-    <button class="t" id="bcrop" disabled>Crop</button>
+    <button class="t" id="bburst" disabled>Mark &plusmn;5</button>
   </div>
   <div class="row2">
+    <button class="t" id="bcrop" disabled>Crop</button>
     <button class="t" id="bcompare" disabled>Compare marks</button>
-    <button class="t" id="bnew">Choose another video</button>
   </div>
+  <button class="t wide" id="bnew">Choose another video</button>
 
   <div class="settings">
     <div class="field">
@@ -355,27 +376,31 @@
 
 <div class="sheet" id="cmp">
   <div class="cmpbar2">
-    <button class="t" id="bcmpfocus" style="flex:1">Focus: whole frame</button>
-    <button class="t" id="bcmpsort" style="flex:1">Sort by sharpness</button>
-    <button class="t" id="bcmpclose" style="flex:none;padding:15px 16px">Close</button>
+    <button class="t" id="bcmpclose" style="flex:1">Close</button>
   </div>
   <div class="cmphead" id="cmphead"></div>
   <div class="cmpgrid" id="cmpgrid"></div>
-  <button class="t wide primary" id="bcmpab" disabled>Compare the two selected</button>
 </div>
 
 <div class="cmpab" id="cmpab">
   <div class="cmpstage" id="cmpstage">
-    <img id="cmpimga" alt="Frame A"><img id="cmpimgb" alt="Frame B">
+    <img id="laypin" alt="Pinned frame"><img id="laycur" alt="Current frame">
   </div>
   <div class="cmpablabel" id="cmpablabel"></div>
-  <div class="cmpabhint">Tap to flip. Pinch to zoom &mdash; both frames stay locked to the same spot.</div>
+  <div class="cmpabhint" id="cmpabhint">Tap the picture to flip against the pinned frame. Pinch to zoom &mdash; every frame stays locked to the same spot.</div>
   <div class="row2" style="margin-top:0">
+    <button class="t" id="bprev">&#9664; Prev</button>
+    <button class="t" id="bnext">Next &#9654;</button>
+  </div>
+  <div class="row2">
     <button class="t" id="bfit">Fit</button>
     <button class="t" id="bone">Actual pixels</button>
   </div>
-  <button class="t wide primary" id="cmpflip">Flip</button>
-  <button class="t wide" id="babback">Back to the grid</button>
+  <button class="t wide primary" id="bpin">Pin this one as the one to beat</button>
+  <div class="row2">
+    <button class="t" id="bsaveab">Save this frame</button>
+    <button class="t" id="babback">Back to the grid</button>
+  </div>
 </div>
 
 <div class="sheet" id="sheet">
@@ -403,7 +428,8 @@
       mName=$('mName'), mRes=$('mRes'), mFps=$('mFps'), mFrame=$('mFrame'), mTotal=$('mTotal');
 
   var btns = { b10back:$('b10back'), bback:$('bback'), bplay:$('bplay'), bfwd:$('bfwd'),
-               b10fwd:$('b10fwd'), bmark:$('bmark'), bsave:$('bsave'), bcrop:$('bcrop') };
+               b10fwd:$('b10fwd'), bmark:$('bmark'), bsave:$('bsave'), bcrop:$('bcrop'),
+               bburst:$('bburst') };
 
 
 /* ===== capture metadata + EXIF ===== */
@@ -1007,7 +1033,8 @@ function injectPng(bytes, payload){
     video.onloadedmetadata=function(){
       if(failed) return;
       working(true,'Reading frame rate');
-      drop.className='drop gone'; video.className='live'; mName.textContent=file.name;
+      drop.className='drop gone'; viewport.className='viewport live';
+      zoomRow.className='zoomrow on'; mName.textContent=file.name;
 
       detectFps().then(function(raw){
         var snapped=raw?snapToStandard(raw):null, note='', warn=false;
@@ -1028,7 +1055,7 @@ function injectPng(bytes, payload){
           fpsSel.appendChild(c);
         }
         video.currentTime=0; recomputeTotal(); setEnabled(true); working(false);
-        setTimeout(layoutCrop,60);
+        zoomFit(); setTimeout(layoutCrop,60);
         goToFrame(0).then(function(){
           canvasState=testCanvas(); renderDiag();
           if(canvasState!=='working'){
@@ -1405,6 +1432,16 @@ function injectPng(bytes, payload){
   holdRepeat(btns.bfwd,      1);
   holdRepeat(btns.b10fwd,   10);
   btns.bmark.addEventListener('click',toggleMark);
+  $('bburst').addEventListener('click',function(){
+    if(!state.ready) return;
+    var added=0;
+    for(var d=-5;d<=5;d++){
+      var f=clampFrame(state.frame+d);
+      if(state.marks.indexOf(f)<0){ state.marks.push(f); added++; }
+    }
+    paintMarks();
+    say('Marked '+added+' frames around this one. Open Compare to look through them.');
+  });
   btns.bsave.addEventListener('click',saveCurrent);
   p3Box.addEventListener('change',function(){
     say(p3Box.checked
@@ -1478,21 +1515,13 @@ function injectPng(bytes, payload){
 
   function layoutCrop(){
     var r = cropRect();
-    if(!r || !video.videoWidth || !video.classList.contains('live')){
-      cropWrap.style.display='none'; return;
-    }
-    var vb = video.getBoundingClientRect(), sb = stage.getBoundingClientRect();
-    if(!vb.width){ cropWrap.style.display='none'; return; }
-    var k = vb.width / video.videoWidth;
+    if(!r || !video.videoWidth){ cropWrap.style.display='none'; return; }
+    var W=video.videoWidth, H=video.videoHeight;
     cropWrap.style.display = (cropMode || !isFullFrame()) ? 'block' : 'none';
-    cropWrap.style.left=(vb.left-sb.left)+'px';
-    cropWrap.style.top=(vb.top-sb.top)+'px';
-    cropWrap.style.width=vb.width+'px';
-    cropWrap.style.height=vb.height+'px';
-    cropBox.style.left=(r.sx*k)+'px';
-    cropBox.style.top=(r.sy*k)+'px';
-    cropBox.style.width=(r.w*k)+'px';
-    cropBox.style.height=(r.h*k)+'px';
+    cropBox.style.left=(r.sx/W*100)+'%';
+    cropBox.style.top=(r.sy/H*100)+'%';
+    cropBox.style.width=(r.w/W*100)+'%';
+    cropBox.style.height=(r.h/H*100)+'%';
     cropWrap.className = 'cropwrap' + (cropMode ? ' editing' : '');
     cropDims.textContent = Math.round(r.w)+' \u00d7 '+Math.round(r.h)+' px';
   }
@@ -1573,94 +1602,110 @@ function injectPng(bytes, payload){
   window.addEventListener('resize', layoutCrop);
   window.addEventListener('orientationchange', function(){ setTimeout(layoutCrop,300); });
 
+  /* ====================== MAIN VIEW ZOOM ======================
+     Park at actual pixels on your subject, then step frames underneath it. */
+
+  var viewport=$('viewport'), vframe=$('vframe'), zoomRow=$('zoomrow'), zoomLabel=$('zoomlabel');
+  var vz={z:1,tx:0,ty:0};
+
+  function applyZoom(){
+    vframe.style.transform='translate('+vz.tx+'px,'+vz.ty+'px) scale('+vz.z+')';
+    zoomLabel.textContent = vz.z<=1.001 ? 'Fit to screen' : '\u00d7'+vz.z.toFixed(1)+' zoom';
+    layoutCrop();
+  }
+  function clampZoom(){
+    var w=vframe.offsetWidth||1, h=vframe.offsetHeight||1;
+    var mx=Math.max(0,(w*vz.z-w)/2), my=Math.max(0,(h*vz.z-h)/2);
+    vz.tx=clamp(vz.tx,-mx,mx); vz.ty=clamp(vz.ty,-my,my);
+  }
+  function zoomFit(){ vz={z:1,tx:0,ty:0}; applyZoom(); }
+  function zoomActual(){
+    if(!video.videoWidth || !vframe.offsetWidth) return;
+    var w=vframe.offsetWidth, dpr=window.devicePixelRatio||1;
+    vz.z=clamp((video.videoWidth||w)/(w*dpr), 1, 12);
+    vz.tx=0; vz.ty=0; applyZoom();
+  }
+
+  var vPtr={}, vPinch=null, vTapTime=0;
+  function vCount(){ return Object.keys(vPtr).length; }
+  function vDist(){
+    var k=Object.keys(vPtr); if(k.length<2) return 0;
+    var a=vPtr[k[0]], b=vPtr[k[1]];
+    return Math.sqrt((a.x-b.x)*(a.x-b.x)+(a.y-b.y)*(a.y-b.y));
+  }
+  viewport.addEventListener('pointerdown',function(e){
+    if(!state.ready) return;
+    e.preventDefault();
+    if(viewport.setPointerCapture){ try{ viewport.setPointerCapture(e.pointerId); }catch(_){} }
+    vPtr[e.pointerId]={x:e.clientX,y:e.clientY,moved:false};
+    if(vCount()===2) vPinch={d:vDist(),z:vz.z};
+  });
+  viewport.addEventListener('pointermove',function(e){
+    var p=vPtr[e.pointerId]; if(!p) return;
+    e.preventDefault();
+    var dx=e.clientX-p.x, dy=e.clientY-p.y;
+    vPtr[e.pointerId]={x:e.clientX,y:e.clientY,moved:p.moved||Math.abs(dx)>3||Math.abs(dy)>3};
+    if(vCount()>=2 && vPinch && vPinch.d>6){
+      vz.z=clamp(vPinch.z*(vDist()/vPinch.d),1,12);
+    } else if(vz.z>1.001){
+      vz.tx+=dx; vz.ty+=dy;
+    }
+    clampZoom(); applyZoom();
+  });
+  ['pointerup','pointercancel'].forEach(function(ev){
+    viewport.addEventListener(ev,function(e){
+      var p=vPtr[e.pointerId], single=vCount()===1;
+      delete vPtr[e.pointerId];
+      if(vCount()<2) vPinch=null;
+      if(single && p && !p.moved){
+        var now=Date.now();
+        if(now-vTapTime<320){ vz.z>1.001 ? zoomFit() : zoomActual(); vTapTime=0; }
+        else vTapTime=now;
+      }
+    });
+  });
+  $('bzoomfit').addEventListener('click',zoomFit);
+  $('bzoomone').addEventListener('click',zoomActual);
+
   /* ========================= COMPARE ========================= */
 
   var cmp=$('cmp'), cmpGrid=$('cmpgrid'), cmpHead=$('cmphead'), cmpAB=$('cmpab'),
-      cmpStage=$('cmpstage'), cmpImgA=$('cmpimga'), cmpImgB=$('cmpimgb'),
+      cmpStage=$('cmpstage'), layPin=$('laypin'), layCur=$('laycur'),
       cmpABLabel=$('cmpablabel'), bCompare=$('bcompare'), bCmpClose=$('bcmpclose'),
-      bCmpAB=$('bcmpab'), bCmpSort=$('bcmpsort'), bCmpFocus=$('bcmpfocus'),
-      bABBack=$('babback'), bFit=$('bfit'), bOne=$('bone');
+      bABBack=$('babback'), bFit=$('bfit'), bOne=$('bone'), bPin=$('bpin'),
+      bPrev=$('bprev'), bNext=$('bnext'), bSaveAB=$('bsaveab');
 
-  var MAX_COMPARE = 20;
-  var cmpItems=[], cmpSel=[], cmpSort='order', cmpReturn=0, abShowing=0;
-  var focusPt=null, focusArming=false;
-  var abUrls=[null,null];
-  var view={z:1,tx:0,ty:0};
+  var MAX_COMPARE=20, MAX_FULL=8;
+  var cmpItems=[], cmpReturn=0, curIdx=0, pinIdx=0, showingPin=false, loadOrder=[];
+  var abView={z:1,tx:0,ty:0};
 
-  /* --- measurement ---------------------------------------------------- */
-
-  function laplacianVar(lum,lw,lh,x0,y0,x1,y1){
-    x0=Math.max(1,Math.round(x0)); y0=Math.max(1,Math.round(y0));
-    x1=Math.min(lw-1,Math.round(x1)); y1=Math.min(lh-1,Math.round(y1));
-    var sum=0,sum2=0,n=0;
-    for(var y=y0;y<y1;y++){
-      for(var x=x0;x<x1;x++){
-        var i=y*lw+x;
-        var L=4*lum[i]-lum[i-1]-lum[i+1]-lum[i-lw]-lum[i+lw];
-        sum+=L; sum2+=L*L; n++;
-      }
-    }
-    if(!n) return 0;
-    var m=sum/n;
-    return Math.max(0, sum2/n - m*m);
+  function releaseItems(){
+    cmpItems.forEach(function(it){
+      if(it.url) URL.revokeObjectURL(it.url);
+      if(it.full) URL.revokeObjectURL(it.full);
+    });
+    cmpItems=[]; loadOrder=[];
   }
-
-  /* Whole frame, or a window around the spot you chose. */
-  function rawScore(it){
-    if(!it.lum) return 0;
-    if(!focusPt) return laplacianVar(it.lum,it.lw,it.lh,0,0,it.lw,it.lh);
-    var bw=it.lw*0.26, bh=it.lh*0.26;
-    var cx=focusPt.x*it.lw, cy=focusPt.y*it.lh;
-    return laplacianVar(it.lum,it.lw,it.lh, cx-bw/2, cy-bh/2, cx+bw/2, cy+bh/2);
-  }
-  function rescore(){
-    cmpItems.forEach(function(it){ it.sharp = rawScore(it); });
-  }
-  function bestSharp(){
-    var m=0; cmpItems.forEach(function(it){ if(it.sharp>m) m=it.sharp; });
-    return m||1;
-  }
-  function sharpScore(v){
-    var top=bestSharp();
-    return top>0 ? Math.round(Math.sqrt(Math.max(0,v)/top)*100) : 0;
-  }
-
-  /* --- capture -------------------------------------------------------- */
 
   function grabThumb(){
     var r=cropRect(); if(!r) return Promise.resolve(null);
     var TH=640, s=Math.min(TH/Math.max(r.w,r.h),1);
     var w=Math.max(8,Math.round(r.w*s)), h=Math.max(8,Math.round(r.h*s));
     var c=document.createElement('canvas'); c.width=w; c.height=h;
-    var x=c.getContext('2d');
+    var x=c.getContext('2d',{willReadFrequently:true});
     if(!x) return Promise.resolve(null);
     try{ x.drawImage(video,r.sx,r.sy,r.w,r.h,0,0,w,h); }catch(_){ return Promise.resolve(null); }
-
-    var LM=400, ls=Math.min(LM/Math.max(r.w,r.h),1);
-    var lw=Math.max(8,Math.round(r.w*ls)), lh=Math.max(8,Math.round(r.h*ls));
-    var lc=document.createElement('canvas'); lc.width=lw; lc.height=lh;
-    var lx=lc.getContext('2d',{willReadFrequently:true});
-    var lum=null, clip=0;
-    if(lx){
-      try{
-        lx.drawImage(video,r.sx,r.sy,r.w,r.h,0,0,lw,lh);
-        var d=lx.getImageData(0,0,lw,lh).data;
-        lum=new Uint8ClampedArray(lw*lh);
-        for(var i=0,p=0;i<d.length;i+=4,p++){
-          lum[p]=(0.2126*d[i]+0.7152*d[i+1]+0.0722*d[i+2])|0;
-          if(d[i]>=252&&d[i+1]>=252&&d[i+2]>=252) clip++;
-        }
-        clip = clip/(lw*lh)*100;
-      }catch(_){ lum=null; }
-    }
+    var clip=0;
+    try{
+      var d=x.getImageData(0,0,w,h).data;
+      for(var i=0;i<d.length;i+=4) if(d[i]>=252&&d[i+1]>=252&&d[i+2]>=252) clip++;
+      clip=clip/(w*h)*100;
+    }catch(_){}
     return new Promise(function(res){
-      c.toBlob(function(b){
-        res({ url:b?URL.createObjectURL(b):null, lum:lum, lw:lw, lh:lh, clip:clip });
-      },'image/jpeg',0.85);
+      c.toBlob(function(b){ res({url:b?URL.createObjectURL(b):null, clip:clip}); },'image/jpeg',0.85);
     });
   }
 
-  /* Full native resolution — this is what you actually judge focus on. */
   function grabFull(){
     var r=cropRect(); if(!r) return Promise.resolve(null);
     var w=Math.round(r.w), h=Math.round(r.h);
@@ -1673,102 +1718,64 @@ function injectPng(bytes, payload){
     });
   }
 
-  /* --- grid ----------------------------------------------------------- */
-
-  function releaseItems(){
-    cmpItems.forEach(function(it){ if(it.url) URL.revokeObjectURL(it.url); });
-    cmpItems=[];
+  /* Keep only a handful of full-size frames in memory at once. */
+  function ensureFull(i){
+    var it=cmpItems[i];
+    if(!it) return Promise.resolve(null);
+    if(it.full){ touchLoaded(i); return Promise.resolve(it.full); }
+    return goToFrame(it.frame).then(grabFull).then(function(u){
+      it.full=u; touchLoaded(i); evictFulls();
+      return u;
+    });
   }
-  function releaseAB(){
-    for(var i=0;i<2;i++){ if(abUrls[i]){ URL.revokeObjectURL(abUrls[i]); abUrls[i]=null; } }
-    cmpImgA.removeAttribute('src'); cmpImgB.removeAttribute('src');
+  function touchLoaded(i){
+    var p=loadOrder.indexOf(i);
+    if(p>=0) loadOrder.splice(p,1);
+    loadOrder.push(i);
+  }
+  function evictFulls(){
+    while(loadOrder.length>MAX_FULL){
+      var i=loadOrder.shift();
+      if(i===curIdx || i===pinIdx){ loadOrder.push(i); continue; }
+      var it=cmpItems[i];
+      if(it && it.full){ URL.revokeObjectURL(it.full); it.full=null; }
+    }
   }
 
   function openCmp(){ cmp.className='sheet on'; cmpAB.className='cmpab'; }
-  function closeCmp(){
+  function closeCmp(target){
     cmp.className='sheet'; cmpAB.className='cmpab';
-    releaseAB(); releaseItems();
-    cmpSel=[]; focusPt=null; focusArming=false;
-    bCmpFocus.textContent='Focus: whole frame';
-    cmpGrid.textContent='';
-    if(state.ready) requestFrame(cmpReturn);
+    layPin.removeAttribute('src'); layCur.removeAttribute('src');
+    releaseItems(); cmpGrid.textContent='';
+    var f = (typeof target==='number') ? target : cmpReturn;
+    return state.ready ? goToFrame(f) : Promise.resolve();
   }
 
-  function renderCmp(building){
-    var list=cmpItems.slice();
-    if(cmpSort==='sharp') list.sort(function(a,b){ return b.sharp-a.sharp; });
-    else list.sort(function(a,b){ return a.frame-b.frame; });
-
-    if(building) cmpHead.textContent='Measuring \u2014 '+cmpItems.length+' done';
-    else if(focusArming) cmpHead.textContent='Tap the part of any frame that should be sharp.';
-    else if(focusPt) cmpHead.textContent='Sharpness measured only around the spot you marked.';
-    else cmpHead.textContent='Sharpness across the whole frame, relative to the best here.';
-
+  function renderGrid(building){
+    cmpHead.textContent = building
+      ? 'Collecting \u2014 '+cmpItems.length+' done'
+      : cmpItems.length+' marked frames \u00b7 tap one to inspect it at full resolution';
     cmpGrid.textContent='';
-    list.forEach(function(it){
-      var score=sharpScore(it.sharp);
+    cmpItems.forEach(function(it,i){
       var card=document.createElement('div');
-      card.className='cmpcard'+(cmpSel.indexOf(it.frame)>=0?' sel':'');
-
-      var holder=document.createElement('div');
-      holder.className='cmpholder';
-      var im=document.createElement('img');
-      im.src=it.url||''; im.alt='Frame '+it.frame;
-      holder.appendChild(im);
-      if(focusPt){
-        var dot=document.createElement('span');
-        dot.className='focusdot';
-        dot.style.left=(focusPt.x*100)+'%';
-        dot.style.top=(focusPt.y*100)+'%';
-        holder.appendChild(dot);
-      }
-      card.appendChild(holder);
+      card.className='cmpcard';
+      var holder=document.createElement('div'); holder.className='cmpholder';
+      var im=document.createElement('img'); im.src=it.url||''; im.alt='Frame '+it.frame;
+      holder.appendChild(im); card.appendChild(holder);
 
       var t=timecode(it.frame,state.fps);
       var lab=document.createElement('div');
       lab.className='cmplab'; lab.textContent=t.h+':'+t.m+':'+t.s+':'+t.f;
       card.appendChild(lab);
 
-      var bar=document.createElement('div');
-      bar.className='cmpbar';
-      var fill=document.createElement('span'); fill.style.width=score+'%';
-      bar.appendChild(fill); card.appendChild(bar);
-
-      var sub=document.createElement('div');
-      sub.className='cmpsub';
-      var bits=['sharp '+score];
-      if(it.clip>=1) bits.push(Math.round(it.clip)+'% blown');
-      sub.textContent=bits.join('  \u00b7  ');
-      card.appendChild(sub);
-
-      if(score===100 && !building){
-        var badge=document.createElement('div');
-        badge.className='cmpbadge'; badge.textContent='sharpest';
-        card.appendChild(badge);
+      if(it.clip>=1){
+        var sub=document.createElement('div');
+        sub.className='cmpsub'; sub.textContent=Math.round(it.clip)+'% blown out';
+        card.appendChild(sub);
       }
-
-      card.addEventListener('click',function(ev){
-        if(focusArming){
-          var r=im.getBoundingClientRect();
-          if(r.width && r.height){
-            focusPt={ x:clamp((ev.clientX-r.left)/r.width,0,1),
-                      y:clamp((ev.clientY-r.top)/r.height,0,1) };
-            focusArming=false;
-            bCmpFocus.textContent='Focus: chosen spot';
-            rescore(); renderCmp(false);
-          }
-          return;
-        }
-        var i=cmpSel.indexOf(it.frame);
-        if(i>=0) cmpSel.splice(i,1);
-        else { cmpSel.push(it.frame); if(cmpSel.length>2) cmpSel.shift(); }
-        bCmpAB.disabled = cmpSel.length!==2;
-        renderCmp(false);
-      });
-
+      card.addEventListener('click',function(){ if(!building) openFlip(i); });
       cmpGrid.appendChild(card);
     });
-    bCmpAB.disabled = cmpSel.length!==2;
   }
 
   function buildCompare(){
@@ -1777,81 +1784,102 @@ function injectPng(bytes, payload){
     var list=state.marks.slice().sort(function(a,b){ return a-b; });
     var capped=false;
     if(list.length>MAX_COMPARE){ list=list.slice(0,MAX_COMPARE); capped=true; }
-    releaseItems(); cmpSel=[]; focusPt=null; focusArming=false;
-    bCmpFocus.textContent='Focus: whole frame';
-    openCmp(); renderCmp(true);
+    releaseItems();
+    openCmp(); renderGrid(true);
     var i=0;
     function next(){
       if(i>=list.length){
-        rescore(); renderCmp(false);
-        if(capped) say('Comparing the first '+MAX_COMPARE+' marks.');
+        renderGrid(false);
+        if(capped) say('Showing the first '+MAX_COMPARE+' marks.');
         return;
       }
       var f=list[i++];
       goToFrame(f).then(grabThumb).then(function(s){
-        if(s) cmpItems.push({frame:f,url:s.url,lum:s.lum,lw:s.lw,lh:s.lh,clip:s.clip,sharp:0});
-        rescore(); renderCmp(true);
+        if(s) cmpItems.push({frame:f,url:s.url,clip:s.clip,full:null});
+        renderGrid(true);
         setTimeout(next,20);
       });
     }
     next();
   }
 
-  /* --- A / B at full resolution, both locked to one zoom --------------- */
+  /* --- flipbook: step through all, always against the pinned one --- */
 
-  function applyView(){
-    var t='translate('+view.tx+'px,'+view.ty+'px) scale('+view.z+')';
-    cmpImgA.style.transform=t; cmpImgB.style.transform=t;
+  function applyAB(){
+    var t='translate('+abView.tx+'px,'+abView.ty+'px) scale('+abView.z+')';
+    layPin.style.transform=t; layCur.style.transform=t;
   }
-  function clampView(){
-    var w=cmpImgA.offsetWidth||1, h=cmpImgA.offsetHeight||1;
-    var mx=Math.max(0,(w*view.z-w)/2), my=Math.max(0,(h*view.z-h)/2);
-    view.tx=clamp(view.tx,-mx,mx); view.ty=clamp(view.ty,-my,my);
+  function clampAB(){
+    var w=layCur.offsetWidth||1, h=layCur.offsetHeight||1;
+    var mx=Math.max(0,(w*abView.z-w)/2), my=Math.max(0,(h*abView.z-h)/2);
+    abView.tx=clamp(abView.tx,-mx,mx); abView.ty=clamp(abView.ty,-my,my);
   }
-  function fitView(){ view={z:1,tx:0,ty:0}; applyView(); updateABLabel(); }
-  function pixelView(){
-    var w=cmpImgA.offsetWidth||1, dpr=window.devicePixelRatio||1;
-    var nat=cmpImgA.naturalWidth||w;
-    view.z=Math.max(1, nat/(w*dpr));
-    view.tx=0; view.ty=0; applyView(); updateABLabel();
+  function abFit(){ abView={z:1,tx:0,ty:0}; applyAB(); labelAB(); }
+  function abActual(){
+    if(!layCur.naturalWidth || !layCur.offsetWidth) return;
+    var w=layCur.offsetWidth, dpr=window.devicePixelRatio||1;
+    abView.z=clamp(layCur.naturalWidth/(w*dpr),1,12);
+    abView.tx=0; abView.ty=0; applyAB(); labelAB();
   }
-  function itemFor(f){
-    for(var i=0;i<cmpItems.length;i++) if(cmpItems[i].frame===f) return cmpItems[i];
-    return null;
-  }
-  function updateABLabel(){
-    var it=itemFor(cmpSel[abShowing]);
+
+  function labelAB(){
+    var it=cmpItems[showingPin?pinIdx:curIdx];
     if(!it) return;
     var t=timecode(it.frame,state.fps);
-    cmpABLabel.textContent=(abShowing===0?'A':'B')+'   '+t.h+':'+t.m+':'+t.s+':'+t.f+
-      '   sharp '+sharpScore(it.sharp)+'   \u00d7'+view.z.toFixed(1);
+    var which = showingPin ? 'PINNED' : ((curIdx+1)+' of '+cmpItems.length);
+    cmpABLabel.textContent = which+'   '+t.h+':'+t.m+':'+t.s+':'+t.f+
+      '   \u00d7'+abView.z.toFixed(1)+(curIdx===pinIdx?'   (this is the pinned one)':'');
   }
-  function showAB(which){
-    abShowing=which;
-    cmpImgA.className = which===0 ? 'on' : '';
-    cmpImgB.className = which===1 ? 'on' : '';
-    updateABLabel();
+  function showLayer(pinned){
+    showingPin = pinned && (pinIdx!==curIdx);
+    layPin.className = showingPin ? 'on' : '';
+    layCur.className = showingPin ? '' : 'on';
+    labelAB();
   }
 
-  function enterAB(){
-    if(cmpSel.length!==2) return;
+  function loadCur(){
+    cmpABLabel.textContent='Loading at full resolution\u2026';
+    return ensureFull(curIdx).then(function(u){
+      if(u) layCur.src=u;
+      showLayer(false);
+    });
+  }
+  function loadPin(){
+    return ensureFull(pinIdx).then(function(u){ if(u) layPin.src=u; });
+  }
+
+  function openFlip(i){
+    curIdx=i; pinIdx=i; showingPin=false;
     cmpAB.className='cmpab on';
-    cmpABLabel.textContent='Loading both at full resolution\u2026';
-    releaseAB();
-    var i=0;
-    function grab(){
-      if(i>=2){ fitView(); showAB(0); return; }
-      var f=cmpSel[i];
-      goToFrame(f).then(grabFull).then(function(u){
-        abUrls[i]=u;
-        if(u) (i===0?cmpImgA:cmpImgB).src=u;
-        i++; grab();
-      });
-    }
-    grab();
+    abView={z:1,tx:0,ty:0}; applyAB();
+    loadCur().then(loadPin);
+  }
+  function moveTo(i){
+    if(!cmpItems.length) return;
+    curIdx=(i+cmpItems.length)%cmpItems.length;
+    loadCur();
   }
 
-  var aPtr={}, aPinch=null, aMoved=false;
+  bCompare.addEventListener('click',buildCompare);
+  bCmpClose.addEventListener('click',closeCmp);
+  bABBack.addEventListener('click',function(){ cmpAB.className='cmpab'; });
+  bPrev.addEventListener('click',function(){ moveTo(curIdx-1); });
+  bNext.addEventListener('click',function(){ moveTo(curIdx+1); });
+  bFit.addEventListener('click',abFit);
+  bOne.addEventListener('click',abActual);
+  bPin.addEventListener('click',function(){
+    pinIdx=curIdx; showingPin=false;
+    loadPin().then(function(){ showLayer(false); });
+    say('Pinned. Step through the rest and tap the picture to compare each against it.');
+  });
+  bSaveAB.addEventListener('click',function(){
+    var it=cmpItems[showingPin?pinIdx:curIdx];
+    if(!it) return;
+    var f=it.frame;
+    closeCmp(f).then(function(){ saveCurrent(); });
+  });
+
+  var aPtr={}, aPinch=null;
   function aCount(){ return Object.keys(aPtr).length; }
   function aDist(){
     var k=Object.keys(aPtr); if(k.length<2) return 0;
@@ -1861,53 +1889,28 @@ function injectPng(bytes, payload){
   cmpStage.addEventListener('pointerdown',function(e){
     e.preventDefault();
     if(cmpStage.setPointerCapture){ try{ cmpStage.setPointerCapture(e.pointerId); }catch(_){} }
-    aPtr[e.pointerId]={x:e.clientX,y:e.clientY};
-    if(aCount()===1) aMoved=false;
-    if(aCount()===2) aPinch={d:aDist(),z:view.z};
+    aPtr[e.pointerId]={x:e.clientX,y:e.clientY,moved:false};
+    if(aCount()===2) aPinch={d:aDist(),z:abView.z};
   });
   cmpStage.addEventListener('pointermove',function(e){
-    if(!aPtr[e.pointerId]) return;
+    var p=aPtr[e.pointerId]; if(!p) return;
     e.preventDefault();
-    var prev=aPtr[e.pointerId];
-    var dx=e.clientX-prev.x, dy=e.clientY-prev.y;
-    aPtr[e.pointerId]={x:e.clientX,y:e.clientY};
-    if(Math.abs(dx)>2||Math.abs(dy)>2) aMoved=true;
+    var dx=e.clientX-p.x, dy=e.clientY-p.y;
+    aPtr[e.pointerId]={x:e.clientX,y:e.clientY,moved:p.moved||Math.abs(dx)>3||Math.abs(dy)>3};
     if(aCount()>=2 && aPinch && aPinch.d>6){
-      view.z=clamp(aPinch.z*(aDist()/aPinch.d),1,12);
+      abView.z=clamp(aPinch.z*(aDist()/aPinch.d),1,12);
     } else {
-      view.tx+=dx; view.ty+=dy;
+      abView.tx+=dx; abView.ty+=dy;
     }
-    clampView(); applyView(); updateABLabel();
+    clampAB(); applyAB(); labelAB();
   });
   ['pointerup','pointercancel'].forEach(function(ev){
     cmpStage.addEventListener(ev,function(e){
-      var wasSingle = aCount()===1;
+      var p=aPtr[e.pointerId], single=aCount()===1;
       delete aPtr[e.pointerId];
       if(aCount()<2) aPinch=null;
-      if(wasSingle && !aMoved) showAB(abShowing?0:1);   // a clean tap flips
+      if(single && p && !p.moved) showLayer(!showingPin);   // a clean tap flips
     });
-  });
-
-  bCompare.addEventListener('click',buildCompare);
-  bCmpClose.addEventListener('click',closeCmp);
-  bCmpAB.addEventListener('click',enterAB);
-  bABBack.addEventListener('click',function(){ cmpAB.className='cmpab'; releaseAB(); });
-  $('cmpflip').addEventListener('click',function(){ showAB(abShowing?0:1); });
-  bFit.addEventListener('click',fitView);
-  bOne.addEventListener('click',pixelView);
-  bCmpSort.addEventListener('click',function(){
-    cmpSort = cmpSort==='order' ? 'sharp' : 'order';
-    bCmpSort.textContent = cmpSort==='order' ? 'Sort by sharpness' : 'Sort by time';
-    renderCmp(false);
-  });
-  bCmpFocus.addEventListener('click',function(){
-    if(focusPt){
-      focusPt=null; focusArming=false; bCmpFocus.textContent='Focus: whole frame';
-    } else {
-      focusArming=!focusArming;
-      bCmpFocus.textContent = focusArming ? 'Tap a spot\u2026' : 'Focus: whole frame';
-    }
-    rescore(); renderCmp(false);
   });
 
   setFrameUI(0); renderDiag();
