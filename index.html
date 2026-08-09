@@ -13,7 +13,7 @@
   Verify it: turn on Airplane Mode. Everything below still works.
   ------------------------------------------------------------------
 -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self' blob: data: filesystem:; media-src 'self' blob: data: filesystem:; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'none'; form-action 'none'; base-uri 'none'; frame-src 'none'; object-src 'none';">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self' blob: data: filesystem:; media-src 'self' blob: data: filesystem:; style-src 'unsafe-inline'; script-src 'unsafe-inline'; worker-src 'self'; connect-src 'none'; form-action 'none'; base-uri 'none'; frame-src 'none'; object-src 'none';">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -952,6 +952,7 @@ function injectPng(bytes, payload){
       'in a frame     '+env.framed,
       'origin opaque  '+env.opaque,
       'served over    '+env.protocol,
+      'offline shell  '+(env.sw ? 'installed \u2014 opens with no network' : 'not installed'),
       'home screen    '+env.standalone,
       'engine         '+(env.webkit?'WebKit / Safari':'Chromium or other'),
       'frame stepping '+(env.rvfc?'precise':'approximate'),
@@ -2391,6 +2392,16 @@ function injectPng(bytes, payload){
   }
 
   setFrameUI(0); renderDiag();
+
+  /* ---- offline shell: after the first visit, the page itself opens
+     with no network. Registration is skipped in restricted frames. ---- */
+  if('serviceWorker' in navigator && location.protocol==='https:' && !env.restricted){
+    try{
+      navigator.serviceWorker.register('sw.js').then(function(){
+        env.sw=true; renderDiag();
+      }).catch(function(){});
+    }catch(_){}
+  }
 })();
 </script>
 </body>
