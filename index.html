@@ -155,9 +155,11 @@
 
 
   /* result sheet */
-  .sheet{position:fixed;inset:0;background:rgba(10,10,11,.97);z-index:50;display:none;
+  .sheet{position:fixed;inset:0;background:var(--void);z-index:50;display:none;
     flex-direction:column;padding:calc(env(safe-area-inset-top) + 16px) 16px calc(env(safe-area-inset-bottom) + 16px)}
   .sheet.on{display:flex}
+  .sheet > *{width:100%;max-width:760px;align-self:center}
+  .cmpab > *{width:100%;max-width:760px;align-self:center}
   .sheetimg{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;margin-bottom:14px}
   .sheetimg img{max-width:100%;max-height:100%;object-fit:contain;border:1px solid var(--rule)}
   .sheetinfo{font-family:var(--sans);font-size:14px;color:var(--read);text-align:center;margin-bottom:6px}
@@ -396,7 +398,7 @@
   <div class="cmpbar2">
     <button class="t" id="bstillest" style="flex:1">Mark the calmest moments</button>
     <button class="hidden" id="bshapes" style="flex:1">Mark each shape</button>
-    <button class="t" id="bscanclose" style="flex:none;padding:15px 18px">Close</button>
+    <button class="t" id="bscanclose" style="flex:none;min-width:104px">Close</button>
   </div>
   <div class="cmphead" id="scanhead"></div>
   <div class="cmpgrid" id="scangrid"></div>
@@ -938,6 +940,18 @@ function injectPng(bytes, payload){
     put(t.h); put(':','sep'); put(t.m); put(':','sep'); put(t.s); put(':','sep'); put(t.f,'ff');
   }
   function say(m,w){ statusEl.textContent=m||''; statusEl.className=w?'status warn':'status'; }
+
+  /* Panels are all fixed and full-screen, so exactly one may be open. */
+  function closeAllSheets(){
+    ['sheet','cmp','scansheet'].forEach(function(id){
+      var s=document.getElementById(id); if(s) s.className='sheet';
+    });
+    var ab=document.getElementById('cmpab'); if(ab) ab.className='cmpab';
+  }
+  function showSheet(id){
+    closeAllSheets();
+    var s=document.getElementById(id); if(s) s.className='sheet on';
+  }
   function working(on,l){ busy.className=on?'busy on':'busy'; if(l)busyTxt.textContent=l; }
   function setEnabled(on){
     state.ready=on; fpsSel.disabled=!on;
@@ -1316,11 +1330,11 @@ function injectPng(bytes, payload){
       : 'This clip carries no date or location to copy.';
 
     sheetHint.textContent=shareHint();
-    sheet.className='sheet on';
+    showSheet('sheet');
     sheet.dataset.name=name;
   }
   function closeSheet(){
-    sheet.className='sheet';
+    closeAllSheets();
     if(sheetUrl){ URL.revokeObjectURL(sheetUrl); sheetUrl=null; }
     sheetImg.removeAttribute('src');
   }
@@ -1819,9 +1833,9 @@ function injectPng(bytes, payload){
     }
   }
 
-  function openCmp(){ cmp.className='sheet on'; cmpAB.className='cmpab'; }
+  function openCmp(){ showSheet('cmp'); }
   function closeCmp(target){
-    cmp.className='sheet'; cmpAB.className='cmpab';
+    closeAllSheets();
     layPin.removeAttribute('src'); layCur.removeAttribute('src');
     releaseItems(); cmpGrid.textContent='';
     var f = (typeof target==='number') ? target : cmpReturn;
@@ -2030,7 +2044,7 @@ function injectPng(bytes, payload){
     var back=state.frame;
     scan={samples:[],cells:[],done:false,running:true,stop:null};
     scanGrid.textContent='';
-    scanSheet.className='sheet on';
+    showSheet('scansheet');
     scanHead.textContent='Scanning\u2026';
     bStillest.disabled=true;
 
@@ -2219,7 +2233,7 @@ function injectPng(bytes, payload){
 
   /* Jumping must be unmistakable: close, scroll to the video, flash it. */
   function jumpFromScan(f){
-    scanSheet.className='sheet';
+    closeAllSheets();
     requestFrame(f);
     try{ stage.scrollIntoView({block:'start'}); }catch(_){}
     stage.classList.add('flash');
@@ -2308,7 +2322,7 @@ function injectPng(bytes, payload){
   bRescan.addEventListener('click',runScan);
   bScanClose.addEventListener('click',function(){
     if(scan.running && scan.stop){ scan.stop(true); }
-    scanSheet.className='sheet';
+    closeAllSheets();
   });
   bShapes.addEventListener('click',function(){
     var runs=shapeRuns();
@@ -2319,7 +2333,7 @@ function injectPng(bytes, payload){
       if(state.marks.indexOf(f)<0){ state.marks.push(f); added++; }
     });
     paintMarks();
-    scanSheet.className='sheet';
+    closeAllSheets();
     say('Marked '+added+' section'+(added===1?'':'s')+', one per shape. Open each and use Fit to picture under Crop to drop the black bars.');
   });
 
@@ -2336,7 +2350,7 @@ function injectPng(bytes, payload){
       if(state.marks.indexOf(f)<0){ state.marks.push(f); added++; }
     });
     paintMarks();
-    scanSheet.className='sheet';
+    closeAllSheets();
     try{ marksEl.scrollIntoView({block:'center'}); }catch(_){}
     say('Marked '+added+' calm moment'+(added===1?'':'s')+' \u2014 where the camera moved least. That is navigation, not a verdict on the pictures.');
   });
