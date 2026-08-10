@@ -12,6 +12,11 @@ A pair of single-file web apps. **Frame** scrubs video frame-by-frame and export
 - `compose.html` — Compose: same discipline (single file, one IIFE, zero network, same CSP and design tokens). Linked from Frame's header and back.
 - `sw.js` (~1.5 KB) — offline shell for both pages. Cache-first with background refresh; same-origin GET only. Bump the `CACHE` version on breaking changes.
 - Deployed on GitHub Pages (mattyuhz.github.io). All files must ship together.
+- `COLLABORATION.md` / `AGENTS.md` — multi-assistant working rules; see Collaboration below.
+
+## Collaboration (since 2026-08)
+
+Two assistants work in this repo: Claude (primary engineer) and OpenAI's Codex (reviewer / tester / documenter; its instruction file is `AGENTS.md`). The shared rules — roles, branch discipline, one pen per file, handoff format, review protocol, pre-PR verification ritual — live in `COLLABORATION.md`; read it before starting any task. The short version: fetch `origin/main` first and check open branches/PRs for what Codex is doing; work on a `claude/<topic>` branch; never push `main`; behaviour changes get cross-review; only M merges, and a merge to `main` is a production deploy (GitHub Pages publishes it directly).
 
 ## Non-negotiable constraints (the user set these; do not relax them)
 
@@ -23,11 +28,16 @@ A pair of single-file web apps. **Frame** scrubs video frame-by-frame and export
 ## Security audit ritual (run after every change)
 
 ```bash
-grep -c 'https\?://' index.html                    # must be 0
-grep -nE 'fetch\(|XMLHttpRequest|WebSocket|new Worker|@import' index.html   # none
-grep -nE '\beval\(|new Function|innerHTML|document\.write' index.html       # none
-grep -c "connect-src 'none'" index.html            # must be 1
+for f in index.html compose.html; do
+  echo "== $f"
+  grep -c 'https\?://' "$f"                                             # 0
+  grep -nE 'fetch\(|XMLHttpRequest|WebSocket|new Worker|@import' "$f"   # no output
+  grep -nE '\beval\(|new Function|innerHTML|document\.write' "$f"       # no output
+  grep -c "connect-src 'none'" "$f"                                     # 1
+done
 ```
+
+(`sw.js` is the only file allowed to contain `fetch`, behind its same-origin guard. The runnable pre-PR version of this ritual, plus syntax and ID checks, lives in `COLLABORATION.md`.)
 
 ## Testing ritual (these caught real bugs; keep them)
 
