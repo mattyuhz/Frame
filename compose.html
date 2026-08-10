@@ -62,14 +62,18 @@
   .banner p{font-size:13px;line-height:1.55;color:var(--dim)}
 
   .stage{display:flex;align-items:center;justify-content:center;background:#000;min-height:220px}
-  #preview{display:block;background:#000;touch-action:none;cursor:pointer}
 
-  /* iOS presents no frames from a video element that is not in the
-     document, which turns the canvas black. The vault keeps every
-     loaded video in the layout tree, invisible but decoding. */
-  #vault{position:fixed;left:0;top:0;width:2px;height:2px;overflow:hidden;
-    opacity:.01;pointer-events:none}
-  #vault video{width:2px;height:2px}
+  /* The preview is the real media elements laid out in the story grid.
+     iOS only decodes video that is genuinely visible, so the preview
+     IS the videos; a canvas is used at export time only, when the
+     same visible elements are captured. */
+  #board{position:relative;background:#000;overflow:hidden;touch-action:none;cursor:pointer}
+  .cellbox{position:absolute;overflow:hidden;background:rgba(255,255,255,.05)}
+  .cellbox.sel{outline:2px solid #FFF;outline-offset:-2px;z-index:1}
+  .cellbox .media{position:absolute;left:0;top:0;max-width:none;max-height:none;
+    pointer-events:none;display:block}
+  .cellbox .plus{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+    color:rgba(255,255,255,.35);font-size:34px;font-weight:200;pointer-events:none}
 
   .prevrow{display:none;justify-content:center;margin-top:10px}
   .prevrow.on{display:flex}
@@ -146,7 +150,7 @@
   </div>
 
   <div class="stage" id="stage">
-    <canvas id="preview" width="270" height="480" aria-label="Story preview. Tap a cell to add or select it."></canvas>
+    <div id="board" role="group" aria-label="Story preview. Tap a cell to add or select it."></div>
   </div>
 
   <div class="prevrow" id="prevrow">
@@ -208,20 +212,18 @@
   <button class="t wide" id="bdone">Back to the layout</button>
 </div>
 
-<div id="vault" aria-hidden="true"></div>
-
 <script>
 (function(){
   "use strict";
 
   var $ = function(id){ return document.getElementById(id); };
-  var pcv=$('preview'), stageEl=$('stage'), layBar=$('laybar'), fileIn=$('file'),
+  var board=$('board'), stageEl=$('stage'), layBar=$('laybar'), fileIn=$('file'),
       cellBar=$('cellbar'), cellHint=$('cellhint'), bReplace=$('breplace'), bRemove=$('bremove'),
       winRow=$('winrow'), winCv=$('winscrub'), winLabel=$('winlabel'),
       durRow=$('durrow'), durIn=$('dur'), durLabel=$('durlabel'), durNote=$('durnote'), bDurReset=$('bdurreset'),
       fmtRow=$('fmtrow'), fmtSel=$('fmt'),
       bExport=$('bexport'), statusEl=$('status'), banner=$('banner'),
-      vault=$('vault'), prevRow=$('prevrow'), bPlayPause=$('bplaypause'),
+      prevRow=$('prevrow'), bPlayPause=$('bplaypause'),
       sheet=$('sheet'), sheetImg=$('sheetimg'), sheetVid=$('sheetvid'),
       sheetInfo=$('sheetinfo'), sheetCheck=$('sheetcheck'), sheetHint=$('sheethint'),
       bShare=$('bshare'), bDone=$('bdone');
@@ -301,49 +303,126 @@
     return out;
   }
 
-  /* ---------- drawing ---------- */
-  function drawInto(g,W,H,ui){
+  /* ---------- export drawing (the preview itself is DOM) ---------- */
+  function drawInto(g,W,H){
     g.fillStyle='#000000'; g.fillRect(0,0,W,H);
     var rs=rectsFor(W,H);
     for(var i=0;i<rs.length;i++){
       var r=rs[i], c=state.cells[i];
-      if(!c || !c.ready){
-        g.fillStyle='rgba(255,255,255,.05)';
-        g.fillRect(r.x,r.y,r.w,r.h);
-        if(ui){
-          g.strokeStyle='rgba(255,255,255,.35)'; g.lineWidth=2;
-          var cx=r.x+r.w/2, cy=r.y+r.h/2, a=Math.max(8,Math.min(r.w,r.h)*0.06);
-          g.beginPath();
-          g.moveTo(cx-a,cy); g.lineTo(cx+a,cy);
-          g.moveTo(cx,cy-a); g.lineTo(cx,cy+a);
-          g.stroke();
-        }
-      } else {
-        var sw=c.w, sh=c.h;
-        var s0=Math.max(r.w/sw, r.h/sh), s=s0*c.view.s;
-        var ww=r.w/s, wh=r.h/s;
-        var sx=clamp(c.view.cx*sw-ww/2, 0, Math.max(0,sw-ww));
-        var sy=clamp(c.view.cy*sh-wh/2, 0, Math.max(0,sh-wh));
-        try{ g.drawImage(c.el, sx,sy,ww,wh, r.x,r.y,r.w,r.h); }catch(_){}
-      }
-      if(ui && i===state.selected){
-        g.strokeStyle='#FFFFFF'; g.lineWidth=2;
-        g.strokeRect(r.x+1,r.y+1,r.w-2,r.h-2);
-      }
+      if(!c || !c.ready) continue;
+      var sw=c.w, sh=c.h;
+      var s0=Math.max(r.w/sw, r.h/sh), s=s0*c.view.s;
+      var ww=r.w/s, wh=r.h/s;
+      var sx=clamp(c.view.cx*sw-ww/2, 0, Math.max(0,sw-ww));
+      var sy=clamp(c.view.cy*sh-wh/2, 0, Math.max(0,sh-wh));
+      try{ g.drawImage(c.el, sx,sy,ww,wh, r.x,r.y,r.w,r.h); }catch(_){}
     }
   }
 
-  var pW=270, pH=480, dpr=1;
+  var pW=270, pH=480;
+  /* iPhone Safari fires resize on every toolbar collapse while
+     scrolling, so a resize must never tear the board down — that
+     re-parents playing videos and makes every cell hiccup. Geometry
+     is updated in place; a full rebuild happens only when the number
+     of cells changes. */
   function sizePreview(){
-    dpr=window.devicePixelRatio||1;
     var maxH=Math.round((window.innerHeight||700)*0.60);
     var maxW=stageEl.clientWidth||320;
     var h=Math.min(maxH, Math.round(maxW*16/9));
     var w=Math.round(h*9/16);
     if(w>maxW){ w=maxW; h=Math.round(w*16/9); }
-    pW=Math.max(90,w); pH=Math.max(160,h);
-    pcv.style.width=pW+'px'; pcv.style.height=pH+'px';
-    pcv.width=Math.round(pW*dpr); pcv.height=Math.round(pH*dpr);
+    var nw=Math.max(90,w), nh=Math.max(160,h);
+    var changed=(nw!==pW || nh!==pH);
+    pW=nw; pH=nh;
+    if(state.exporting) return;
+    if(boxes.length!==cellCount()){ rebuildBoard(); return; }
+    if(changed) layoutBoard();
+  }
+
+  /* Move the existing boxes to the new geometry without touching the
+     media elements' place in the DOM. */
+  function layoutBoard(){
+    board.style.width=pW+'px';
+    board.style.height=pH+'px';
+    var rs=rectsFor(pW,pH);
+    for(var i=0;i<boxes.length && i<rs.length;i++){
+      boxes[i].style.left=rs[i].x+'px'; boxes[i].style.top=rs[i].y+'px';
+      boxes[i].style.width=rs[i].w+'px'; boxes[i].style.height=rs[i].h+'px';
+      applyCellTransform(i);
+    }
+  }
+
+  /* ---------- the board: real media elements in the story grid ---------- */
+  var boxes=[];
+
+  /* Position one cell's media element so the visible window matches the
+     export drawing exactly: source window [sx,sx+ww] maps to [0,r.w]. */
+  function applyCellTransform(i){
+    var c=state.cells[i];
+    if(!c || !c.ready || !c.el) return;
+    var rs=rectsFor(pW,pH), r=rs[i];
+    if(!r) return;
+    var s0=Math.max(r.w/c.w, r.h/c.h), s=s0*c.view.s;
+    var ww=r.w/s, wh=r.h/s;
+    var sx=clamp(c.view.cx*c.w-ww/2, 0, Math.max(0,c.w-ww));
+    var sy=clamp(c.view.cy*c.h-wh/2, 0, Math.max(0,c.h-wh));
+    c.el.style.width=(c.w*s)+'px';
+    c.el.style.height=(c.h*s)+'px';
+    c.el.style.transform='translate('+(-sx*s)+'px,'+(-sy*s)+'px)';
+  }
+
+  /* Rebuild the cell boxes (layout or size changed). */
+  function rebuildBoard(){
+    board.style.width=pW+'px';
+    board.style.height=pH+'px';
+    board.textContent='';
+    boxes=[];
+    var rs=rectsFor(pW,pH);
+    for(var i=0;i<rs.length;i++){
+      var box=document.createElement('div');
+      box.className='cellbox';
+      box.style.left=rs[i].x+'px'; box.style.top=rs[i].y+'px';
+      box.style.width=rs[i].w+'px'; box.style.height=rs[i].h+'px';
+      board.appendChild(box);
+      boxes.push(box);
+    }
+    syncCells();
+    /* Cells beyond the new layout are off the board now; make sure
+       their videos are not left running invisibly. */
+    for(var j=cellCount(); j<state.cells.length; j++){
+      var hid=state.cells[j];
+      if(hid && hid.kind==='video' && hid.el){ try{ hid.el.pause(); }catch(_){} }
+    }
+  }
+
+  /* Put each cell's media (or the + placeholder) into its box without
+     re-parenting elements that are already in the right place — moving
+     a playing video in the DOM makes it hiccup. */
+  function syncCells(){
+    for(var i=0;i<boxes.length;i++){
+      var box=boxes[i], c=state.cells[i];
+      box.className='cellbox'+(i===state.selected?' sel':'');
+      if(c && c.ready && c.el){
+        if(c.el.parentNode!==box){
+          box.textContent='';
+          c.el.className='media';
+          box.appendChild(c.el);
+          /* iOS presents nothing on a re-attached paused video until a
+             seek nudges it; without this a paused preview goes black
+             after a layout switch. */
+          if(c.kind==='video' && !state.previewPlay){
+            try{ c.el.currentTime=Math.max(0,(c.el.currentTime||c.start))+0.001; }catch(_){}
+          }
+        }
+        applyCellTransform(i);
+      } else if(!box.firstChild || box.firstChild.className!=='plus'){
+        box.textContent='';
+        var plus=document.createElement('div');
+        plus.className='plus';
+        plus.textContent='+';
+        box.appendChild(plus);
+      }
+    }
   }
 
   /* Preview videos loop inside their chosen window. Paused preview
@@ -351,9 +430,12 @@
      still so the chosen start frame is what you see. */
   function tickVideos(){
     var L=effDuration();
+    /* While the result sheet is up, the grid pauses so its decoders do
+       not compete with the exported video the user is judging. */
+    var sheetOpen=(sheet.className==='sheet on');
     videoCells().forEach(function(c){
       var v=c.el;
-      if(!state.previewPlay || (winState.active && c===selCell())){
+      if(!state.previewPlay || sheetOpen || (winState.active && c===selCell())){
         if(!v.paused){ try{ v.pause(); }catch(_){} }
         return;
       }
@@ -369,11 +451,6 @@
   function loop(){
     if(!state.exporting && !document.hidden){
       tickVideos();
-      var g=pcv.getContext('2d');
-      if(g){
-        g.setTransform(dpr,0,0,dpr,0,0);
-        drawInto(g,pW,pH,true);
-      }
       if(selCell() && selCell().kind==='video') drawWin();
     }
     if(typeof requestAnimationFrame==='function') requestAnimationFrame(loop);
@@ -395,15 +472,16 @@
     }
     return -1;
   }
-  function canvasPos(e){
-    var r=pcv.getBoundingClientRect();
+  function boardPos(e){
+    var r=board.getBoundingClientRect();
     return {x:e.clientX-r.left, y:e.clientY-r.top};
   }
 
-  pcv.addEventListener('pointerdown',function(e){
+  board.addEventListener('pointerdown',function(e){
+    if(state.exporting) return;   /* the recording reads these cells live */
     e.preventDefault();
-    if(pcv.setPointerCapture){ try{ pcv.setPointerCapture(e.pointerId); }catch(_){} }
-    var p=canvasPos(e);
+    if(board.setPointerCapture){ try{ board.setPointerCapture(e.pointerId); }catch(_){} }
+    var p=boardPos(e);
     ptrs[e.pointerId]={x:p.x,y:p.y,moved:false};
     if(ptrCount()===1){
       var i=hitCell(p.x,p.y);
@@ -412,10 +490,11 @@
     var c=selCell();
     if(ptrCount()===2 && c && c.ready) pinch={d:ptrDist(), s:c.view.s};
   });
-  pcv.addEventListener('pointermove',function(e){
+  board.addEventListener('pointermove',function(e){
+    if(state.exporting) return;
     var p=ptrs[e.pointerId]; if(!p) return;
     e.preventDefault();
-    var np=canvasPos(e);
+    var np=boardPos(e);
     var dx=np.x-p.x, dy=np.y-p.y;
     ptrs[e.pointerId]={x:np.x,y:np.y,moved:p.moved||Math.abs(dx)>3||Math.abs(dy)>3};
     var c=selCell();
@@ -423,6 +502,7 @@
     if(ptrCount()>=2 && pinch && pinch.d>6){
       c.view.s=clamp(pinch.s*(ptrDist()/pinch.d), 1, 10);
       clampView(c);
+      applyCellTransform(state.selected);
     } else if(ptrCount()===1){
       var rs=rectsFor(pW,pH), r=rs[state.selected];
       if(r){
@@ -430,11 +510,13 @@
         c.view.cx-=dx/(s*c.w);
         c.view.cy-=dy/(s*c.h);
         clampView(c);
+        applyCellTransform(state.selected);
       }
     }
   });
   ['pointerup','pointercancel'].forEach(function(ev){
-    pcv.addEventListener(ev,function(e){
+    board.addEventListener(ev,function(e){
+      if(state.exporting){ delete ptrs[e.pointerId]; return; }
       var p=ptrs[e.pointerId], single=ptrCount()===1;
       delete ptrs[e.pointerId];
       if(ptrCount()<2) pinch=null;
@@ -446,6 +528,7 @@
       var now=Date.now();
       if(now-tapT<320){
         c.view={cx:0.5,cy:0.5,s:1};
+        applyCellTransform(i);
         tapT=0;
         say('Zoom reset for this cell.');
       } else tapT=now;
@@ -516,9 +599,6 @@
       v.muted=true; v.playsInline=true;
       v.setAttribute('playsinline',''); v.setAttribute('muted','');
       v.preload='auto'; v.loop=false;
-      /* Must be in the document: iOS presents no frames from a
-         detached video element, which draws black onto the canvas. */
-      vault.appendChild(v);
       v.onloadedmetadata=function(){
         cell.w=v.videoWidth; cell.h=v.videoHeight;
         function finalize(dur){
@@ -562,6 +642,7 @@
   }
 
   fileIn.addEventListener('change',function(){
+    if(state.exporting){ fileIn.value=''; return; }
     var files=fileIn.files ? Array.prototype.slice.call(fileIn.files) : [];
     if(!files.length){ pickTarget=-1; return; }
     var n=cellCount();
@@ -580,11 +661,12 @@
   });
 
   bReplace.addEventListener('click',function(){
-    if(state.selected<0) return;
+    if(state.selected<0 || state.exporting) return;
     pickTarget=state.selected;
     fileIn.click();
   });
   bRemove.addEventListener('click',function(){
+    if(state.exporting) return;
     var c=selCell(); if(!c) return;
     releaseCell(c);
     state.cells[state.selected]=null;
@@ -602,10 +684,12 @@
       b.className='chip'+(state.layout===L.id?' on':'');
       b.textContent=L.label;
       b.addEventListener('click',function(){
+        if(state.exporting) return;
         state.layout=L.id;
         if(state.selected>=L.n) state.selected=-1;
         recalcStarts();
         buildLayBar();
+        rebuildBoard();
         updateUI(true);
       });
       layBar.appendChild(b);
@@ -655,6 +739,7 @@
   }
 
   winCv.addEventListener('pointerdown',function(e){
+    if(state.exporting) return;
     var c=selCell();
     if(!c || c.kind!=='video' || !c.ready) return;
     e.preventDefault();
@@ -663,7 +748,7 @@
     winState.anchorX=e.clientX; winState.anchorStart=c.start;
   });
   winCv.addEventListener('pointermove',function(e){
-    if(!winState.active) return;
+    if(!winState.active || state.exporting) return;
     var c=selCell();
     if(!c || c.kind!=='video') { winState.active=false; return; }
     e.preventDefault();
@@ -695,7 +780,11 @@
 
   function renderDur(syncSlider){
     var lim=windowLimit();
-    if(lim===null){ durRow.className='group'; return; }
+    if(lim===null){
+      durRow.className='group';
+      state.durOverride=null;   /* a trim should not outlive its clips */
+      return;
+    }
     durRow.className='group on';
     var L=effDuration();
     if(syncSlider){
@@ -720,6 +809,7 @@
   }
 
   durIn.addEventListener('input',function(){
+    if(state.exporting) return;
     var lim=windowLimit();
     if(lim===null) return;
     var v=parseFloat(durIn.value);
@@ -730,6 +820,7 @@
     drawWin();
   });
   bDurReset.addEventListener('click',function(){
+    if(state.exporting) return;
     state.durOverride=null;
     recalcStarts();
     renderDur(true);
@@ -761,9 +852,11 @@
     fmtRow.className=anyVideo?'group':'group on';
     bExport.disabled=!allFilled();
     if(state.selected>=0 && c) clampView(c);
+    syncCells();
   }
 
   bPlayPause.addEventListener('click',function(){
+    if(state.exporting) return;
     state.previewPlay=!state.previewPlay;
     bPlayPause.textContent=state.previewPlay?'Pause':'Play';
     if(!state.previewPlay){
@@ -795,7 +888,7 @@
     c.width=OUT_W; c.height=OUT_H;
     var g=c.getContext('2d');
     if(!g){ say('This browser refused a drawing surface for the export.',true); return; }
-    drawInto(g,OUT_W,OUT_H,false);
+    drawInto(g,OUT_W,OUT_H);
     var mime=fmtSel.value;
     say('Encoding…');
     c.toBlob(function(b){
@@ -832,6 +925,8 @@
   }
 
   /* ---------- export: video ---------- */
+  var exportInterrupted=false;   /* set when the page hides mid-recording */
+
   function seekTo(v,t){
     return new Promise(function(res){
       var done=false, timer=null;
@@ -879,14 +974,19 @@
   }
 
   function exportVideo(){
-    if(typeof MediaRecorder==='undefined' || !pcv.captureStream){
+    if(typeof MediaRecorder==='undefined' ||
+       typeof HTMLCanvasElement==='undefined' || !HTMLCanvasElement.prototype.captureStream){
       say('This browser cannot record video from a drawing surface, so video export is unavailable here.',true);
       return;
     }
-    /* Some browsers claim a format is supported and then record nothing,
-       so run down the list until one actually produces bytes. */
-    var cands=['video/mp4;codecs=avc1.640028','video/mp4','video/webm;codecs=vp9','video/webm']
+    /* Some browsers claim a format is supported and then record nothing —
+       and a high bitrate hint alone can silence an encoder that works at
+       its default. So the ladder tries each format at 12 Mbps and again
+       with no hint, and an attempt with zero bytes is abandoned early. */
+    var mimes=['video/mp4;codecs=avc1.640028','video/mp4','video/webm;codecs=vp9','video/webm']
       .filter(function(m){ return MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(m); });
+    var cands=[];
+    mimes.forEach(function(m){ cands.push({m:m,b:12000000}); cands.push({m:m,b:0}); });
     if(!cands.length){ say('This browser offers no usable video format for recording.',true); return; }
     var L=effDuration();
     if(!L){ say('No playable video in the layout.',true); return; }
@@ -897,6 +997,8 @@
     if(!eg || !ec.captureStream){ say('This browser refused a recording surface.',true); return; }
 
     var vids=videoCells();
+    var best=null;   /* least-bad result if no attempt verifies clean */
+    exportInterrupted=false;
     state.exporting=true;
     bExport.disabled=true;
 
@@ -905,39 +1007,69 @@
       bExport.disabled=!allFilled();
       say(msg,true);
     }
+    function finishWith(cand){
+      state.exporting=false;
+      bExport.disabled=!allFilled();
+      var name='story_'+stamp()+((cand.type==='video/mp4')?'.mp4':'.webm');
+      openSheetVideo(cand.blob,name,cand.v,L,cand.mt);
+    }
 
     function attempt(ci){
-      var mt=cands[ci];
+      var cfg=cands[ci], mt=cfg.m;
       say('Preparing…');
       Promise.all(vids.map(function(c){ return seekTo(c.el,c.start); })).then(function(){
         var stream=ec.captureStream(30), rec;
-        try{ rec=new MediaRecorder(stream,{mimeType:mt,videoBitsPerSecond:12000000}); }
+        /* The export canvas is not on screen, so nothing composites it;
+           an explicit requestFrame per draw makes sure the encoder is
+           handed every frame anyway. */
+        var track=(stream.getVideoTracks&&stream.getVideoTracks()[0])||null;
+        var init={mimeType:mt};
+        if(cfg.b) init.videoBitsPerSecond=cfg.b;
+        try{ rec=new MediaRecorder(stream,init); }
         catch(e){
           if(ci+1<cands.length){ attempt(ci+1); return; }
           fail('Recording could not start: '+((e&&e.message)||'no reason given')+'.');
           return;
         }
-        var chunks=[];
+        var chunks=[], stopped=false;
+        /* No early abort on missing chunks: Safari can hold every byte
+           until stop() even when asked for periodic chunks, so silence
+           does not mean a dead encoder. A dead attempt costs its full
+           length and is caught by verification instead. */
         rec.ondataavailable=function(ev){ if(ev.data && ev.data.size) chunks.push(ev.data); };
         rec.onstop=function(){
           vids.forEach(function(c){ try{ c.el.pause(); }catch(_){} });
-          var type=(mt.indexOf('mp4')>=0)?'video/mp4':'video/webm';
-          var blob=new Blob(chunks,{type:type});
-          if(!blob.size){
-            if(ci+1<cands.length){
-              say('That recorder produced nothing; trying another format…');
-              attempt(ci+1);
-              return;
-            }
-            fail('The recording produced no data. Try again; if it repeats, tell me.');
+          if(exportInterrupted){
+            exportInterrupted=false;
+            fail('The recording was interrupted — the screen locked or Safari went to the background. Keep the page open while it records, then try again.');
             return;
           }
-          state.exporting=false;
-          bExport.disabled=!allFilled();
+          var type=(mt.indexOf('mp4')>=0)?'video/mp4':'video/webm';
+          var blob=new Blob(chunks,{type:type});
+          function nextOr(msg){
+            if(ci+1<cands.length){
+              say('That attempt did not come out right; trying another way…');
+              attempt(ci+1);
+            } else if(best){
+              finishWith(best);          /* honest bad check in the sheet */
+            } else {
+              fail(msg);
+            }
+          }
+          if(!blob.size){
+            nextOr('The recording produced no data. Try again; if it repeats, tell me.');
+            return;
+          }
           say('Checking…');
+          /* The ladder is decided by verification: a recording only
+             counts if it re-decodes at the right size and length. */
           verifyVideo(blob).then(function(v){
-            var name='story_'+stamp()+((type==='video/mp4')?'.mp4':'.webm');
-            openSheetVideo(blob,name,v,L,mt);
+            var cand={blob:blob, v:v, mt:mt, type:type};
+            var good = v && v.w===OUT_W && v.h===OUT_H &&
+                       isFinite(v.dur) && Math.abs(v.dur-L)<=0.6;
+            if(good){ finishWith(cand); return; }
+            if(!best || blob.size>best.blob.size) best=cand;
+            nextOr('The recording came out unreadable. Try again; if it repeats, tell me.');
           });
         };
         vids.forEach(function(c){
@@ -947,11 +1079,19 @@
         var t0=(window.performance&&performance.now)?performance.now():Date.now();
         rec.start(250);
         function frame(){
+          if(stopped) return;
+          if(exportInterrupted){
+            stopped=true;
+            try{ rec.stop(); }catch(_){}
+            return;
+          }
           var now=(window.performance&&performance.now)?performance.now():Date.now();
           var t=(now-t0)/1000;
-          drawInto(eg,OUT_W,OUT_H,false);
+          drawInto(eg,OUT_W,OUT_H);
+          if(track && track.requestFrame){ try{ track.requestFrame(); }catch(_){} }
           say('Recording '+Math.min(t,L).toFixed(1)+' / '+L.toFixed(1)+' s — recording happens in real time.');
           if(t>=L){
+            stopped=true;
             try{ rec.stop(); }catch(_){}
             return;
           }
@@ -974,9 +1114,10 @@
     var durTxt=(v && isFinite(v.dur))?v.dur.toFixed(1)+' s':'length unreadable';
     sheetInfo.textContent=dims+'  ·  '+durTxt+'  ·  '+fmtSize(blob.size)+'  ·  '+name;
     var isMp4=mt.indexOf('mp4')>=0;
-    if(v && v.w===OUT_W && v.h===OUT_H && isFinite(v.dur) && Math.abs(v.dur-L)<=0.5 && isMp4){
+    if(v && v.w===OUT_W && v.h===OUT_H && isFinite(v.dur) && Math.abs(v.dur-L)<=0.6 && isMp4){
       sheetCheck.className='sheetcheck';
-      sheetCheck.textContent='Checked: 1080 × 1920 H.264, '+v.dur.toFixed(1)+
+      sheetCheck.textContent='Checked: 1080 × 1920 '+
+        (mt.indexOf('avc1')>=0?'H.264 MP4':'MP4')+', '+v.dur.toFixed(1)+
         ' s — ready for a story. No sound: audio is not recorded in this version.';
     } else if(v){
       sheetCheck.className='sheetcheck bad';
@@ -1020,6 +1161,7 @@
     sheet.className='sheet';
     try{ sheetVid.pause(); }catch(_){}
     sheetVid.removeAttribute('src');
+    try{ if(sheetVid.load) sheetVid.load(); }catch(_){}   /* actually release the decoder */
     sheetImg.removeAttribute('src');
     if(sheetUrl){ URL.revokeObjectURL(sheetUrl); sheetUrl=null; }
   }
@@ -1043,6 +1185,7 @@
   window.addEventListener('resize',function(){ sizePreview(); });
   document.addEventListener('visibilitychange',function(){
     if(document.hidden){
+      if(state.exporting) exportInterrupted=true;
       videoCells().forEach(function(c){ try{ c.el.pause(); }catch(_){} });
     }
   });
