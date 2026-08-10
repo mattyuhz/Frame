@@ -283,12 +283,16 @@
   /* Story length: never longer than the shortest clip (no freezing, no
      looping — every cell always shows real footage), capped at what
      Instagram accepts, and overridable down for tighter curation. */
+  /* Allocation-free: this is read on every animation frame by the loop
+     keeper, and rebuilding arrays 60 times a second is exactly the kind
+     of bookkeeping that starves the decoders. */
   function windowLimit(){
-    var vs=videoCells();
-    if(!vs.length) return null;
-    var m=Infinity;
-    vs.forEach(function(c){ if(c.dur<m) m=c.dur; });
-    if(!isFinite(m) || m<=0) return null;
+    var n=cellCount(), m=Infinity, any=false;
+    for(var i=0;i<n;i++){
+      var c=state.cells[i];
+      if(c && c.kind==='video' && c.ready){ any=true; if(c.dur<m) m=c.dur; }
+    }
+    if(!any || !isFinite(m) || m<=0) return null;
     return Math.max(0.5, Math.min(m, MAX_STORY));
   }
   function effDuration(){
@@ -446,6 +450,37 @@
     }
   }
 
+  /* Wrap this far before the window ends. Letting a clip actually reach
+     its end is what made looping visibly late: an ended element is
+     paused, so resuming costs a restart instead of a seek. */
+  var WRAP_LEAD=0.06;
+
+  function wholeClip(c,L){
+    return c.start<=0.02 && (L===null || L>=c.dur-WRAP_LEAD);
+  }
+
+  /* Runs every animation frame — cheap property reads only. A clip on a
+     sub-window is wrapped the moment it reaches the end, and because a
+     playing element stays playing across a seek there is no play() to
+     wait for. Clips looping natively are left entirely alone. */
+  function wrapCheck(){
+    if(!state.previewPlay || state.exporting) return;
+    if(sheet.className==='sheet on') return;
+    var L=effDuration();
+    if(L===null) return;
+    var n=cellCount(), sel=selCell();
+    for(var i=0;i<n;i++){
+      var c=state.cells[i];
+      if(!c || c.kind!=='video' || !c.ready) continue;
+      if(winState.active && c===sel) continue;
+      var v=c.el;
+      if(v.loop || v.paused || v.seeking) continue;
+      if(v.currentTime > c.start+L-WRAP_LEAD){
+        try{ v.currentTime=c.start; }catch(_){}
+      }
+    }
+  }
+
   /* Preview videos loop inside their chosen window. Paused preview
      freezes every cell; a cell whose window is being scrubbed holds
      still so the chosen start frame is what you see. */
@@ -466,8 +501,13 @@
       /* Never touch an element mid-seek: a play() issued during a seek
          is silently dropped, which is how the loop used to die. */
       if(v.seeking) continue;
+      /* When the chosen window is the whole clip, hand looping to the
+         browser: its internal wrap has no seek and no gap, where ours
+         always costs at least a decode. */
+      var whole=wholeClip(c,L);
+      if(v.loop!==whole) v.loop=whole;
       var end=(L!==null) ? c.start+L : (c.dur||0);
-      if(v.ended || v.currentTime>end-0.05 || v.currentTime<c.start-0.25){
+      if(!whole && (v.ended || v.currentTime>end-WRAP_LEAD || v.currentTime<c.start-0.25)){
         try{ v.currentTime=c.start; }catch(_){}
         c.watchT=now; c.watchAt=c.start;
         continue;                       /* play once the seek has landed */
@@ -496,6 +536,7 @@
   function loop(){
     if(!state.exporting && !document.hidden){
       var now=Date.now();
+      wrapCheck();                    /* every frame: looping must not lag */
       if(now-lastKeep>=120){ lastKeep=now; tickVideos(); }
       if(now-lastWinDraw>=66){
         lastWinDraw=now;
@@ -1159,6 +1200,9 @@
     exportInterrupted=false;
     state.exporting=true;
     bExport.disabled=true;
+    /* The take plays each window through exactly once — native looping
+       is a preview convenience only. tickVideos restores it afterwards. */
+    for(var vi=0;vi<vids.length;vi++){ try{ vids[vi].el.loop=false; }catch(_){} }
 
     function fail(msg){
       state.exporting=false;
