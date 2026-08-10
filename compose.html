@@ -75,11 +75,16 @@
   .cellbox .plus{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
     color:rgba(255,255,255,.35);font-size:34px;font-weight:200;pointer-events:none}
 
-  .prevrow{display:none}
-  .prevrow.on{display:block}
-  .prevrow button{padding:8px 20px;min-height:0}
-  .winhead{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:9px}
-  .group .winhead .eyebrow{margin-bottom:0}
+  /* Scrubber and its transport sit on one line, both with tap targets
+     comfortably over the 44 px minimum. */
+  .winbar{display:flex;align-items:center;gap:10px}
+  button.icbtn{width:56px;height:56px;flex:none;display:flex;align-items:center;justify-content:center;
+    background:var(--raise);color:var(--read);border:0;border-radius:var(--r-md);
+    cursor:pointer;padding:0;min-height:0;touch-action:manipulation}
+  button.icbtn:active{background:var(--raise-hi)}
+  button.icbtn svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.7;
+    stroke-linecap:round;stroke-linejoin:round}
+  button.icbtn #icplay{fill:currentColor;stroke-width:1}
 
   .chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:14px}
   button.chip{font-family:var(--sans);font-size:13px;background:transparent;border:1px solid var(--rule);
@@ -100,7 +105,7 @@
   .group.on{display:block}
   .group .eyebrow{display:block;margin-bottom:9px}
 
-  .winscrub{position:relative;height:48px;margin-top:6px;touch-action:none;cursor:ew-resize;display:block;width:100%}
+  .winscrub{position:relative;height:56px;touch-action:none;cursor:ew-resize;display:block;flex:1;min-width:0}
   .winscrub.off{opacity:.3;cursor:default}
   .winlabel{font-size:13px;color:var(--dim);margin-top:8px;line-height:1.5}
 
@@ -168,13 +173,14 @@
   </div>
 
   <div class="group" id="winrow">
-    <div class="winhead">
-      <span class="eyebrow">Which part of this clip plays</span>
-      <div class="prevrow" id="prevrow">
-        <button class="t" id="bplaypause">Pause</button>
-      </div>
+    <span class="eyebrow" id="winhint">Which part of this clip plays</span>
+    <div class="winbar">
+      <canvas class="winscrub" id="winscrub"></canvas>
+      <button class="icbtn" id="bplaypause" aria-label="Pause the preview" title="Pause the preview">
+        <svg id="icpause" viewBox="0 0 20 20" aria-hidden="true"><path d="M7.5 4v12M12.5 4v12"/></svg>
+        <svg id="icplay" class="hidden" viewBox="0 0 20 20" aria-hidden="true"><path d="M6 4l10 6-10 6z"/></svg>
+      </button>
     </div>
-    <canvas class="winscrub" id="winscrub"></canvas>
     <div class="winlabel" id="winlabel"></div>
   </div>
 
@@ -227,7 +233,7 @@
       durRow=$('durrow'), durIn=$('dur'), durLabel=$('durlabel'), durNote=$('durnote'), bDurReset=$('bdurreset'),
       fmtRow=$('fmtrow'), fmtSel=$('fmt'),
       bExport=$('bexport'), statusEl=$('status'), banner=$('banner'),
-      prevRow=$('prevrow'), bPlayPause=$('bplaypause'),
+      bPlayPause=$('bplaypause'), icPause=$('icpause'), icPlay=$('icplay'), winHint=$('winhint'),
       sheet=$('sheet'), sheetImg=$('sheetimg'), sheetVid=$('sheetvid'),
       sheetInfo=$('sheetinfo'), sheetCheck=$('sheetcheck'), sheetHint=$('sheethint'),
       bShare=$('bshare'), bDone=$('bdone');
@@ -319,6 +325,11 @@
       var ww=r.w/s, wh=r.h/s;
       var sx=clamp(c.view.cx*sw-ww/2, 0, Math.max(0,sw-ww));
       var sy=clamp(c.view.cy*sh-wh/2, 0, Math.max(0,sh-wh));
+      /* drawImage ignores non-finite arguments without complaining, so
+         a poisoned view would silently record a black panel. */
+      if(!(isFinite(sx)&&isFinite(sy)&&isFinite(ww)&&isFinite(wh)&&ww>0&&wh>0)){
+        sx=0; sy=0; ww=sw; wh=sh;
+      }
       try{ g.drawImage(c.el, sx,sy,ww,wh, r.x,r.y,r.w,r.h); }catch(_){}
     }
   }
@@ -370,6 +381,7 @@
     var ww=r.w/s, wh=r.h/s;
     var sx=clamp(c.view.cx*c.w-ww/2, 0, Math.max(0,c.w-ww));
     var sy=clamp(c.view.cy*c.h-wh/2, 0, Math.max(0,c.h-wh));
+    if(!(isFinite(sx)&&isFinite(sy)&&isFinite(s)&&s>0)){ sx=0; sy=0; s=s0||1; }
     c.el.style.width=(c.w*s)+'px';
     c.el.style.height=(c.h*s)+'px';
     c.el.style.transform='translate('+(-sx*s)+'px,'+(-sy*s)+'px)';
@@ -571,12 +583,23 @@
   /* Keep the pan inside the picture at the current zoom, for the cell's
      own rect. Uses the export-space rect so preview and export agree. */
   function clampView(c){
-    var rs=rectsFor(OUT_W,OUT_H), r=rs[state.selected];
+    /* Never run before the media's own size is known: dividing by a
+       zero width produced NaN here, and NaN is silent everywhere it
+       lands — a CSS translate(NaNpx) is dropped (so the preview still
+       looked right) while drawImage with non-finite coordinates draws
+       nothing at all (so the export came out black). */
+    if(!c || !c.ready || !(c.w>0) || !(c.h>0)) return;
+    if(!isFinite(c.view.cx)) c.view.cx=0.5;
+    if(!isFinite(c.view.cy)) c.view.cy=0.5;
+    if(!isFinite(c.view.s) || c.view.s<1) c.view.s=1;
+    var idx=state.cells.indexOf(c);
+    var r=(idx>=0) ? rectsFor(OUT_W,OUT_H)[idx] : null;
     if(!r){ c.view.cx=clamp(c.view.cx,0,1); c.view.cy=clamp(c.view.cy,0,1); return; }
     var s=Math.max(r.w/c.w, r.h/c.h)*c.view.s;
+    if(!isFinite(s) || s<=0) return;
     var hx=(r.w/s)/(2*c.w), hy=(r.h/s)/(2*c.h);
-    c.view.cx=clamp(c.view.cx, Math.min(0.5,hx), Math.max(0.5,1-hx));
-    c.view.cy=clamp(c.view.cy, Math.min(0.5,hy), Math.max(0.5,1-hy));
+    if(isFinite(hx)) c.view.cx=clamp(c.view.cx, Math.min(0.5,hx), Math.max(0.5,1-hx));
+    if(isFinite(hy)) c.view.cy=clamp(c.view.cy, Math.min(0.5,hy), Math.max(0.5,1-hy));
   }
 
   /* ---------- adding, replacing, removing ---------- */
@@ -746,8 +769,8 @@
 
   function drawWin(){
     var c=selCell();
-    if(!c || c.kind!=='video' || !c.ready) return;
-    var w=winCv.clientWidth||300, h=48;
+    var live=!!(c && c.kind==='video' && c.ready);
+    var w=winCv.clientWidth||300, h=56;
     var d=window.devicePixelRatio||1;
     if(winCv.width!==Math.round(w*d)){ winCv.width=Math.round(w*d); winCv.height=Math.round(h*d); }
     var g=winCv.getContext('2d'); if(!g) return;
@@ -755,7 +778,12 @@
     g.clearRect(0,0,w,h);
     g.strokeStyle='rgba(255,255,255,.12)';
     g.lineWidth=1;
-    g.strokeRect(0.5,11.5,w-1,25);
+    g.strokeRect(0.5,15.5,w-1,25);
+    if(!live){
+      winCv.className='winscrub off';
+      winLabel.textContent='Tap a video cell to choose which part of it plays.';
+      return;
+    }
     var L=effDuration()||0;
     if(c.dur>0 && L>0){
       var x0=(c.start/c.dur)*w, x1=((c.start+L)/c.dur)*w;
@@ -778,46 +806,70 @@
         ' s. Tap to jump, drag to move; slide your finger away for finer control.';
   }
 
-  winCv.addEventListener('pointerdown',function(e){
-    if(state.exporting) return;
+  /* The fine tiers ask you to slide your finger *off* the strip, so the
+     drag cannot depend on pointer capture staying with the canvas —
+     iOS drops it and every later move went nowhere. Track the drag on
+     the document instead, and accept touch events too in case a
+     WebKit build withholds pointer events from the canvas. */
+  function winGrab(x,y){
+    if(state.exporting) return false;
     var c=selCell();
-    if(!c || c.kind!=='video' || !c.ready) return;
+    if(!c || c.kind!=='video' || !c.ready) return false;
     var span=winSpan(c);
-    if(span<=0.01){
-      say('This clip is the shortest one, so all of it plays and there is no part to choose. Drag Story length shorter and this strip comes alive.');
-      return;
-    }
-    e.preventDefault();
-    if(winCv.setPointerCapture){ try{ winCv.setPointerCapture(e.pointerId); }catch(_){} }
+    if(span<=0.01) return false;
     winState.active=true; winState.tier=0;
     /* Tap anywhere to put the window there, the way Frame's scrubber
        jumps — then drag from that point to fine-tune. */
     var r=winCv.getBoundingClientRect();
-    var frac=clamp((e.clientX-r.left)/(r.width||1), 0, 1);
+    var frac=clamp((x-r.left)/(r.width||1), 0, 1);
     c.start=clamp(frac*c.dur, 0, span);
-    winState.anchorX=e.clientX; winState.anchorStart=c.start;
+    winState.anchorX=x; winState.anchorStart=c.start;
     try{ if(!c.el.seeking){ c.el.currentTime=c.start; winState.lastSeek=c.start; } }catch(_){}
     drawWin();
-  });
-  winCv.addEventListener('pointermove',function(e){
+    return true;
+  }
+  function winDrag(x,y){
     if(!winState.active || state.exporting) return;
     var c=selCell();
-    if(!c || c.kind!=='video') { winState.active=false; return; }
-    e.preventDefault();
+    if(!c || c.kind!=='video'){ winState.active=false; return; }
     var r=winCv.getBoundingClientRect();
-    var dy=Math.max(0, Math.max(r.top-e.clientY, e.clientY-r.bottom));
+    var dy=Math.max(0, Math.max(r.top-y, y-r.bottom));
     var t=winTierFor(dy);
-    if(t!==winState.tier){ winState.tier=t; winState.anchorX=e.clientX; winState.anchorStart=c.start; }
+    if(t!==winState.tier){ winState.tier=t; winState.anchorX=x; winState.anchorStart=c.start; }
     var span=winSpan(c);
     var perPx=c.dur/Math.max(1,(r.width||300));
-    c.start=clamp(winState.anchorStart+(e.clientX-winState.anchorX)*perPx*WTIERS[t].f, 0, span);
+    c.start=clamp(winState.anchorStart+(x-winState.anchorX)*perPx*WTIERS[t].f, 0, span);
     if(Math.abs(c.start-winState.lastSeek)>0.04){
       try{ if(!c.el.seeking){ c.el.currentTime=c.start; winState.lastSeek=c.start; } }catch(_){}
     }
     drawWin();
+  }
+  function winDrop(){ winState.active=false; winState.lastSeek=-1; }
+
+  winCv.addEventListener('pointerdown',function(e){
+    if(winGrab(e.clientX,e.clientY)) e.preventDefault();
   });
+  document.addEventListener('pointermove',function(e){
+    if(!winState.active) return;
+    e.preventDefault();
+    winDrag(e.clientX,e.clientY);
+  },{passive:false});
   ['pointerup','pointercancel'].forEach(function(ev){
-    winCv.addEventListener(ev,function(){ winState.active=false; winState.lastSeek=-1; });
+    document.addEventListener(ev,winDrop);
+  });
+
+  winCv.addEventListener('touchstart',function(e){
+    if(winState.active) return;                 /* pointer events already handled it */
+    var t=e.changedTouches && e.changedTouches[0];
+    if(t && winGrab(t.clientX,t.clientY)) e.preventDefault();
+  },{passive:false});
+  document.addEventListener('touchmove',function(e){
+    if(!winState.active) return;
+    var t=e.changedTouches && e.changedTouches[0];
+    if(t){ e.preventDefault(); winDrag(t.clientX,t.clientY); }
+  },{passive:false});
+  ['touchend','touchcancel'].forEach(function(ev){
+    document.addEventListener(ev,winDrop);
   });
 
   /* ---------- story length ---------- */
@@ -894,22 +946,34 @@
         ? 'Video cell — drag the picture to frame it, pinch to zoom. No sound is recorded in this version.'
         : 'Photo cell — drag the picture to frame it, pinch to zoom.';
     }
-    winRow.className=(c && c.kind==='video' && c.ready)?'group on':'group';
-    if(c && c.kind==='video' && c.ready) drawWin();
-    renderDur(syncSlider!==false);
     var anyVideo=videoCells().length>0;
-    prevRow.className=anyVideo?'prevrow on':'prevrow';
-    bPlayPause.textContent=state.previewPlay?'Pause':'Play';
+    /* The strip and its transport stay put whenever there is video, so
+       Play/Pause never disappears under you. */
+    winRow.className=anyVideo?'group on':'group';
+    var onVideo=!!(c && c.kind==='video' && c.ready);
+    winHint.textContent=onVideo?'Which part of this clip plays':'Preview';
+    if(anyVideo) drawWin();
+    paintPlayIcon();
+    renderDur(syncSlider!==false);
     fmtRow.className=anyVideo?'group':'group on';
     bExport.disabled=!allFilled();
     if(state.selected>=0 && c) clampView(c);
     syncCells();
   }
 
+  function paintPlayIcon(){
+    var playing=state.previewPlay;
+    /* SVG elements expose className read-only, so set the attribute. */
+    icPause.setAttribute('class', playing?'':'hidden');
+    icPlay.setAttribute('class', playing?'hidden':'');
+    var lab=playing?'Pause the preview':'Play the preview';
+    bPlayPause.setAttribute('aria-label',lab);
+    bPlayPause.setAttribute('title',lab);
+  }
   bPlayPause.addEventListener('click',function(){
     if(state.exporting) return;
     state.previewPlay=!state.previewPlay;
-    bPlayPause.textContent=state.previewPlay?'Pause':'Play';
+    paintPlayIcon();
     if(!state.previewPlay){
       videoCells().forEach(function(c){ try{ c.el.pause(); }catch(_){} });
     }
@@ -978,6 +1042,26 @@
   /* ---------- export: video ---------- */
   var exportInterrupted=false;   /* set when the page hides mid-recording */
 
+  /* Mean brightness inside each cell of a canvas holding the story, at
+     any size. A handful of small patches per cell is enough to tell a
+     recorded picture from a black panel, and cheap enough to read once. */
+  function cellLuma(g,W,H){
+    var rs=rectsFor(W,H), out=[];
+    for(var i=0;i<rs.length;i++){
+      var r=rs[i], sum=0, n=0, d;
+      for(var gy=1;gy<=3;gy++){
+        for(var gx=1;gx<=3;gx++){
+          var x=Math.max(0,Math.min(W-8, Math.round(r.x+r.w*gx/4)-4));
+          var y=Math.max(0,Math.min(H-8, Math.round(r.y+r.h*gy/4)-4));
+          try{ d=g.getImageData(x,y,8,8).data; }catch(_){ return null; }
+          for(var p=0;p<d.length;p+=4){ sum+=(d[p]+d[p+1]+d[p+2])/3; n++; }
+        }
+      }
+      out.push(n?sum/n:0);
+    }
+    return out;
+  }
+
   function seekTo(v,t){
     return new Promise(function(res){
       var done=false, timer=null;
@@ -1005,21 +1089,38 @@
         res(out);
       }
       v.muted=true; v.playsInline=true;
-      v.onloadedmetadata=function(){
-        if(isFinite(v.duration) && v.duration>0){
-          fin({w:v.videoWidth,h:v.videoHeight,dur:v.duration});
-          return;
+      /* Read one real frame back: size and length cannot see a panel
+         that recorded black, and that is the failure that matters. */
+      function measure(dur){
+        var sc=document.createElement('canvas');
+        sc.width=270; sc.height=480;
+        var sg=sc.getContext('2d',{willReadFrequently:true});
+        if(!sg){ fin({w:v.videoWidth,h:v.videoHeight,dur:dur,luma:null}); return; }
+        function shot(){
+          var luma=null;
+          try{ sg.drawImage(v,0,0,270,480); luma=cellLuma(sg,270,480); }catch(_){}
+          fin({w:v.videoWidth,h:v.videoHeight,dur:dur,luma:luma});
         }
+        var at=Math.min(Math.max(dur*0.5,0.05), Math.max(0.05,dur-0.05));
+        v.addEventListener('seeked',function once(){
+          v.removeEventListener('seeked',once);
+          setTimeout(shot,60);
+        });
+        try{ v.currentTime=at; }catch(_){ shot(); }
+      }
+      v.onloadedmetadata=function(){
+        if(isFinite(v.duration) && v.duration>0){ measure(v.duration); return; }
         /* Fresh recordings can report an unknown length; force it. */
         v.ondurationchange=function(){
           if(isFinite(v.duration) && v.duration>0){
-            fin({w:v.videoWidth,h:v.videoHeight,dur:v.duration});
+            v.ondurationchange=null;
+            measure(v.duration);
           }
         };
         try{ v.currentTime=1e10; }catch(_){}
       };
       v.onerror=function(){ fin(null); };
-      timer=setTimeout(function(){ fin(null); },6000);
+      timer=setTimeout(function(){ fin(null); },9000);
       v.src=u;
     });
   }
@@ -1048,7 +1149,8 @@
     if(!eg || !ec.captureStream){ say('This browser refused a recording surface.',true); return; }
 
     var vids=videoCells();
-    var best=null;   /* least-bad result if no attempt verifies clean */
+    var best=null;      /* least-bad result if no attempt verifies clean */
+    var srcLuma=null;   /* brightness per panel as it went into the recorder */
     exportInterrupted=false;
     state.exporting=true;
     bExport.disabled=true;
@@ -1062,7 +1164,7 @@
       state.exporting=false;
       bExport.disabled=!allFilled();
       var name='story_'+stamp()+((cand.type==='video/mp4')?'.mp4':'.webm');
-      openSheetVideo(cand.blob,name,cand.v,L,cand.mt);
+      openSheetVideo(cand.blob,name,cand.v,L,cand.mt,cand.stalled||0,cand.black||0);
     }
 
     function attempt(ci){
@@ -1114,20 +1216,59 @@
           say('Checking…');
           /* The ladder is decided by verification: a recording only
              counts if it re-decodes at the right size and length. */
+          /* A cell whose clock never advanced recorded as a still black
+             panel. Dimensions and duration cannot see that, so count it
+             and say so rather than call the file ready. */
+          var stalled=0;
+          for(var q=0;q<vids.length;q++) if(!vids[q].xMoved) stalled++;
           verifyVideo(blob).then(function(v){
-            var cand={blob:blob, v:v, mt:mt, type:type};
+            /* A panel that went in lit and came out black is a failed
+               take, however right its size and length look. */
+            var black=0;
+            if(v && v.luma && srcLuma){
+              var lim=Math.min(v.luma.length, srcLuma.length, cellCount());
+              for(var z=0;z<lim;z++) if(srcLuma[z]>10 && v.luma[z]<4) black++;
+            }
+            var cand={blob:blob, v:v, mt:mt, type:type, stalled:stalled, black:black};
             var good = v && v.w===OUT_W && v.h===OUT_H &&
-                       isFinite(v.dur) && Math.abs(v.dur-L)<=0.6;
+                       isFinite(v.dur) && Math.abs(v.dur-L)<=0.6 &&
+                       !black && !stalled;
             if(good){ finishWith(cand); return; }
-            if(!best || blob.size>best.blob.size) best=cand;
+            if(!best || (best.black && !black) ||
+               (!!best.black===!!black && blob.size>best.blob.size)) best=cand;
             nextOr('The recording came out unreadable. Try again; if it repeats, tell me.');
           });
         };
         vids.forEach(function(c){
+          c.xT=0; c.xAt=-1; c.xMoved=false;
           var p=c.el.play();
           if(p && p.catch) p.catch(function(){});
         });
+        /* The preview's watchdog is switched off during export, so the
+           recording needs its own: starting several 4K decoders at once
+           can leave one stalled, and a stalled cell records as black for
+           the whole take with nothing else to revive it. */
+        function keepSources(now){
+          for(var k=0;k<vids.length;k++){
+            var c=vids[k], v=c.el, pr;
+            if(v.seeking) continue;
+            if(v.paused){
+              pr=v.play(); if(pr && pr.catch) pr.catch(function(){});
+              c.xAt=v.currentTime; c.xT=now;
+              continue;
+            }
+            if(c.xAt<0 || Math.abs(v.currentTime-c.xAt)>0.02){
+              if(c.xAt>=0) c.xMoved=true;
+              c.xAt=v.currentTime; c.xT=now;
+            } else if(now-c.xT>600){
+              c.xT=now;
+              pr=v.play(); if(pr && pr.catch) pr.catch(function(){});
+            }
+          }
+        }
         var t0=(window.performance&&performance.now)?performance.now():Date.now();
+        var lastDraw=0;
+        srcLuma=null;
         rec.start(250);
         function frame(){
           if(stopped) return;
@@ -1138,8 +1279,18 @@
           }
           var now=(window.performance&&performance.now)?performance.now():Date.now();
           var t=(now-t0)/1000;
-          drawInto(eg,OUT_W,OUT_H);
-          if(track && track.requestFrame){ try{ track.requestFrame(); }catch(_){} }
+          keepSources(now);
+          /* Two 4K sources scaled into 1080x1920 is more than a phone can
+             do every animation frame; 30 is the story frame rate anyway,
+             and attempting 60 is what dragged the real rate down. */
+          if(now-lastDraw>=31){
+            lastDraw=now;
+            drawInto(eg,OUT_W,OUT_H);
+            if(track && track.requestFrame){ try{ track.requestFrame(); }catch(_){} }
+            /* Remember how bright each panel was going in, so the same
+               reading taken from the finished file can prove it arrived. */
+            if(!srcLuma && t>L*0.45) srcLuma=cellLuma(eg,OUT_W,OUT_H);
+          }
           say('Recording '+Math.min(t,L).toFixed(1)+' / '+L.toFixed(1)+' s — recording happens in real time.');
           if(t>=L){
             stopped=true;
@@ -1154,7 +1305,7 @@
     attempt(0);
   }
 
-  function openSheetVideo(blob,name,v,L,mt){
+  function openSheetVideo(blob,name,v,L,mt,stalled,black){
     pendingBlob=blob; pendingName=name;
     if(sheetUrl) URL.revokeObjectURL(sheetUrl);
     sheetUrl=URL.createObjectURL(blob);
@@ -1165,7 +1316,20 @@
     var durTxt=(v && isFinite(v.dur))?v.dur.toFixed(1)+' s':'length unreadable';
     sheetInfo.textContent=dims+'  ·  '+durTxt+'  ·  '+fmtSize(blob.size)+'  ·  '+name;
     var isMp4=mt.indexOf('mp4')>=0;
-    if(v && v.w===OUT_W && v.h===OUT_H && isFinite(v.dur) && Math.abs(v.dur-L)<=0.6 && isMp4){
+    if(stalled){
+      sheetCheck.className='sheetcheck bad';
+      sheetCheck.textContent=stalled+(stalled===1?' clip':' clips')+
+        ' never started playing during the recording, so '+
+        (stalled===1?'that panel is':'those panels are')+
+        ' black in this file. The phone ran out of video decoders — close other tabs and apps, '+
+        'or use fewer or shorter clips, then export again.';
+    } else if(black){
+      sheetCheck.className='sheetcheck bad';
+      sheetCheck.textContent='Checked the finished file and '+black+
+        (black===1?' panel came out black':' panels came out black')+
+        ' even though the picture was there while recording — this browser’s video recorder '+
+        'did not capture it. On iPhone, use Safari itself rather than an in-app browser.';
+    } else if(v && v.w===OUT_W && v.h===OUT_H && isFinite(v.dur) && Math.abs(v.dur-L)<=0.6 && isMp4){
       sheetCheck.className='sheetcheck';
       sheetCheck.textContent='Checked: 1080 × 1920 '+
         (mt.indexOf('avc1')>=0?'H.264 MP4':'MP4')+', '+v.dur.toFixed(1)+
