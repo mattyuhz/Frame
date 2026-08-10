@@ -64,6 +64,17 @@
   .stage{display:flex;align-items:center;justify-content:center;background:#000;min-height:220px}
   #preview{display:block;background:#000;touch-action:none;cursor:pointer}
 
+  /* iOS presents no frames from a video element that is not in the
+     document, which turns the canvas black. The vault keeps every
+     loaded video in the layout tree, invisible but decoding. */
+  #vault{position:fixed;left:0;top:0;width:2px;height:2px;overflow:hidden;
+    opacity:.01;pointer-events:none}
+  #vault video{width:2px;height:2px}
+
+  .prevrow{display:none;justify-content:center;margin-top:10px}
+  .prevrow.on{display:flex}
+  .prevrow button{padding:9px 22px;min-height:0}
+
   .chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:14px}
   button.chip{font-family:var(--sans);font-size:13px;background:transparent;border:1px solid var(--rule);
     border-radius:var(--r-pill);padding:0 16px;height:34px;display:inline-flex;align-items:center;
@@ -138,6 +149,10 @@
     <canvas id="preview" width="270" height="480" aria-label="Story preview. Tap a cell to add or select it."></canvas>
   </div>
 
+  <div class="prevrow" id="prevrow">
+    <button class="t" id="bplaypause">Pause</button>
+  </div>
+
   <div class="chips" id="laybar"></div>
   <input type="file" id="file" accept="image/*,video/*" multiple class="hidden">
 
@@ -193,6 +208,8 @@
   <button class="t wide" id="bdone">Back to the layout</button>
 </div>
 
+<div id="vault" aria-hidden="true"></div>
+
 <script>
 (function(){
   "use strict";
@@ -204,6 +221,7 @@
       durRow=$('durrow'), durIn=$('dur'), durLabel=$('durlabel'), durNote=$('durnote'), bDurReset=$('bdurreset'),
       fmtRow=$('fmtrow'), fmtSel=$('fmt'),
       bExport=$('bexport'), statusEl=$('status'), banner=$('banner'),
+      vault=$('vault'), prevRow=$('prevrow'), bPlayPause=$('bplaypause'),
       sheet=$('sheet'), sheetImg=$('sheetimg'), sheetVid=$('sheetvid'),
       sheetInfo=$('sheetinfo'), sheetCheck=$('sheetcheck'), sheetHint=$('sheethint'),
       bShare=$('bshare'), bDone=$('bdone');
@@ -231,7 +249,7 @@
   ];
 
   var state={ layout:'2', cells:[null,null,null,null], selected:-1,
-              durOverride:null, exporting:false };
+              durOverride:null, exporting:false, previewPlay:true };
   var pendingBlob=null, pendingName='', sheetUrl=null;
 
   function clamp(v,a,b){ return Math.min(Math.max(v,a),b); }
@@ -328,11 +346,17 @@
     pcv.width=Math.round(pW*dpr); pcv.height=Math.round(pH*dpr);
   }
 
-  /* Preview videos loop inside their chosen window. */
+  /* Preview videos loop inside their chosen window. Paused preview
+     freezes every cell; a cell whose window is being scrubbed holds
+     still so the chosen start frame is what you see. */
   function tickVideos(){
     var L=effDuration();
     videoCells().forEach(function(c){
       var v=c.el;
+      if(!state.previewPlay || (winState.active && c===selCell())){
+        if(!v.paused){ try{ v.pause(); }catch(_){} }
+        return;
+      }
       if(L!==null && (v.currentTime > c.start+L-0.05 || v.currentTime < c.start-0.25)){
         try{ if(!v.seeking) v.currentTime=c.start; }catch(_){}
       }
@@ -449,6 +473,7 @@
         c.el.pause();
         c.el.removeAttribute('src');
         if(c.el.load) c.el.load();
+        if(c.el.parentNode) c.el.parentNode.removeChild(c.el);
       }
     }catch(_){}
     if(c.url) URL.revokeObjectURL(c.url);
@@ -491,12 +516,17 @@
       v.muted=true; v.playsInline=true;
       v.setAttribute('playsinline',''); v.setAttribute('muted','');
       v.preload='auto'; v.loop=false;
+      /* Must be in the document: iOS presents no frames from a
+         detached video element, which draws black onto the canvas. */
+      vault.appendChild(v);
       v.onloadedmetadata=function(){
         cell.w=v.videoWidth; cell.h=v.videoHeight;
         function finalize(dur){
           cell.dur=dur;
           cell.ready=cell.w>0 && cell.h>0 && cell.dur>0;
           if(!cell.ready) say('Could not read '+(file.name||'that video')+'.',true);
+          /* Present a first frame so a paused preview is not black. */
+          try{ v.currentTime=0.01; }catch(_){}
           recalcStarts();
           updateUI(true);
         }
@@ -726,10 +756,20 @@
     if(c && c.kind==='video' && c.ready) drawWin();
     renderDur(syncSlider!==false);
     var anyVideo=videoCells().length>0;
+    prevRow.className=anyVideo?'prevrow on':'prevrow';
+    bPlayPause.textContent=state.previewPlay?'Pause':'Play';
     fmtRow.className=anyVideo?'group':'group on';
     bExport.disabled=!allFilled();
     if(state.selected>=0 && c) clampView(c);
   }
+
+  bPlayPause.addEventListener('click',function(){
+    state.previewPlay=!state.previewPlay;
+    bPlayPause.textContent=state.previewPlay?'Pause':'Play';
+    if(!state.previewPlay){
+      videoCells().forEach(function(c){ try{ c.el.pause(); }catch(_){} });
+    }
+  });
 
   /* ---------- export: stills ---------- */
   function verifyImage(blob){
