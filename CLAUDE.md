@@ -10,34 +10,24 @@ A pair of single-file web apps. **Frame** scrubs video frame-by-frame and export
 
 - `index.html` (~105 KB) — Frame: markup, CSS, and one IIFE of dependency-free ES5-ish JS. No build step, no bundler, nothing external.
 - `compose.html` — Compose: same discipline (single file, one IIFE, zero network, same CSP and design tokens). Linked from Frame's header and back.
-- `sw.js` (~1.5 KB) — offline shell for both pages. Cache-first with background refresh; same-origin GET only. Bump the `CACHE` version on breaking changes.
+- `sw.js` (~1.5 KB) — offline shell for both pages. Cache-first with background refresh; same-origin GET only. Bump the `CACHE` version per the ship-together rule in `COLLABORATION.md` (every PR that changes a shipped file).
 - Deployed on GitHub Pages (mattyuhz.github.io). All files must ship together.
 - `COLLABORATION.md` / `AGENTS.md` — multi-assistant working rules; see Collaboration below.
 
 ## Collaboration (since 2026-08)
 
-Two assistants work in this repo: Claude (primary engineer) and OpenAI's Codex (reviewer / tester / documenter; its instruction file is `AGENTS.md`). The shared rules — roles, branch discipline, one pen per file, handoff format, review protocol, pre-PR verification ritual — live in `COLLABORATION.md`; read it before starting any task. The short version: fetch `origin/main` first and check open branches/PRs for what Codex is doing; work on a `claude/<topic>` branch; never push `main`; behaviour changes get cross-review; only M merges, and a merge to `main` is a production deploy (GitHub Pages publishes it directly).
+Two assistants work in this repo: Claude (primary engineer) and OpenAI's Codex (reviewer / tester / documenter; its instruction file is `AGENTS.md` — Codex mirrors everything below with `codex/<topic>` branches). The shared rules — roles, branch discipline, one pen per file, handoff format, review protocol, pre-PR verification ritual — live in `COLLABORATION.md`; read it before starting any task. The short version for Claude: fetch `origin/main` first and check open branches/PRs for what Codex is doing; work on a `claude/<topic>` branch; claim a shipped file with a draft PR before editing it; never push `main`; behaviour changes get cross-review; only M merges, and a merge to `main` is a production deploy (GitHub Pages publishes it directly).
 
 ## Non-negotiable constraints (the user set these; do not relax them)
 
 1. **Zero network capability in the page.** CSP meta enforces `default-src 'none'; connect-src 'none'` etc. The only `fetch` in the project lives in `sw.js` behind a same-origin guard. The acceptance test is literal: **everything must work in Airplane Mode.** No CDN, no webfonts, no analytics, no external scripts — ever. Open-source is fine as *reference or dev tooling*, never as shipped dependency.
 2. **Video never leaves the device.** Read via `URL.createObjectURL`, drawn to canvas, exported locally. Any future online feature must be opt-in with explicit egress, but none exist today.
-3. **Simplicity over capability.** The user has explicitly asked twice to cut features. When in doubt, propose removal, not addition. Ask before adding controls.
+3. **Simplicity over capability.** The user has explicitly asked twice to cut features. When in doubt, propose removal, not addition. Ask before adding controls, and check "Deliberately removed" below first — the idea may have already been cut on purpose.
 4. **Never lie about quality.** Exports are re-decoded and their true pixel size verified against the source before claiming success (see `verifyImage`). Never ship a confident message the code didn't check.
 
 ## Security audit ritual (run after every change)
 
-```bash
-for f in index.html compose.html; do
-  echo "== $f"
-  grep -c 'https\?://' "$f"                                             # 0
-  grep -nE 'fetch\(|XMLHttpRequest|WebSocket|new Worker|@import' "$f"   # no output
-  grep -nE '\beval\(|new Function|innerHTML|document\.write' "$f"       # no output
-  grep -c "connect-src 'none'" "$f"                                     # 1
-done
-```
-
-(`sw.js` is the only file allowed to contain `fetch`, behind its same-origin guard. The runnable pre-PR version of this ritual, plus syntax and ID checks, lives in `COLLABORATION.md`.)
+The single runnable copy lives in `COLLABORATION.md` ("Verification ritual", step 1) — one copy so the two can't drift; update it there. What it asserts: zero `https?://` in either page; none of `fetch(` / `XMLHttpRequest` / `WebSocket` / `EventSource` / `sendBeacon` / `new Worker` / `import(` / `@import`; none of `eval` / `new Function` / `innerHTML` / `document.write`; `connect-src 'none'` present exactly once; `sw.js` parses and keeps its same-origin guard (`sw.js` is the only shipped file allowed to contain `fetch`). Run it after every change, not just before a PR.
 
 ## Testing ritual (these caught real bugs; keep them)
 

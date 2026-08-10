@@ -27,9 +27,11 @@ regardless of the change's other merits:
 
 1. **Zero network capability in the pages.** The acceptance test is literal:
    everything works in Airplane Mode. No CDN, no webfonts, no analytics, no
-   external scripts, ever. The only `fetch` in the project lives in `sw.js`
+   external scripts, ever. The only `fetch` in shipped code lives in `sw.js`
    behind a same-origin guard.
-2. **Video never leaves the device.**
+2. **Video never leaves the device — and never enters the repo.** The
+   deployed site is public; committed test media must be synthetic, generated
+   by code.
 3. **Simplicity over capability.** M has repeatedly asked for features to be
    *cut*. When in doubt, propose removal. Ask M before adding controls, and
    check "Deliberately removed" in `CLAUDE.md` first — your idea may have
@@ -41,11 +43,16 @@ regardless of the change's other merits:
 
 - Branch `codex/<topic>` from the latest `origin/main`; open a PR when done;
   never push to `main` or to a `claude/*` branch.
+- Before editing `index.html`, `compose.html`, or `sw.js`, claim the file by
+  opening a draft PR that names it — see "One pen per file" in
+  `COLLABORATION.md`. A task assigned in chat is not a claim.
 - Run the verification ritual in `COLLABORATION.md` before every PR and paste
   its output into the PR description.
 - No build step, no bundler, no dependencies: each app is one HTML file
-  containing one IIFE of ES5-ish JS. Match that style. Dev tooling on your own
-  machine is fine; shipped dependencies are not.
+  containing one IIFE of ES5-ish JS. Match that style. Checked-in dev tooling
+  is fine — it lives in `tools/` and is never referenced by the shipped
+  pages. GitHub Pages publishes the whole repo, so no tracked `.html` or
+  `.js` file may reference an external origin, tooling included.
 - The target device is M's iPhone (Safari). Success in a desktop browser
   proves little for video paths — flag anything touching decode, playback, or
   export for M's on-device pass instead of claiming it works.
