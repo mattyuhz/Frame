@@ -75,9 +75,11 @@
   .cellbox .plus{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
     color:rgba(255,255,255,.35);font-size:34px;font-weight:200;pointer-events:none}
 
-  .prevrow{display:none;justify-content:center;margin-top:10px}
-  .prevrow.on{display:flex}
-  .prevrow button{padding:9px 22px;min-height:0}
+  .prevrow{display:none}
+  .prevrow.on{display:block}
+  .prevrow button{padding:8px 20px;min-height:0}
+  .winhead{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:9px}
+  .group .winhead .eyebrow{margin-bottom:0}
 
   .chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:14px}
   button.chip{font-family:var(--sans);font-size:13px;background:transparent;border:1px solid var(--rule);
@@ -99,6 +101,7 @@
   .group .eyebrow{display:block;margin-bottom:9px}
 
   .winscrub{position:relative;height:48px;margin-top:6px;touch-action:none;cursor:ew-resize;display:block;width:100%}
+  .winscrub.off{opacity:.3;cursor:default}
   .winlabel{font-size:13px;color:var(--dim);margin-top:8px;line-height:1.5}
 
   .durrow{display:flex;align-items:center;gap:12px}
@@ -153,12 +156,8 @@
     <div id="board" role="group" aria-label="Story preview. Tap a cell to add or select it."></div>
   </div>
 
-  <div class="prevrow" id="prevrow">
-    <button class="t" id="bplaypause">Pause</button>
-  </div>
-
   <div class="chips" id="laybar"></div>
-  <input type="file" id="file" accept="image/*,video/*" multiple class="hidden">
+  <input type="file" id="file" accept="image/*,video/*" class="hidden">
 
   <div class="group" id="cellbar">
     <span class="eyebrow" id="cellhint">Cell</span>
@@ -169,7 +168,12 @@
   </div>
 
   <div class="group" id="winrow">
-    <span class="eyebrow">Which part of this clip plays</span>
+    <div class="winhead">
+      <span class="eyebrow">Which part of this clip plays</span>
+      <div class="prevrow" id="prevrow">
+        <button class="t" id="bplaypause">Pause</button>
+      </div>
+    </div>
     <canvas class="winscrub" id="winscrub"></canvas>
     <div class="winlabel" id="winlabel"></div>
   </div>
@@ -433,25 +437,54 @@
     /* While the result sheet is up, the grid pauses so its decoders do
        not compete with the exported video the user is judging. */
     var sheetOpen=(sheet.className==='sheet on');
-    videoCells().forEach(function(c){
-      var v=c.el;
-      if(!state.previewPlay || sheetOpen || (winState.active && c===selCell())){
+    var sel=selCell(), now=Date.now();
+    var vs=videoCells();
+    for(var i=0;i<vs.length;i++){
+      var c=vs[i], v=c.el, p;
+      if(!state.previewPlay || sheetOpen || (winState.active && c===sel)){
         if(!v.paused){ try{ v.pause(); }catch(_){} }
-        return;
+        c.watchT=0;
+        continue;
       }
-      if(L!==null && (v.currentTime > c.start+L-0.05 || v.currentTime < c.start-0.25)){
-        try{ if(!v.seeking) v.currentTime=c.start; }catch(_){}
+      /* Never touch an element mid-seek: a play() issued during a seek
+         is silently dropped, which is how the loop used to die. */
+      if(v.seeking) continue;
+      var end=(L!==null) ? c.start+L : (c.dur||0);
+      if(v.ended || v.currentTime>end-0.05 || v.currentTime<c.start-0.25){
+        try{ v.currentTime=c.start; }catch(_){}
+        c.watchT=now; c.watchAt=c.start;
+        continue;                       /* play once the seek has landed */
       }
       if(v.paused){
-        var p=v.play();
-        if(p && p.catch) p.catch(function(){});
+        p=v.play(); if(p && p.catch) p.catch(function(){});
+        c.watchT=now; c.watchAt=v.currentTime;
+        continue;
       }
-    });
+      /* Unpaused but the clock is frozen: iOS drops decoders under
+         memory pressure (a second 4K clip is enough) and leaves the
+         element looking like it is playing. Nothing recovers it but us. */
+      if(!c.watchT || Math.abs(v.currentTime-c.watchAt)>0.02){
+        c.watchT=now; c.watchAt=v.currentTime;
+      } else if(now-c.watchT>1400){
+        c.watchT=now;
+        try{ v.pause(); v.currentTime=c.start; }catch(_){}
+        p=v.play(); if(p && p.catch) p.catch(function(){});
+      }
+    }
   }
+  /* The preview draws itself now — this loop only keeps playback honest
+     and moves the scrubber playhead, so it runs far below frame rate.
+     At 60 Hz the bookkeeping alone stole time from four 4K decoders. */
+  var lastKeep=0, lastWinDraw=0;
   function loop(){
     if(!state.exporting && !document.hidden){
-      tickVideos();
-      if(selCell() && selCell().kind==='video') drawWin();
+      var now=Date.now();
+      if(now-lastKeep>=120){ lastKeep=now; tickVideos(); }
+      if(now-lastWinDraw>=66){
+        lastWinDraw=now;
+        var sc=selCell();
+        if(sc && sc.kind==='video' && sc.ready) drawWin();
+      }
     }
     if(typeof requestAnimationFrame==='function') requestAnimationFrame(loop);
   }
@@ -605,8 +638,10 @@
           cell.dur=dur;
           cell.ready=cell.w>0 && cell.h>0 && cell.dur>0;
           if(!cell.ready) say('Could not read '+(file.name||'that video')+'.',true);
-          /* Present a first frame so a paused preview is not black. */
-          try{ v.currentTime=0.01; }catch(_){}
+          /* Present a first frame so a paused preview is not black. When
+             the preview is running the play() below does that anyway, and
+             an extra seek only slows a fresh 4K clip down. */
+          if(!state.previewPlay){ try{ v.currentTime=0.01; }catch(_){} }
           recalcStarts();
           updateUI(true);
         }
@@ -643,18 +678,15 @@
 
   fileIn.addEventListener('change',function(){
     if(state.exporting){ fileIn.value=''; return; }
-    var files=fileIn.files ? Array.prototype.slice.call(fileIn.files) : [];
-    if(!files.length){ pickTarget=-1; return; }
+    /* One file per tap: a cell is picked first, so choosing several at
+       once had no meaning beyond guessing where the rest should land. */
+    var file=(fileIn.files && fileIn.files[0]) || null;
+    if(!file){ pickTarget=-1; return; }
     var n=cellCount();
     var idx=(pickTarget>=0 && pickTarget<n) ? pickTarget : -1;
     if(idx<0){ for(var j=0;j<n;j++){ if(!state.cells[j]){ idx=j; break; } } }
     if(idx<0) idx=state.selected>=0?state.selected:0;
-    files.forEach(function(f,k){
-      var at=-1;
-      if(k===0) at=idx;
-      else { for(var j=0;j<n;j++){ if(!state.cells[j]){ at=j; break; } } }
-      if(at>=0) assign(f,at);
-    });
+    assign(file,idx);
     pickTarget=-1;
     fileIn.value='';
     updateUI(true);
@@ -705,6 +737,13 @@
     return WTIERS.length-1;
   }
 
+  /* How far this clip's window can travel. Zero for the clip that sets
+     the story length — it plays in full, so there is nothing to choose. */
+  function winSpan(c){
+    var L=effDuration()||0;
+    return Math.max(0, (c.dur||0)-L);
+  }
+
   function drawWin(){
     var c=selCell();
     if(!c || c.kind!=='video' || !c.ready) return;
@@ -731,21 +770,34 @@
         g.fillRect((t/c.dur)*w-0.5,12,1,24);
       }
     }
-    var full=(L>0 && c.dur<=L+0.05);
+    var full=(winSpan(c)<=0.01);
+    winCv.className = full ? 'winscrub off' : 'winscrub';
     winLabel.textContent = full
-      ? 'This clip plays in full ('+c.dur.toFixed(1)+' s).'
+      ? 'This clip plays in full ('+c.dur.toFixed(1)+' s) — it is the shortest, so there is nothing to choose here. Shorten the story length below to pick a part of it.'
       : 'Shows '+c.start.toFixed(1)+' – '+(c.start+L).toFixed(1)+' s of '+c.dur.toFixed(1)+
-        ' s. Drag to move; slide your finger away for finer control.';
+        ' s. Tap to jump, drag to move; slide your finger away for finer control.';
   }
 
   winCv.addEventListener('pointerdown',function(e){
     if(state.exporting) return;
     var c=selCell();
     if(!c || c.kind!=='video' || !c.ready) return;
+    var span=winSpan(c);
+    if(span<=0.01){
+      say('This clip is the shortest one, so all of it plays and there is no part to choose. Drag Story length shorter and this strip comes alive.');
+      return;
+    }
     e.preventDefault();
     if(winCv.setPointerCapture){ try{ winCv.setPointerCapture(e.pointerId); }catch(_){} }
     winState.active=true; winState.tier=0;
+    /* Tap anywhere to put the window there, the way Frame's scrubber
+       jumps — then drag from that point to fine-tune. */
+    var r=winCv.getBoundingClientRect();
+    var frac=clamp((e.clientX-r.left)/(r.width||1), 0, 1);
+    c.start=clamp(frac*c.dur, 0, span);
     winState.anchorX=e.clientX; winState.anchorStart=c.start;
+    try{ if(!c.el.seeking){ c.el.currentTime=c.start; winState.lastSeek=c.start; } }catch(_){}
+    drawWin();
   });
   winCv.addEventListener('pointermove',function(e){
     if(!winState.active || state.exporting) return;
@@ -756,8 +808,7 @@
     var dy=Math.max(0, Math.max(r.top-e.clientY, e.clientY-r.bottom));
     var t=winTierFor(dy);
     if(t!==winState.tier){ winState.tier=t; winState.anchorX=e.clientX; winState.anchorStart=c.start; }
-    var L=effDuration()||0;
-    var span=Math.max(0, c.dur-L);
+    var span=winSpan(c);
     var perPx=c.dur/Math.max(1,(r.width||300));
     c.start=clamp(winState.anchorStart+(e.clientX-winState.anchorX)*perPx*WTIERS[t].f, 0, span);
     if(Math.abs(c.start-winState.lastSeek)>0.04){
