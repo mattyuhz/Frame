@@ -1,0 +1,1028 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<!--
+  COMPOSE — story grid composer (companion to Frame)
+  ------------------------------------------------------------------
+  No external resources. Nothing is loaded from anywhere. The
+  Content-Security-Policy below sets connect-src to 'none', which the
+  browser enforces: this page cannot open a network connection at all.
+  Your photos and videos are read from disk into memory and never
+  leave the device. Verify it: turn on Airplane Mode. It still works.
+  ------------------------------------------------------------------
+-->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self' blob: data: filesystem:; media-src 'self' blob: data: filesystem:; style-src 'unsafe-inline'; script-src 'unsafe-inline'; worker-src 'self'; connect-src 'none'; form-action 'none'; base-uri 'none'; frame-src 'none'; object-src 'none';">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Compose">
+<meta name="theme-color" content="#0A0A0B">
+<link rel="apple-touch-icon" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAALQAAAC0CAIAAACyr5FlAAABbklEQVR42u3dsQ6CMBRA0VfTj+7AyNC/xkEHgyFxKC2WczZdCC+XhzESIwAAAAAAAAAAAAAAAAAAAAAAgHZSz4OVspx9iFrXsQOd6Rwfrg+O5Gmup/t4DbPD/rA5EAeXva1c7WPjP55a/1uzzYE4EAfiQByIA3EgDsSBOBAHiANxIA7EgTgQB+JAHIiD+8lGEBHbtn2/mVK6+VhsDsSBOBAH4kAciANxMItkBOFLMJsDcSAOxIE4EAfiQByIA3GAOBAH4kAciANxIA7EgTgQB4gDcSAOxIE4EAfiQByIA3EgDiNAHIgDcSAOxIE4EAfiQByIA8TBzzr9x1spy+fLWlejv/4MbQ7EgTgQB+JAHIgDcTCLbATh79xsDsSBOBAH4kAciANxIA7EAeJAHIgDcSAOxIE4EAfiQBzwNuYHxrsHxhsa/vz+eadmcyAO3FZ2236mlTtQt1unzQEAAAAAAAAAAAAAAAAAAAAAAC09AS47JPKaXfPNAAAAAElFTkSuQmCC">
+<link rel="icon" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAALQAAAC0CAIAAACyr5FlAAABbklEQVR42u3dsQ6CMBRA0VfTj+7AyNC/xkEHgyFxKC2WczZdCC+XhzESIwAAAAAAAAAAAAAAAAAAAAAAgHZSz4OVspx9iFrXsQOd6Rwfrg+O5Gmup/t4DbPD/rA5EAeXva1c7WPjP55a/1uzzYE4EAfiQByIA3EgDsSBOBAHiANxIA7EgTgQB+JAHIiD+8lGEBHbtn2/mVK6+VhsDsSBOBAH4kAciANxMItkBOFLMJsDcSAOxIE4EAfiQByIA3GAOBAH4kAciANxIA7EgTgQB4gDcSAOxIE4EAfiQByIA3EgDiNAHIgDcSAOxIE4EAfiQByIA8TBzzr9x1spy+fLWlejv/4MbQ7EgTgQB+JAHIgDcTCLbATh79xsDsSBOBAH4kAciANxIA7EAeJAHIgDcSAOxIE4EAfiQBzwNuYHxrsHxhsa/vz+eadmcyAO3FZ2236mlTtQt1unzQEAAAAAAAAAAAAAAAAAAAAAAC09AS47JPKaXfPNAAAAAElFTkSuQmCC">
+<title>Compose</title>
+<style>
+  :root{
+    --void:#000000;
+    --deck:rgba(255,255,255,.08);
+    --raise:rgba(255,255,255,.08);
+    --raise-hi:rgba(255,255,255,.14);
+    --rule:rgba(255,255,255,.12);
+    --divider:rgba(217,217,217,.16);
+    --read:#FFFFFF;
+    --mid:#E3E3E3;
+    --dim:#666666;
+    --phos:#FFFFFF;
+    --r-lg:24px; --r-md:16px; --r-pill:999px;
+    --gap:16px;
+    --sans: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;
+    -webkit-touch-callout:none}
+  button,.chip,label,.eyebrow,.winscrub{-webkit-user-select:none;user-select:none;touch-action:manipulation}
+  html,body{height:100%;overscroll-behavior:none}
+  body{
+    background:var(--void);color:var(--read);font-family:var(--sans);font-size:14px;
+    -webkit-font-smoothing:antialiased;
+    padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  }
+  .wrap{max-width:760px;margin:0 auto;padding:16px 16px 48px}
+  .eyebrow{font-size:13px;color:var(--dim)}
+  a.eyebrow{text-decoration:none}
+
+  header{display:flex;align-items:center;justify-content:space-between;gap:12px;
+    padding-bottom:14px;border-bottom:2px solid var(--divider);margin-bottom:16px}
+  .mark{font-size:15px;font-weight:500;letter-spacing:-.01em}
+
+  .banner{display:none;border:0;border-radius:var(--r-md);padding:16px;
+    margin-bottom:var(--gap);background:var(--raise)}
+  .banner.on{display:block}
+  .banner h2{font-size:15px;font-weight:500;color:var(--read);margin-bottom:6px}
+  .banner p{font-size:13px;line-height:1.55;color:var(--dim)}
+
+  .stage{display:flex;align-items:center;justify-content:center;background:#000;min-height:220px}
+  #preview{display:block;background:#000;touch-action:none;cursor:pointer}
+
+  .chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:14px}
+  button.chip{font-family:var(--sans);font-size:13px;background:transparent;border:1px solid var(--rule);
+    border-radius:var(--r-pill);padding:0 16px;height:34px;display:inline-flex;align-items:center;
+    color:var(--mid);cursor:pointer}
+  button.chip.on{background:var(--read);color:var(--void);border-color:var(--read)}
+
+  button.t{font-family:var(--sans);font-size:15px;background:var(--raise);color:var(--read);
+    border:0;border-radius:var(--r-lg);padding:15px 8px;cursor:pointer;min-height:48px}
+  button.t:active:not(:disabled){background:var(--raise-hi)}
+  button.t:disabled{opacity:.32}
+  button.wide{width:100%;margin-top:var(--gap);padding:17px;font-size:15px;min-height:56px}
+  button.primary{background:var(--read);color:var(--void);font-weight:500}
+  button.primary:disabled{opacity:.28}
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:9px}
+
+  .group{margin-top:18px;padding-top:16px;border-top:2px solid var(--divider);display:none}
+  .group.on{display:block}
+  .group .eyebrow{display:block;margin-bottom:9px}
+
+  .winscrub{position:relative;height:48px;margin-top:6px;touch-action:none;cursor:ew-resize;display:block;width:100%}
+  .winlabel{font-size:13px;color:var(--dim);margin-top:8px;line-height:1.5}
+
+  .durrow{display:flex;align-items:center;gap:12px}
+  .durrow input[type=range]{flex:1;-webkit-appearance:none;appearance:none;height:26px;background:transparent;cursor:ew-resize}
+  .durrow input[type=range]::-webkit-slider-runnable-track{height:2px;background:var(--rule);border-radius:1px}
+  .durrow input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:22px;height:22px;
+    border-radius:50%;background:var(--read);margin-top:-10px;border:0}
+  .durrow input[type=range]::-moz-range-track{height:2px;background:var(--rule);border-radius:1px}
+  .durrow input[type=range]::-moz-range-thumb{width:22px;height:22px;border-radius:50%;background:var(--read);border:0}
+  .durlabel{font-size:13px;color:var(--mid);min-width:64px;text-align:right;font-variant-numeric:tabular-nums}
+  #bdurreset{padding:9px 13px;min-height:0;display:none}
+  #bdurreset.on{display:inline-block}
+  .durnote{font-size:13px;color:var(--dim);margin-top:8px;line-height:1.5}
+
+  .field{display:flex;align-items:center;gap:8px}
+  .field label{font-size:13px;color:var(--dim)}
+  select{font-family:var(--sans);font-size:14px;background:var(--raise);color:var(--read);
+    border:0;border-radius:var(--r-md);padding:11px 12px;cursor:pointer}
+
+  .status{margin-top:var(--gap);font-size:13px;line-height:1.55;color:var(--dim);min-height:1.55em}
+  .status.warn{color:var(--read)}
+
+  .sheet{position:fixed;inset:0;background:var(--void);z-index:50;display:none;
+    flex-direction:column;padding:calc(env(safe-area-inset-top) + 16px) 16px calc(env(safe-area-inset-bottom) + 16px)}
+  .sheet.on{display:flex}
+  .sheet > *{width:100%;max-width:760px;align-self:center}
+  .sheetmedia{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;margin-bottom:14px}
+  .sheetmedia img,.sheetmedia video{max-width:100%;max-height:100%;object-fit:contain;border:1px solid var(--rule)}
+  .sheetinfo{font-size:14px;color:var(--read);text-align:center;margin-bottom:6px}
+  .sheetcheck{font-size:13px;text-align:center;color:var(--mid);margin-bottom:6px}
+  .sheetcheck.bad{color:var(--read);font-weight:500}
+  .sheethint{font-size:13px;color:var(--dim);text-align:center;margin-bottom:12px;line-height:1.55}
+
+  .hidden{display:none}
+  @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header id="hdr">
+    <div class="mark">Compose</div>
+    <a class="eyebrow" href="./index.html">Frame &rarr;</a>
+  </header>
+
+  <div class="banner" id="banner">
+    <h2>Open this in Safari itself</h2>
+    <p>This page is inside a restricted preview frame, where Safari blocks video from loading no matter what the file is. Open the address in Safari directly and it will work.</p>
+  </div>
+
+  <div class="stage" id="stage">
+    <canvas id="preview" width="270" height="480" aria-label="Story preview. Tap a cell to add or select it."></canvas>
+  </div>
+
+  <div class="chips" id="laybar"></div>
+  <input type="file" id="file" accept="image/*,video/*" multiple class="hidden">
+
+  <div class="group" id="cellbar">
+    <span class="eyebrow" id="cellhint">Cell</span>
+    <div class="row2" style="margin-top:0">
+      <button class="t" id="breplace">Replace</button>
+      <button class="t" id="bremove">Remove</button>
+    </div>
+  </div>
+
+  <div class="group" id="winrow">
+    <span class="eyebrow">Which part of this clip plays</span>
+    <canvas class="winscrub" id="winscrub"></canvas>
+    <div class="winlabel" id="winlabel"></div>
+  </div>
+
+  <div class="group" id="durrow">
+    <span class="eyebrow">Story length</span>
+    <div class="durrow">
+      <input type="range" id="dur" min="0.5" max="60" step="0.1" value="10" aria-label="Story length in seconds">
+      <span class="durlabel" id="durlabel">&mdash;</span>
+      <button class="t" id="bdurreset">Reset</button>
+    </div>
+    <div class="durnote" id="durnote"></div>
+  </div>
+
+  <div class="group" id="fmtrow">
+    <div class="field">
+      <label for="fmt">Format</label>
+      <select id="fmt">
+        <option value="image/jpeg" selected>JPEG &middot; max quality</option>
+        <option value="image/png">PNG &middot; lossless</option>
+      </select>
+    </div>
+  </div>
+
+  <button class="t wide primary" id="bexport" disabled>Export story</button>
+
+  <div class="status" id="status"></div>
+
+</div>
+
+<div class="sheet" id="sheet">
+  <div class="sheetmedia">
+    <img id="sheetimg" alt="The story you exported" class="hidden">
+    <video id="sheetvid" playsinline muted loop class="hidden"></video>
+  </div>
+  <div class="sheetinfo" id="sheetinfo"></div>
+  <div class="sheetcheck" id="sheetcheck"></div>
+  <div class="sheethint" id="sheethint"></div>
+  <button class="t wide primary" id="bshare">Save</button>
+  <button class="t wide" id="bdone">Back to the layout</button>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  var $ = function(id){ return document.getElementById(id); };
+  var pcv=$('preview'), stageEl=$('stage'), layBar=$('laybar'), fileIn=$('file'),
+      cellBar=$('cellbar'), cellHint=$('cellhint'), bReplace=$('breplace'), bRemove=$('bremove'),
+      winRow=$('winrow'), winCv=$('winscrub'), winLabel=$('winlabel'),
+      durRow=$('durrow'), durIn=$('dur'), durLabel=$('durlabel'), durNote=$('durnote'), bDurReset=$('bdurreset'),
+      fmtRow=$('fmtrow'), fmtSel=$('fmt'),
+      bExport=$('bexport'), statusEl=$('status'), banner=$('banner'),
+      sheet=$('sheet'), sheetImg=$('sheetimg'), sheetVid=$('sheetvid'),
+      sheetInfo=$('sheetinfo'), sheetCheck=$('sheetcheck'), sheetHint=$('sheethint'),
+      bShare=$('bshare'), bDone=$('bdone');
+
+  /* ---------- environment ---------- */
+  var env = {
+    framed:(function(){ try{ return window.self!==window.top; }catch(e){ return true; } })(),
+    opaque:(function(){ try{ return String(window.origin)==='null'; }catch(e){ return true; } })(),
+    share:(typeof navigator.canShare==='function'),
+    secure:(window.isSecureContext===true)
+  };
+  env.restricted = env.framed || env.opaque;
+  if(env.restricted) banner.className='banner on';
+
+  /* ---------- constants + state ---------- */
+  var OUT_W=1080, OUT_H=1920;       /* the size Instagram stories want */
+  var GAPF=4/1080;                  /* hairline gap, same fraction at every size */
+  var MAX_STORY=60;                 /* Instagram's per-story clip limit, seconds */
+
+  var LAYOUTS=[
+    {id:'1', label:'Full',        n:1},
+    {id:'2', label:'2 up',        n:2},
+    {id:'3', label:'3 up',        n:3},
+    {id:'4', label:'2×2',    n:4}
+  ];
+
+  var state={ layout:'2', cells:[null,null,null,null], selected:-1,
+              durOverride:null, exporting:false };
+  var pendingBlob=null, pendingName='', sheetUrl=null;
+
+  function clamp(v,a,b){ return Math.min(Math.max(v,a),b); }
+  function say(m,w){ statusEl.textContent=m||''; statusEl.className=w?'status warn':'status'; }
+  function pad2(n){ return String(n).padStart(2,'0'); }
+
+  function layoutDef(){
+    for(var i=0;i<LAYOUTS.length;i++) if(LAYOUTS[i].id===state.layout) return LAYOUTS[i];
+    return LAYOUTS[0];
+  }
+  function cellCount(){ return layoutDef().n; }
+  function visibleCells(){ return state.cells.slice(0,cellCount()); }
+  function videoCells(){
+    return visibleCells().filter(function(c){ return c && c.kind==='video' && c.ready; });
+  }
+  function selCell(){
+    return (state.selected>=0 && state.selected<cellCount()) ? state.cells[state.selected] : null;
+  }
+
+  /* Story length: never longer than the shortest clip (no freezing, no
+     looping — every cell always shows real footage), capped at what
+     Instagram accepts, and overridable down for tighter curation. */
+  function windowLimit(){
+    var vs=videoCells();
+    if(!vs.length) return null;
+    var m=Infinity;
+    vs.forEach(function(c){ if(c.dur<m) m=c.dur; });
+    if(!isFinite(m) || m<=0) return null;
+    return Math.max(0.5, Math.min(m, MAX_STORY));
+  }
+  function effDuration(){
+    var lim=windowLimit();
+    if(lim===null) return null;
+    var L=(state.durOverride!==null) ? Math.min(state.durOverride,lim) : lim;
+    return Math.max(0.5, L);
+  }
+
+  /* ---------- geometry ---------- */
+  function rectsFor(W,H){
+    var g=Math.max(1,Math.round(W*GAPF)), n=cellCount(), out=[], i;
+    if(state.layout==='4'){
+      var w=(W-g)/2, h=(H-g)/2;
+      out=[{x:0,y:0,w:w,h:h},{x:w+g,y:0,w:w,h:h},
+           {x:0,y:h+g,w:w,h:h},{x:w+g,y:h+g,w:w,h:h}];
+    } else {
+      var hh=(H-g*(n-1))/n;
+      for(i=0;i<n;i++) out.push({x:0,y:i*(hh+g),w:W,h:hh});
+    }
+    return out;
+  }
+
+  /* ---------- drawing ---------- */
+  function drawInto(g,W,H,ui){
+    g.fillStyle='#000000'; g.fillRect(0,0,W,H);
+    var rs=rectsFor(W,H);
+    for(var i=0;i<rs.length;i++){
+      var r=rs[i], c=state.cells[i];
+      if(!c || !c.ready){
+        g.fillStyle='rgba(255,255,255,.05)';
+        g.fillRect(r.x,r.y,r.w,r.h);
+        if(ui){
+          g.strokeStyle='rgba(255,255,255,.35)'; g.lineWidth=2;
+          var cx=r.x+r.w/2, cy=r.y+r.h/2, a=Math.max(8,Math.min(r.w,r.h)*0.06);
+          g.beginPath();
+          g.moveTo(cx-a,cy); g.lineTo(cx+a,cy);
+          g.moveTo(cx,cy-a); g.lineTo(cx,cy+a);
+          g.stroke();
+        }
+      } else {
+        var sw=c.w, sh=c.h;
+        var s0=Math.max(r.w/sw, r.h/sh), s=s0*c.view.s;
+        var ww=r.w/s, wh=r.h/s;
+        var sx=clamp(c.view.cx*sw-ww/2, 0, Math.max(0,sw-ww));
+        var sy=clamp(c.view.cy*sh-wh/2, 0, Math.max(0,sh-wh));
+        try{ g.drawImage(c.el, sx,sy,ww,wh, r.x,r.y,r.w,r.h); }catch(_){}
+      }
+      if(ui && i===state.selected){
+        g.strokeStyle='#FFFFFF'; g.lineWidth=2;
+        g.strokeRect(r.x+1,r.y+1,r.w-2,r.h-2);
+      }
+    }
+  }
+
+  var pW=270, pH=480, dpr=1;
+  function sizePreview(){
+    dpr=window.devicePixelRatio||1;
+    var maxH=Math.round((window.innerHeight||700)*0.60);
+    var maxW=stageEl.clientWidth||320;
+    var h=Math.min(maxH, Math.round(maxW*16/9));
+    var w=Math.round(h*9/16);
+    if(w>maxW){ w=maxW; h=Math.round(w*16/9); }
+    pW=Math.max(90,w); pH=Math.max(160,h);
+    pcv.style.width=pW+'px'; pcv.style.height=pH+'px';
+    pcv.width=Math.round(pW*dpr); pcv.height=Math.round(pH*dpr);
+  }
+
+  /* Preview videos loop inside their chosen window. */
+  function tickVideos(){
+    var L=effDuration();
+    videoCells().forEach(function(c){
+      var v=c.el;
+      if(L!==null && (v.currentTime > c.start+L-0.05 || v.currentTime < c.start-0.25)){
+        try{ if(!v.seeking) v.currentTime=c.start; }catch(_){}
+      }
+      if(v.paused){
+        var p=v.play();
+        if(p && p.catch) p.catch(function(){});
+      }
+    });
+  }
+  function loop(){
+    if(!state.exporting && !document.hidden){
+      tickVideos();
+      var g=pcv.getContext('2d');
+      if(g){
+        g.setTransform(dpr,0,0,dpr,0,0);
+        drawInto(g,pW,pH,true);
+      }
+      if(selCell() && selCell().kind==='video') drawWin();
+    }
+    if(typeof requestAnimationFrame==='function') requestAnimationFrame(loop);
+  }
+
+  /* ---------- selection + pan/zoom gestures on the preview ---------- */
+  var ptrs={}, pinch=null, tapT=0;
+  function ptrCount(){ return Object.keys(ptrs).length; }
+  function ptrDist(){
+    var k=Object.keys(ptrs); if(k.length<2) return 0;
+    var a=ptrs[k[0]], b=ptrs[k[1]];
+    return Math.sqrt((a.x-b.x)*(a.x-b.x)+(a.y-b.y)*(a.y-b.y));
+  }
+  function hitCell(x,y){
+    var rs=rectsFor(pW,pH);
+    for(var i=0;i<rs.length;i++){
+      var r=rs[i];
+      if(x>=r.x && x<=r.x+r.w && y>=r.y && y<=r.y+r.h) return i;
+    }
+    return -1;
+  }
+  function canvasPos(e){
+    var r=pcv.getBoundingClientRect();
+    return {x:e.clientX-r.left, y:e.clientY-r.top};
+  }
+
+  pcv.addEventListener('pointerdown',function(e){
+    e.preventDefault();
+    if(pcv.setPointerCapture){ try{ pcv.setPointerCapture(e.pointerId); }catch(_){} }
+    var p=canvasPos(e);
+    ptrs[e.pointerId]={x:p.x,y:p.y,moved:false};
+    if(ptrCount()===1){
+      var i=hitCell(p.x,p.y);
+      if(i>=0 && i!==state.selected){ state.selected=i; updateUI(true); }
+    }
+    var c=selCell();
+    if(ptrCount()===2 && c && c.ready) pinch={d:ptrDist(), s:c.view.s};
+  });
+  pcv.addEventListener('pointermove',function(e){
+    var p=ptrs[e.pointerId]; if(!p) return;
+    e.preventDefault();
+    var np=canvasPos(e);
+    var dx=np.x-p.x, dy=np.y-p.y;
+    ptrs[e.pointerId]={x:np.x,y:np.y,moved:p.moved||Math.abs(dx)>3||Math.abs(dy)>3};
+    var c=selCell();
+    if(!c || !c.ready) return;
+    if(ptrCount()>=2 && pinch && pinch.d>6){
+      c.view.s=clamp(pinch.s*(ptrDist()/pinch.d), 1, 10);
+      clampView(c);
+    } else if(ptrCount()===1){
+      var rs=rectsFor(pW,pH), r=rs[state.selected];
+      if(r){
+        var s=Math.max(r.w/c.w, r.h/c.h)*c.view.s;
+        c.view.cx-=dx/(s*c.w);
+        c.view.cy-=dy/(s*c.h);
+        clampView(c);
+      }
+    }
+  });
+  ['pointerup','pointercancel'].forEach(function(ev){
+    pcv.addEventListener(ev,function(e){
+      var p=ptrs[e.pointerId], single=ptrCount()===1;
+      delete ptrs[e.pointerId];
+      if(ptrCount()<2) pinch=null;
+      if(!(single && p && !p.moved)) return;
+      var i=hitCell(p.x,p.y);
+      if(i<0) return;
+      var c=state.cells[i];
+      if(!c){ pickTarget=i; fileIn.click(); return; }
+      var now=Date.now();
+      if(now-tapT<320){
+        c.view={cx:0.5,cy:0.5,s:1};
+        tapT=0;
+        say('Zoom reset for this cell.');
+      } else tapT=now;
+    });
+  });
+
+  /* Keep the pan inside the picture at the current zoom, for the cell's
+     own rect. Uses the export-space rect so preview and export agree. */
+  function clampView(c){
+    var rs=rectsFor(OUT_W,OUT_H), r=rs[state.selected];
+    if(!r){ c.view.cx=clamp(c.view.cx,0,1); c.view.cy=clamp(c.view.cy,0,1); return; }
+    var s=Math.max(r.w/c.w, r.h/c.h)*c.view.s;
+    var hx=(r.w/s)/(2*c.w), hy=(r.h/s)/(2*c.h);
+    c.view.cx=clamp(c.view.cx, Math.min(0.5,hx), Math.max(0.5,1-hx));
+    c.view.cy=clamp(c.view.cy, Math.min(0.5,hy), Math.max(0.5,1-hy));
+  }
+
+  /* ---------- adding, replacing, removing ---------- */
+  var pickTarget=-1;
+
+  function releaseCell(c){
+    if(!c) return;
+    try{
+      if(c.kind==='video' && c.el){
+        c.el.pause();
+        c.el.removeAttribute('src');
+        if(c.el.load) c.el.load();
+      }
+    }catch(_){}
+    if(c.url) URL.revokeObjectURL(c.url);
+  }
+
+  function guessKind(file){
+    if(/^video\//.test(file.type)) return 'video';
+    if(/^image\//.test(file.type)) return 'image';
+    if(/\.(mov|mp4|m4v|webm)$/i.test(file.name||'')) return 'video';
+    if(/\.(jpe?g|png|heic|heif|gif|webp|avif)$/i.test(file.name||'')) return 'image';
+    return null;
+  }
+
+  function assign(file, idx){
+    var kind=guessKind(file);
+    if(!kind){ say('Could not tell what kind of file '+(file.name||'that')+' is.',true); return; }
+    releaseCell(state.cells[idx]);
+    var url=URL.createObjectURL(file);
+    var cell={ kind:kind, file:file, url:url, el:null, w:0, h:0, dur:0, start:0,
+               ready:false, view:{cx:0.5,cy:0.5,s:1} };
+    if(kind==='image'){
+      var im=new Image();
+      cell.el=im;
+      im.onload=function(){
+        cell.w=im.naturalWidth; cell.h=im.naturalHeight;
+        cell.ready=cell.w>0 && cell.h>0;
+        if(!cell.ready) say('Could not read '+(file.name||'that image')+'.',true);
+        updateUI(false);
+      };
+      im.onerror=function(){
+        say('Could not open '+(file.name||'that image')+'.',true);
+        releaseCell(cell);
+        if(state.cells[idx]===cell) state.cells[idx]=null;
+        updateUI(false);
+      };
+      im.src=url;
+    } else {
+      var v=document.createElement('video');
+      cell.el=v;
+      v.muted=true; v.playsInline=true;
+      v.setAttribute('playsinline',''); v.setAttribute('muted','');
+      v.preload='auto'; v.loop=false;
+      v.onloadedmetadata=function(){
+        cell.w=v.videoWidth; cell.h=v.videoHeight;
+        function finalize(dur){
+          cell.dur=dur;
+          cell.ready=cell.w>0 && cell.h>0 && cell.dur>0;
+          if(!cell.ready) say('Could not read '+(file.name||'that video')+'.',true);
+          recalcStarts();
+          updateUI(true);
+        }
+        if(isFinite(v.duration) && v.duration>0){ finalize(v.duration); return; }
+        /* Streamed files (screen recordings and the like) report an
+           unknown length; seeking far past the end forces the browser
+           to work out the real one. */
+        var probe=setTimeout(function(){
+          v.ondurationchange=null;
+          finalize(0);
+        },3000);
+        v.ondurationchange=function(){
+          if(isFinite(v.duration) && v.duration>0){
+            clearTimeout(probe);
+            v.ondurationchange=null;
+            try{ v.currentTime=0; }catch(_){}
+            finalize(v.duration);
+          }
+        };
+        try{ v.currentTime=1e10; }catch(_){}
+      };
+      v.onerror=function(){
+        say('Could not open '+(file.name||'that video')+
+            ' — ProRes and some 10-bit formats cannot play in a browser. Re-export as H.264.',true);
+        releaseCell(cell);
+        if(state.cells[idx]===cell) state.cells[idx]=null;
+        updateUI(true);
+      };
+      v.src=url;
+    }
+    state.cells[idx]=cell;
+    state.selected=idx;
+  }
+
+  fileIn.addEventListener('change',function(){
+    var files=fileIn.files ? Array.prototype.slice.call(fileIn.files) : [];
+    if(!files.length){ pickTarget=-1; return; }
+    var n=cellCount();
+    var idx=(pickTarget>=0 && pickTarget<n) ? pickTarget : -1;
+    if(idx<0){ for(var j=0;j<n;j++){ if(!state.cells[j]){ idx=j; break; } } }
+    if(idx<0) idx=state.selected>=0?state.selected:0;
+    files.forEach(function(f,k){
+      var at=-1;
+      if(k===0) at=idx;
+      else { for(var j=0;j<n;j++){ if(!state.cells[j]){ at=j; break; } } }
+      if(at>=0) assign(f,at);
+    });
+    pickTarget=-1;
+    fileIn.value='';
+    updateUI(true);
+  });
+
+  bReplace.addEventListener('click',function(){
+    if(state.selected<0) return;
+    pickTarget=state.selected;
+    fileIn.click();
+  });
+  bRemove.addEventListener('click',function(){
+    var c=selCell(); if(!c) return;
+    releaseCell(c);
+    state.cells[state.selected]=null;
+    recalcStarts();
+    updateUI(true);
+    say('Removed. Tap the empty cell to add something else.');
+  });
+
+  /* ---------- layout pills ---------- */
+  function buildLayBar(){
+    layBar.textContent='';
+    LAYOUTS.forEach(function(L){
+      var b=document.createElement('button');
+      b.type='button';
+      b.className='chip'+(state.layout===L.id?' on':'');
+      b.textContent=L.label;
+      b.addEventListener('click',function(){
+        state.layout=L.id;
+        if(state.selected>=L.n) state.selected=-1;
+        recalcStarts();
+        buildLayBar();
+        updateUI(true);
+      });
+      layBar.appendChild(b);
+    });
+  }
+
+  /* ---------- the per-clip window scrubber ---------- */
+  var winState={active:false, anchorX:0, anchorStart:0, tier:0, lastSeek:-1};
+  var WTIERS=[{d:44,f:1},{d:110,f:0.25},{d:1e9,f:0.06}];
+
+  function winTierFor(dy){
+    for(var i=0;i<WTIERS.length;i++) if(dy<WTIERS[i].d) return i;
+    return WTIERS.length-1;
+  }
+
+  function drawWin(){
+    var c=selCell();
+    if(!c || c.kind!=='video' || !c.ready) return;
+    var w=winCv.clientWidth||300, h=48;
+    var d=window.devicePixelRatio||1;
+    if(winCv.width!==Math.round(w*d)){ winCv.width=Math.round(w*d); winCv.height=Math.round(h*d); }
+    var g=winCv.getContext('2d'); if(!g) return;
+    g.setTransform(d,0,0,d,0,0);
+    g.clearRect(0,0,w,h);
+    g.strokeStyle='rgba(255,255,255,.12)';
+    g.lineWidth=1;
+    g.strokeRect(0.5,11.5,w-1,25);
+    var L=effDuration()||0;
+    if(c.dur>0 && L>0){
+      var x0=(c.start/c.dur)*w, x1=((c.start+L)/c.dur)*w;
+      g.fillStyle='rgba(255,255,255,.22)';
+      g.fillRect(x0,12,Math.max(2,x1-x0),24);
+      g.fillStyle='#FFFFFF';
+      g.fillRect(x0-1,6,2,36);
+      g.fillRect(x1-1,6,2,36);
+      var t=c.el.currentTime;
+      if(t>=0 && t<=c.dur){
+        g.fillStyle='rgba(255,255,255,.6)';
+        g.fillRect((t/c.dur)*w-0.5,12,1,24);
+      }
+    }
+    var full=(L>0 && c.dur<=L+0.05);
+    winLabel.textContent = full
+      ? 'This clip plays in full ('+c.dur.toFixed(1)+' s).'
+      : 'Shows '+c.start.toFixed(1)+' – '+(c.start+L).toFixed(1)+' s of '+c.dur.toFixed(1)+
+        ' s. Drag to move; slide your finger away for finer control.';
+  }
+
+  winCv.addEventListener('pointerdown',function(e){
+    var c=selCell();
+    if(!c || c.kind!=='video' || !c.ready) return;
+    e.preventDefault();
+    if(winCv.setPointerCapture){ try{ winCv.setPointerCapture(e.pointerId); }catch(_){} }
+    winState.active=true; winState.tier=0;
+    winState.anchorX=e.clientX; winState.anchorStart=c.start;
+  });
+  winCv.addEventListener('pointermove',function(e){
+    if(!winState.active) return;
+    var c=selCell();
+    if(!c || c.kind!=='video') { winState.active=false; return; }
+    e.preventDefault();
+    var r=winCv.getBoundingClientRect();
+    var dy=Math.max(0, Math.max(r.top-e.clientY, e.clientY-r.bottom));
+    var t=winTierFor(dy);
+    if(t!==winState.tier){ winState.tier=t; winState.anchorX=e.clientX; winState.anchorStart=c.start; }
+    var L=effDuration()||0;
+    var span=Math.max(0, c.dur-L);
+    var perPx=c.dur/Math.max(1,(r.width||300));
+    c.start=clamp(winState.anchorStart+(e.clientX-winState.anchorX)*perPx*WTIERS[t].f, 0, span);
+    if(Math.abs(c.start-winState.lastSeek)>0.04){
+      try{ if(!c.el.seeking){ c.el.currentTime=c.start; winState.lastSeek=c.start; } }catch(_){}
+    }
+    drawWin();
+  });
+  ['pointerup','pointercancel'].forEach(function(ev){
+    winCv.addEventListener(ev,function(){ winState.active=false; winState.lastSeek=-1; });
+  });
+
+  /* ---------- story length ---------- */
+  function recalcStarts(){
+    var L=effDuration();
+    if(L===null) return;
+    videoCells().forEach(function(c){
+      c.start=clamp(c.start, 0, Math.max(0,c.dur-L));
+    });
+  }
+
+  function renderDur(syncSlider){
+    var lim=windowLimit();
+    if(lim===null){ durRow.className='group'; return; }
+    durRow.className='group on';
+    var L=effDuration();
+    if(syncSlider){
+      durIn.min='0.5';
+      durIn.max=lim.toFixed(1);
+      durIn.step='0.1';
+      durIn.value=L.toFixed(1);
+    }
+    durLabel.textContent=L.toFixed(1)+' s';
+    var custom=(state.durOverride!==null && state.durOverride<lim-0.049);
+    bDurReset.className=custom?'t on':'t';
+    var vs=videoCells(), shortest=Infinity;
+    vs.forEach(function(c){ if(c.dur<shortest) shortest=c.dur; });
+    if(custom){
+      durNote.textContent='Custom length. Every clip shows '+L.toFixed(1)+
+        ' s of footage — use the strip above each video cell to choose which part.';
+    } else if(shortest>MAX_STORY){
+      durNote.textContent='Capped at '+MAX_STORY+' s — the most one story can hold.';
+    } else {
+      durNote.textContent='Matches the shortest clip. Drag left to trim every cell tighter.';
+    }
+  }
+
+  durIn.addEventListener('input',function(){
+    var lim=windowLimit();
+    if(lim===null) return;
+    var v=parseFloat(durIn.value);
+    if(!isFinite(v)) return;
+    state.durOverride=(v>=lim-0.049)?null:clamp(v,0.5,lim);
+    recalcStarts();
+    renderDur(false);
+    drawWin();
+  });
+  bDurReset.addEventListener('click',function(){
+    state.durOverride=null;
+    recalcStarts();
+    renderDur(true);
+    drawWin();
+    say('Story length reset to the shortest clip.');
+  });
+
+  /* ---------- shared UI refresh ---------- */
+  function allFilled(){
+    var v=visibleCells();
+    for(var i=0;i<v.length;i++) if(!v[i] || !v[i].ready) return false;
+    return v.length>0;
+  }
+
+  function updateUI(syncSlider){
+    var c=selCell();
+    cellBar.className=(c && c.ready)?'group on':'group';
+    if(c && c.ready){
+      cellHint.textContent=(c.kind==='video')
+        ? 'Video cell — drag the picture to frame it, pinch to zoom. No sound is recorded in this version.'
+        : 'Photo cell — drag the picture to frame it, pinch to zoom.';
+    }
+    winRow.className=(c && c.kind==='video' && c.ready)?'group on':'group';
+    if(c && c.kind==='video' && c.ready) drawWin();
+    renderDur(syncSlider!==false);
+    var anyVideo=videoCells().length>0;
+    fmtRow.className=anyVideo?'group':'group on';
+    bExport.disabled=!allFilled();
+    if(state.selected>=0 && c) clampView(c);
+  }
+
+  /* ---------- export: stills ---------- */
+  function verifyImage(blob){
+    return new Promise(function(res){
+      var u=URL.createObjectURL(blob), im=new Image();
+      im.onload=function(){ res({w:im.naturalWidth,h:im.naturalHeight}); URL.revokeObjectURL(u); };
+      im.onerror=function(){ res(null); URL.revokeObjectURL(u); };
+      im.src=u;
+    });
+  }
+  function fmtSize(bytes){
+    if(bytes>=1048576) return (bytes/1048576).toFixed(1)+' MB';
+    return Math.max(1,Math.round(bytes/1024))+' KB';
+  }
+  function stamp(){
+    var d=new Date();
+    return d.getFullYear()+'-'+pad2(d.getMonth()+1)+'-'+pad2(d.getDate())+'_'+
+           pad2(d.getHours())+pad2(d.getMinutes())+pad2(d.getSeconds());
+  }
+
+  function exportStill(){
+    var c=document.createElement('canvas');
+    c.width=OUT_W; c.height=OUT_H;
+    var g=c.getContext('2d');
+    if(!g){ say('This browser refused a drawing surface for the export.',true); return; }
+    drawInto(g,OUT_W,OUT_H,false);
+    var mime=fmtSel.value;
+    say('Encoding…');
+    c.toBlob(function(b){
+      if(!b){ say('Export failed — the browser refused to encode the image.',true); return; }
+      verifyImage(b).then(function(v){
+        var name='story_'+stamp()+(mime==='image/png'?'.png':'.jpg');
+        openSheetStill(b,name,v);
+      });
+    }, mime, mime==='image/png'?undefined:1.0);
+  }
+
+  function openSheetStill(blob,name,v){
+    pendingBlob=blob; pendingName=name;
+    if(sheetUrl) URL.revokeObjectURL(sheetUrl);
+    sheetUrl=URL.createObjectURL(blob);
+    sheetVid.className='hidden'; sheetVid.removeAttribute('src');
+    sheetImg.className=''; sheetImg.src=sheetUrl;
+    sheetInfo.textContent=(v?v.w+' × '+v.h:'? × ?')+
+      '  ·  '+fmtSize(blob.size)+'  ·  '+name;
+    if(v && v.w===OUT_W && v.h===OUT_H){
+      sheetCheck.className='sheetcheck';
+      sheetCheck.textContent='Checked: exactly 1080 × 1920 — the size stories want.';
+    } else if(v){
+      sheetCheck.className='sheetcheck bad';
+      sheetCheck.textContent='Warning: saved at '+v.w+' × '+v.h+
+        ' instead of 1080 × 1920. Tell me — this should not happen.';
+    } else {
+      sheetCheck.className='sheetcheck bad';
+      sheetCheck.textContent='Could not re-read the file to check its size.';
+    }
+    sheetHint.textContent=shareHint();
+    sheet.className='sheet on';
+    say('');
+  }
+
+  /* ---------- export: video ---------- */
+  function seekTo(v,t){
+    return new Promise(function(res){
+      var done=false, timer=null;
+      function fin(){
+        if(done) return; done=true;
+        v.removeEventListener('seeked',fin);
+        if(timer) clearTimeout(timer);
+        res();
+      }
+      v.addEventListener('seeked',fin);
+      timer=setTimeout(fin,2500);
+      try{ v.pause(); v.currentTime=t; }catch(_){ fin(); }
+    });
+  }
+
+  function verifyVideo(blob){
+    return new Promise(function(res){
+      var u=URL.createObjectURL(blob);
+      var v=document.createElement('video');
+      var done=false, timer=null;
+      function fin(out){
+        if(done) return; done=true;
+        if(timer) clearTimeout(timer);
+        URL.revokeObjectURL(u);
+        res(out);
+      }
+      v.muted=true; v.playsInline=true;
+      v.onloadedmetadata=function(){
+        if(isFinite(v.duration) && v.duration>0){
+          fin({w:v.videoWidth,h:v.videoHeight,dur:v.duration});
+          return;
+        }
+        /* Fresh recordings can report an unknown length; force it. */
+        v.ondurationchange=function(){
+          if(isFinite(v.duration) && v.duration>0){
+            fin({w:v.videoWidth,h:v.videoHeight,dur:v.duration});
+          }
+        };
+        try{ v.currentTime=1e10; }catch(_){}
+      };
+      v.onerror=function(){ fin(null); };
+      timer=setTimeout(function(){ fin(null); },6000);
+      v.src=u;
+    });
+  }
+
+  function exportVideo(){
+    if(typeof MediaRecorder==='undefined' || !pcv.captureStream){
+      say('This browser cannot record video from a drawing surface, so video export is unavailable here.',true);
+      return;
+    }
+    /* Some browsers claim a format is supported and then record nothing,
+       so run down the list until one actually produces bytes. */
+    var cands=['video/mp4;codecs=avc1.640028','video/mp4','video/webm;codecs=vp9','video/webm']
+      .filter(function(m){ return MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(m); });
+    if(!cands.length){ say('This browser offers no usable video format for recording.',true); return; }
+    var L=effDuration();
+    if(!L){ say('No playable video in the layout.',true); return; }
+
+    var ec=document.createElement('canvas');
+    ec.width=OUT_W; ec.height=OUT_H;
+    var eg=ec.getContext('2d');
+    if(!eg || !ec.captureStream){ say('This browser refused a recording surface.',true); return; }
+
+    var vids=videoCells();
+    state.exporting=true;
+    bExport.disabled=true;
+
+    function fail(msg){
+      state.exporting=false;
+      bExport.disabled=!allFilled();
+      say(msg,true);
+    }
+
+    function attempt(ci){
+      var mt=cands[ci];
+      say('Preparing…');
+      Promise.all(vids.map(function(c){ return seekTo(c.el,c.start); })).then(function(){
+        var stream=ec.captureStream(30), rec;
+        try{ rec=new MediaRecorder(stream,{mimeType:mt,videoBitsPerSecond:12000000}); }
+        catch(e){
+          if(ci+1<cands.length){ attempt(ci+1); return; }
+          fail('Recording could not start: '+((e&&e.message)||'no reason given')+'.');
+          return;
+        }
+        var chunks=[];
+        rec.ondataavailable=function(ev){ if(ev.data && ev.data.size) chunks.push(ev.data); };
+        rec.onstop=function(){
+          vids.forEach(function(c){ try{ c.el.pause(); }catch(_){} });
+          var type=(mt.indexOf('mp4')>=0)?'video/mp4':'video/webm';
+          var blob=new Blob(chunks,{type:type});
+          if(!blob.size){
+            if(ci+1<cands.length){
+              say('That recorder produced nothing; trying another format…');
+              attempt(ci+1);
+              return;
+            }
+            fail('The recording produced no data. Try again; if it repeats, tell me.');
+            return;
+          }
+          state.exporting=false;
+          bExport.disabled=!allFilled();
+          say('Checking…');
+          verifyVideo(blob).then(function(v){
+            var name='story_'+stamp()+((type==='video/mp4')?'.mp4':'.webm');
+            openSheetVideo(blob,name,v,L,mt);
+          });
+        };
+        vids.forEach(function(c){
+          var p=c.el.play();
+          if(p && p.catch) p.catch(function(){});
+        });
+        var t0=(window.performance&&performance.now)?performance.now():Date.now();
+        rec.start(250);
+        function frame(){
+          var now=(window.performance&&performance.now)?performance.now():Date.now();
+          var t=(now-t0)/1000;
+          drawInto(eg,OUT_W,OUT_H,false);
+          say('Recording '+Math.min(t,L).toFixed(1)+' / '+L.toFixed(1)+' s — recording happens in real time.');
+          if(t>=L){
+            try{ rec.stop(); }catch(_){}
+            return;
+          }
+          requestAnimationFrame(frame);
+        }
+        frame();
+      });
+    }
+    attempt(0);
+  }
+
+  function openSheetVideo(blob,name,v,L,mt){
+    pendingBlob=blob; pendingName=name;
+    if(sheetUrl) URL.revokeObjectURL(sheetUrl);
+    sheetUrl=URL.createObjectURL(blob);
+    sheetImg.className='hidden'; sheetImg.removeAttribute('src');
+    sheetVid.className=''; sheetVid.src=sheetUrl;
+    var p=sheetVid.play(); if(p&&p.catch)p.catch(function(){});
+    var dims=v?(v.w+' × '+v.h):'? × ?';
+    var durTxt=(v && isFinite(v.dur))?v.dur.toFixed(1)+' s':'length unreadable';
+    sheetInfo.textContent=dims+'  ·  '+durTxt+'  ·  '+fmtSize(blob.size)+'  ·  '+name;
+    var isMp4=mt.indexOf('mp4')>=0;
+    if(v && v.w===OUT_W && v.h===OUT_H && isFinite(v.dur) && Math.abs(v.dur-L)<=0.5 && isMp4){
+      sheetCheck.className='sheetcheck';
+      sheetCheck.textContent='Checked: 1080 × 1920 H.264, '+v.dur.toFixed(1)+
+        ' s — ready for a story. No sound: audio is not recorded in this version.';
+    } else if(v){
+      sheetCheck.className='sheetcheck bad';
+      sheetCheck.textContent=(isMp4?'':'This browser records WebM, which Instagram does not take — export from Safari on the phone for the real file. ')+
+        'Saved '+dims+', '+durTxt+' (wanted 1080 × 1920, '+L.toFixed(1)+' s). No sound in this version.';
+    } else {
+      sheetCheck.className='sheetcheck bad';
+      sheetCheck.textContent='Could not re-read the recording to check it. The file may still be fine — no sound in this version.';
+    }
+    sheetHint.textContent=shareHint();
+    sheet.className='sheet on';
+    say('');
+  }
+
+  /* ---------- sheet: save / share ---------- */
+  function shareHint(){
+    if(!env.secure){
+      return 'Saving into Photos needs the page opened from an https address; here Safari can only offer a download.';
+    }
+    if(!env.share) return 'This browser has no share sheet, so Save downloads the file.';
+    return 'Save opens the share sheet — pick Save to Photos. In Instagram, turn on Settings → Media quality → Upload at highest quality.';
+  }
+  function downloadBlob(blob,name){
+    var u=URL.createObjectURL(blob), a=document.createElement('a');
+    a.href=u; a.download=name;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(function(){ URL.revokeObjectURL(u); },4000);
+  }
+  bShare.addEventListener('click',function(){
+    if(!pendingBlob) return;
+    var f=null;
+    try{ f=new File([pendingBlob],pendingName,{type:pendingBlob.type}); }catch(e){ f=null; }
+    if(f && navigator.canShare && navigator.canShare({files:[f]}) && navigator.share){
+      navigator.share({files:[f]}).catch(function(){});
+    } else {
+      downloadBlob(pendingBlob,pendingName);
+      say('No share sheet here, so the file was downloaded instead.');
+    }
+  });
+  function closeSheet(){
+    sheet.className='sheet';
+    try{ sheetVid.pause(); }catch(_){}
+    sheetVid.removeAttribute('src');
+    sheetImg.removeAttribute('src');
+    if(sheetUrl){ URL.revokeObjectURL(sheetUrl); sheetUrl=null; }
+  }
+  bDone.addEventListener('click',closeSheet);
+  document.addEventListener('keydown',function(e){
+    if(e.key==='Escape' && sheet.className==='sheet on'){ e.preventDefault(); closeSheet(); }
+  });
+
+  /* ---------- export dispatch ---------- */
+  bExport.addEventListener('click',function(){
+    if(state.exporting) return;
+    if(!allFilled()){
+      say('Fill every cell first — tap an empty cell to add a photo or video.',true);
+      return;
+    }
+    if(videoCells().length) exportVideo();
+    else exportStill();
+  });
+
+  /* ---------- boot ---------- */
+  window.addEventListener('resize',function(){ sizePreview(); });
+  document.addEventListener('visibilitychange',function(){
+    if(document.hidden){
+      videoCells().forEach(function(c){ try{ c.el.pause(); }catch(_){} });
+    }
+  });
+
+  buildLayBar();
+  sizePreview();
+  updateUI(true);
+  say('Pick a layout, then tap a cell to add a photo or video. Everything stays on this device.');
+  loop();
+
+  /* ---- offline shell: after the first visit, the page itself opens
+     with no network. Registration is skipped in restricted frames. ---- */
+  if('serviceWorker' in navigator && location.protocol==='https:' && !env.restricted){
+    try{
+      navigator.serviceWorker.register('sw.js').then(function(){
+        env.sw=true;
+      }).catch(function(){});
+    }catch(_){}
+  }
+})();
+</script>
+</body>
+</html>
