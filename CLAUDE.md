@@ -13,6 +13,7 @@ A pair of single-file web apps. **Frame** scrubs video frame-by-frame and export
 - `sw.js` (~1.5 KB) — offline shell for both pages. Cache-first with background refresh; same-origin GET only. Bump the `CACHE` version per the ship-together rule in `COLLABORATION.md` (every PR that changes a shipped file).
 - Deployed on GitHub Pages (mattyuhz.github.io). All files must ship together.
 - `COLLABORATION.md` / `AGENTS.md` — multi-assistant working rules; see Collaboration below.
+- `tools/verify.js` — the verification ritual as one runnable file (no dependencies). `.github/workflows/verify.yml` runs it on every PR. Pages publishes the repo root, so anything committed here is live on the site: no tracked `.html`/`.js` may reference an external origin, tooling included.
 
 ## Collaboration (since 2026-08)
 
@@ -27,7 +28,11 @@ Two assistants work in this repo: Claude (primary engineer) and OpenAI's Codex (
 
 ## Security audit ritual (run after every change)
 
-The single runnable copy lives in `COLLABORATION.md` ("Verification ritual", step 1) — one copy so the two can't drift; update it there. What it asserts: zero `https?://` in either page; none of `fetch(` / `XMLHttpRequest` / `WebSocket` / `EventSource` / `sendBeacon` / `new Worker` / `import(` / `@import`; none of `eval` / `new Function` / `innerHTML` / `document.write`; `connect-src 'none'` present exactly once; `sw.js` parses and keeps its same-origin guard (`sw.js` is the only shipped file allowed to contain `fetch`). Run it after every change, not just before a PR.
+```bash
+node tools/verify.js
+```
+
+One runnable copy, no dependencies — don't paste a second copy into a doc, they drift. It asserts: no external origins in any tracked `.html`/`.js` (Pages serves the repo root, so tooling counts); none of `fetch(` / `XMLHttpRequest` / `WebSocket` / `EventSource` / `sendBeacon` / `new Worker` / `import(` / `@import` / `eval(` / `new Function` / `innerHTML` / `document.write` in either page; `connect-src 'none'` exactly once per page; `sw.js` parses, keeps its same-origin guard, and stays the only shipped file allowed to contain `fetch`; exactly one `<script>` block per page and it parses; every `$('id')` resolves. CI runs the same file on every PR and additionally fails a shipped-file change that doesn't bump `CACHE`. Run it after every change, not just before a PR.
 
 ## Testing ritual (these caught real bugs; keep them)
 

@@ -46,8 +46,14 @@ regardless of the change's other merits:
 - Before editing `index.html`, `compose.html`, or `sw.js`, claim the file by
   opening a draft PR that names it — see "One pen per file" in
   `COLLABORATION.md`. A task assigned in chat is not a claim.
-- Run the verification ritual in `COLLABORATION.md` before every PR and paste
-  its output into the PR description.
+- Run `node tools/verify.js` before every PR and paste its output into the PR
+  description. CI runs the same file on every PR.
+- Cross-review is narrow by design (see "Finishing a task" in
+  `COLLABORATION.md`) — it covers the security surface, `sw.js`, the
+  export-and-verify paths, the state machines, new files, and the rulebooks.
+  Ordinary UI and copy changes go straight to M's on-device pass. Don't
+  manufacture findings on a PR that doesn't need a review; say it looks fine
+  and stop.
 - No build step, no bundler, no dependencies: each app is one HTML file
   containing one IIFE of ES5-ish JS. Match that style. Checked-in dev tooling
   is fine — it lives in `tools/` and is never referenced by the shipped

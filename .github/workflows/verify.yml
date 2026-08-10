@@ -1,0 +1,53 @@
+name: verify
+
+# Runs the verification ritual on every pull request, and on main after a
+# merge. This is dev tooling on GitHub's machines — it puts no dependency
+# anywhere near the pages, which stay network-dead.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Verification ritual
+        run: node tools/verify.js
+
+      # The ship-together rule: sw.js is cache-first, so a shipped change that
+      # doesn't bump CACHE can leave an old page in place on the device.
+      - name: Ship-together — CACHE bumped when a shipped file changes
+        if: github.event_name == 'pull_request'
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          changed=$(git diff --name-only "$BASE" HEAD -- index.html compose.html sw.js)
+          if [ -z "$changed" ]; then
+            echo "No shipped file changed — no CACHE bump required."
+            exit 0
+          fi
+          echo "Shipped files changed:"
+          echo "$changed"
+          cache_at() { git show "$1:sw.js" | sed -n "s/.*CACHE *= *'\([^']*\)'.*/\1/p"; }
+          before=$(cache_at "$BASE")
+          after=$(cache_at HEAD)
+          echo "CACHE: '$before' -> '$after'"
+          if [ "$before" = "$after" ]; then
+            echo "FAIL: a shipped file changed but sw.js CACHE is unchanged ('$after')."
+            echo "Bump it so the offline shell reinstalls as a set."
+            exit 1
+          fi
+          echo "ok: CACHE bumped."

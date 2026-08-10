@@ -42,7 +42,8 @@ rule that actually matters is one pen per file, below.
   - No tracked `.html` or `.js` file may reference an external origin — a
     "dev-only" page with a CDN `<script src>` is a live page on the site.
     Checked-in dev tooling is welcome; it lives in `tools/`, is never
-    referenced by the shipped pages, and passes the same audit.
+    referenced by the shipped pages, and is covered by the same check
+    (`tools/verify.js` scans every tracked `.html`/`.js`, not just the apps).
   - Any PR that adds a new file to the repo gets cross-review.
 
 ## Branch rules
@@ -80,6 +81,10 @@ expensive. So:
 - Exception: the one-line `CACHE` bump in `sw.js` (ship-together rule below)
   is exempt from the `sw.js` pen — every behaviour PR carries one.
 
+This whole section only earns its keep when M runs both assistants at once. If
+you're working with one at a time, the draft-PR claim is pure overhead — skip
+it and hand the pen back verbally.
+
 ## Before starting any task (both assistants, every time)
 
 1. `git fetch origin` and start (or rebase) your branch from `origin/main`.
@@ -92,19 +97,34 @@ expensive. So:
 
 ## Finishing a task
 
-1. Run the verification ritual below; everything must pass. Docs-only PRs
-   (no change to any `.html`/`.js` file) skip the ritual.
+1. Run `node tools/verify.js`; it must pass. CI runs the same file on every
+   PR, so this is a fast local pre-check, not the last line of defence.
 2. Push the branch and open (or un-draft) the PR. The PR description is the
    handoff record:
    - what changed and why, in plain words;
    - what was verified — paste the ritual output, don't summarize it;
    - anything unfinished, uncertain, or needing M's on-device pass;
    - whether it needs the other assistant's review.
-3. Cross-review before M merges is required for: any behaviour change to
-   `index.html`, `compose.html`, or `sw.js`; any PR that adds a new file; and
-   any change to the rulebooks themselves (`COLLABORATION.md`, `AGENTS.md`,
-   `CLAUDE.md`) — the rules are load-bearing. Other docs edits skip review.
-   M relays the request ("review PR #N") to the other assistant.
+3. **Cross-review is deliberately narrow.** It is the expensive step — M
+   relays it by hand — so it is spent only where a reviewer beats both CI and
+   the phone. Required for:
+   - the CSP `<meta>` line, or anything touching the network/security surface;
+   - `sw.js` — cache mistakes persist on the device;
+   - the export-and-verify paths, where "never lie about quality" lives;
+   - the seek / playback / recorder state machines in either app;
+   - any PR that adds a file to the repo;
+   - any change to `COLLABORATION.md`, `AGENTS.md`, or `CLAUDE.md`.
+
+   Everything else — UI, layout, copy, presets, ordinary fixes — goes PR → M's
+   on-device pass → merge. M judges those better on the phone in ten seconds
+   than a reviewer does in a paragraph. M relays the request ("review PR #N")
+   to the other assistant; a review is not automatic.
+
+   This narrowness is a bet, not an oversight: the bugs that have actually hurt
+   this project (decoder eviction, silent seek drops, frames iOS never
+   presents) are invisible in a diff, and the mechanical ones are caught better
+   by CI. If a reviewer starts catching real defects in the excluded
+   categories, widen the list — with the examples as evidence.
 4. **Verification binds to the merged bytes, not the PR event.** The ritual
    output pasted in the PR must correspond to the commit M merges. Any push
    after that — review fixes included — re-runs the ritual, and for behaviour
@@ -141,78 +161,55 @@ argued with evidence — a harness, a measurement, a repro — not authority
 ## If `main` is broken
 
 M clicks **Revert** on the offending merged PR immediately — no ritual, no
-review; a revert restores known-good bytes. A forward hotfix still runs the
-security audit before the PR opens; cross-review happens after the fact.
+review; a revert restores known-good bytes. A forward hotfix still runs
+`tools/verify.js` before the PR opens; cross-review happens after the fact.
+Remember `sw.js` is cache-first: after a revert, the fixed page may take one
+close-and-reopen to appear.
 
-## Verification ritual (run from the repo root before every PR)
-
-Paste the output into the PR. If a check can't run in your environment, say
-exactly which one and why in the PR and ask M to have the other assistant run
-it — never claim a check you didn't run. Note: the count greps exit nonzero
-when they print the desired `0` — judge by the printed output, not exit codes.
-
-### 1. Security audit — the pages must stay network-dead
+## Verification ritual
 
 ```bash
-for f in index.html compose.html; do
-  echo "== $f"
-  grep -c 'https\?://' "$f"                                             # 0
-  grep -nE 'fetch\(|XMLHttpRequest|WebSocket|EventSource|sendBeacon|new Worker|import\(|@import' "$f"   # no output
-  grep -nE '\beval\(|new Function|innerHTML|document\.write' "$f"       # no output
-  grep -c "connect-src 'none'" "$f"                                     # 1
-done
-node --check sw.js && echo "sw.js: syntax OK"
-grep -c 'url.origin !== location.origin' sw.js                          # 1 — the same-origin guard
+node tools/verify.js
 ```
 
-`sw.js` is the only *shipped* file allowed to contain `fetch`, and only behind
-that guard. A PR that adds any `.html` or `.js` file adds it to this loop in
-the same PR. The acceptance test is literal: everything works in Airplane
-Mode.
+One file, no dependencies. CI runs this exact file on every pull request
+(`.github/workflows/verify.yml`), so a green check means the checks ran against
+the bytes M is about to merge — not that someone said they ran. Keep it as the
+single runnable copy: a second copy in a doc drifts and then two assistants run
+different audits believing both are complete. It asserts:
 
-### 2. Syntax — check the shipped script bytes
+- **Deploy surface** — no tracked `.html`/`.js` file references an external
+  origin. Pages publishes the repo root, so this covers `tools/` too.
+- **Shipped code** — neither page contains `fetch(`, `XMLHttpRequest`,
+  `WebSocket`, `EventSource`, `sendBeacon`, `new Worker`, `import(`,
+  `@import`, `eval(`, `new Function`, `innerHTML`, or `document.write`.
+- **`sw.js`** — parses, keeps its same-origin guard, and stays the only
+  shipped file allowed to contain `fetch`.
+- **CSP** — `connect-src 'none'` present exactly once per page.
+- **Structure** — exactly one `<script>` block per page (one IIFE is an
+  invariant, not a convention) and it parses.
+- **Markup** — every `$('id')` lookup resolves to an `id="..."`.
 
-```bash
-node -e '
-const fs=require("fs"),cp=require("child_process"),os=require("os"),path=require("path");
-for(const f of ["index.html","compose.html"]){
-  const blocks=[...fs.readFileSync(f,"utf8").matchAll(/<script>([\s\S]*?)<\/script>/g)];
-  if(blocks.length!==1) throw new Error(f+": expected exactly 1 <script> block, found "+blocks.length);
-  const tmp=path.join(os.tmpdir(),f+".js");
-  fs.writeFileSync(tmp,blocks[0][1]);
-  cp.execSync("node --check "+JSON.stringify(tmp),{stdio:"inherit"});
-  console.log(f+": one script block, syntax OK");
-}'
-```
+CI additionally fails any PR that changes a shipped file without bumping
+`CACHE` in `sw.js`. The acceptance test behind all of it stays literal:
+everything works in Airplane Mode.
 
-(The count check is deliberate: one IIFE per page is an invariant, not a
-convention.)
+Paste the output into the PR. If it can't run in your environment, say which
+check and why, and ask M to have the other assistant run it — never claim a
+check you didn't run. When you change what the ritual checks, add a failing
+case first and confirm the script actually catches it; a check that cannot go
+red is worse than no check, because it reads as safety.
 
-### 3. ID cross-reference — every `$('id')` lookup must exist in markup
+### Runtime and logic (when behaviour changed)
 
-```bash
-node -e '
-const fs=require("fs");
-for(const f of ["index.html","compose.html"]){
-  const s=fs.readFileSync(f,"utf8");
-  const used=[...new Set([...s.matchAll(/\$\(\x27([^\x27]+)\x27\)/g)].map(m=>m[1]))];
-  const ids=new Set([...s.matchAll(/id="([^"]+)"/g)].map(m=>m[1]));
-  const missing=used.filter(id=>!ids.has(id));
-  if(missing.length){console.error(f+": MISSING "+missing.join(", "));process.exitCode=1;}
-  else console.log(f+": all "+used.length+" $() lookups match an id");
-}'
-```
+The script covers what's mechanical. It cannot boot the page. When behaviour
+changed, boot it in jsdom with `runScripts:'dangerously'` and error listeners,
+and regex-extract shipped functions to test them against synthetic signals —
+the full method is in "Testing ritual" in `CLAUDE.md`. Test the shipped bytes,
+not a re-typed copy, and when a harness gives a surprising result, suspect the
+harness first. No permanent harness is checked in yet; one belongs in `tools/`.
 
-### 4. Runtime and logic (when behaviour changed)
-
-Boot the page in jsdom with `runScripts:'dangerously'` and error listeners;
-regex-extract shipped functions and test them against synthetic signals — the
-full method is in "Testing ritual" in `CLAUDE.md`. Test the shipped bytes, not
-a re-typed copy, and when a harness gives a surprising result, suspect the
-harness first. There is no checked-in harness yet — build one ad hoc; a
-permanent one belongs in `tools/` (see "Everything on `main` is deployed").
-
-### 5. On-device reality
+### On-device reality
 
 Some bugs exist only on iPhone Safari: black frames from invisible video
 elements, decoder eviction under memory pressure, silent seek drops, stalls
