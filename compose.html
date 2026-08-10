@@ -250,7 +250,6 @@
 
   /* ---------- constants + state ---------- */
   var OUT_W=1080, OUT_H=1920;       /* the size Instagram stories want */
-  var GAPF=4/1080;                  /* hairline gap, same fraction at every size */
   var MAX_STORY=60;                 /* Instagram's per-story clip limit, seconds */
 
   var LAYOUTS=[
@@ -300,15 +299,21 @@
   }
 
   /* ---------- geometry ---------- */
+  /* Cells tile the frame exactly — no gap, and every edge lands on a
+     whole pixel so neighbours meet with no seam between them. */
   function rectsFor(W,H){
-    var g=Math.max(1,Math.round(W*GAPF)), n=cellCount(), out=[], i;
+    var n=cellCount(), out=[], i;
     if(state.layout==='4'){
-      var w=(W-g)/2, h=(H-g)/2;
-      out=[{x:0,y:0,w:w,h:h},{x:w+g,y:0,w:w,h:h},
-           {x:0,y:h+g,w:w,h:h},{x:w+g,y:h+g,w:w,h:h}];
+      var xm=Math.round(W/2), ym=Math.round(H/2);
+      out=[{x:0,y:0,w:xm,h:ym},        {x:xm,y:0,w:W-xm,h:ym},
+           {x:0,y:ym,w:xm,h:H-ym},     {x:xm,y:ym,w:W-xm,h:H-ym}];
     } else {
-      var hh=(H-g*(n-1))/n;
-      for(i=0;i<n;i++) out.push({x:0,y:i*(hh+g),w:W,h:hh});
+      var prev=0;
+      for(i=0;i<n;i++){
+        var next=Math.round(H*(i+1)/n);
+        out.push({x:0,y:prev,w:W,h:next-prev});
+        prev=next;
+      }
     }
     return out;
   }
@@ -1167,10 +1172,58 @@
       openSheetVideo(cand.blob,name,cand.v,L,cand.mt,cand.stalled||0,cand.black||0);
     }
 
+    function playAll(){
+      for(var i=0;i<vids.length;i++){
+        var p=vids[i].el.play();
+        if(p && p.catch) p.catch(function(){});
+      }
+    }
+    /* play() only *asks* for playback, and currentTime starts moving
+       before the decoder has actually handed over a new picture — so
+       waiting on the clock still recorded a frozen head. Wait for real
+       *presented* frames instead, on every clip, so they all begin
+       together and the file opens on moving footage. */
+    function untilPresented(n, ms){
+      return Promise.all(vids.map(function(c){
+        return new Promise(function(res){
+          var v=c.el, got=0, done=false;
+          var timer=setTimeout(function(){ if(!done){ done=true; res(false); } }, ms);
+          function fin(ok){ if(done) return; done=true; clearTimeout(timer); res(ok); }
+          if(typeof v.requestVideoFrameCallback!=='function'){
+            var base=v.currentTime;
+            (function chk(){
+              if(done) return;
+              if(v.paused) playAll();
+              if(v.currentTime>base+0.001){ fin(true); return; }
+              requestAnimationFrame(chk);
+            })();
+            return;
+          }
+          (function want(){
+            v.requestVideoFrameCallback(function(){
+              if(done) return;
+              if(++got>=n){ fin(true); return; }
+              want();
+            });
+          })();
+        });
+      }));
+    }
+
     function attempt(ci){
       var cfg=cands[ci], mt=cfg.m;
-      say('Preparing…');
-      Promise.all(vids.map(function(c){ return seekTo(c.el,c.start); })).then(function(){
+      say('Getting the clips rolling…');
+      /* Warm every decoder first, then put them all back on their first
+         frame and start together — a warm seek and play is quick enough
+         that the clips begin within a frame of each other. */
+      playAll();
+      untilPresented(2,3000).then(function(){
+        return Promise.all(vids.map(function(c){ return seekTo(c.el,c.start); }));
+      }).then(function(){
+        say('Starting…');
+        playAll();
+        return untilPresented(2,2500);
+      }).then(function(){
         var stream=ec.captureStream(30), rec;
         /* The export canvas is not on screen, so nothing composites it;
            an explicit requestFrame per draw makes sure the encoder is
@@ -1239,11 +1292,8 @@
             nextOr('The recording came out unreadable. Try again; if it repeats, tell me.');
           });
         };
-        vids.forEach(function(c){
-          c.xT=0; c.xAt=-1; c.xMoved=false;
-          var p=c.el.play();
-          if(p && p.catch) p.catch(function(){});
-        });
+        vids.forEach(function(c){ c.xT=0; c.xAt=-1; c.xMoved=false; });
+        playAll();
         /* The preview's watchdog is switched off during export, so the
            recording needs its own: starting several 4K decoders at once
            can leave one stalled, and a stalled cell records as black for
@@ -1266,8 +1316,12 @@
             }
           }
         }
+        /* Put a real composed frame on the canvas before the recorder
+           starts sampling it, so the file cannot open on a blank one. */
+        drawInto(eg,OUT_W,OUT_H);
+        if(track && track.requestFrame){ try{ track.requestFrame(); }catch(_){} }
         var t0=(window.performance&&performance.now)?performance.now():Date.now();
-        var lastDraw=0;
+        var lastDraw=t0;
         srcLuma=null;
         rec.start(250);
         function frame(){
