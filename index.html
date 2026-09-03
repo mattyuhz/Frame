@@ -43,7 +43,7 @@
   }
   *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;
     -webkit-touch-callout:none}
-  button,.ic,.scrub,.chip,summary,label,.mark,.tc,.meta,.eyebrow,.keys,.drop h1,.drop p{
+  button,.ic,.scrub,.chip,summary,label,.tc,.meta,.eyebrow,.keys,.drop h1,.drop p{
     -webkit-user-select:none;user-select:none;touch-action:manipulation}
   .transport button{touch-action:none}
   html,body{height:100%;overscroll-behavior:none}
@@ -54,10 +54,6 @@
   }
   .wrap{max-width:760px;margin:0 auto;padding:16px 16px 48px}
   .eyebrow{font-family:var(--sans);font-size:13px;letter-spacing:0;text-transform:none;color:var(--dim)}
-
-  header{display:flex;align-items:center;justify-content:space-between;gap:12px;
-    padding-bottom:14px;border-bottom:2px solid var(--divider);margin-bottom:16px}
-  .mark{font-family:var(--sans);font-size:15px;font-weight:500;letter-spacing:-.01em}
 
   .banner{display:none;border:0;border-radius:var(--r-md);padding:16px;
     margin-bottom:var(--gap);background:var(--raise)}
@@ -127,12 +123,6 @@
   .row2{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:9px}
   button.t:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visible{outline:1px solid var(--mid);outline-offset:2px}
 
-  .settings{display:flex;gap:var(--gap);flex-wrap:wrap;align-items:center;margin-top:24px;
-    padding-top:20px;border-top:2px solid var(--divider)}
-  .field{display:flex;align-items:center;gap:8px}
-  .field label{font-family:var(--sans);font-size:13px;color:var(--dim)}
-  select{font-family:var(--sans);font-size:14px;background:var(--raise);color:var(--read);
-    border:0;border-radius:var(--r-md);padding:11px 12px;cursor:pointer}
   .toggle{display:flex;align-items:center;gap:7px;cursor:pointer}
   .toggle input{accent-color:var(--phos);width:16px;height:16px}
 
@@ -267,10 +257,6 @@
 <body>
 <div class="wrap">
 
-  <header id="hdr">
-    <div class="mark">Frame</div>
-  </header>
-
   <div class="banner" id="banner">
     <h2>Open this in Safari itself</h2>
     <p>This page is inside a restricted preview frame, where Safari blocks video from loading no matter what the file is. Open the address in Safari directly and it will work.</p>
@@ -351,28 +337,6 @@
 
   <button class="t wide" id="bcompare" disabled>Compare marks</button>
 
-  <div class="settings">
-    <div class="field">
-      <label for="fps">Rate</label>
-      <select id="fps" disabled>
-        <option value="23.976">23.976</option><option value="24">24</option>
-        <option value="25">25</option><option value="29.97">29.97</option>
-        <option value="30" selected>30</option><option value="48">48</option>
-        <option value="50">50</option><option value="59.94">59.94</option>
-        <option value="60">60</option><option value="100">100</option>
-        <option value="119.88">119.88</option><option value="120">120</option>
-        <option value="240">240</option>
-      </select>
-    </div>
-    <div class="field">
-      <label for="fmt">Format</label>
-      <select id="fmt">
-        <option value="image/png">PNG &middot; lossless</option>
-        <option value="image/jpeg">JPEG &middot; max quality</option>
-      </select>
-    </div>
-  </div>
-
   <div class="marks" id="marks">
     <div class="markhead">
       <span class="eyebrow">Marked frames</span>
@@ -444,7 +408,7 @@
   var video=$('video'), stage=$('stage'), drop=$('drop'), fileIn=$('file'),
       scrubEl=$('scrub'), playhead=$('playhead'), scrubFill=$('scrubfill'),
       busy=$('busy'), busyTxt=$('busytext'), statusEl=$('status'), tcEl=$('tc'),
-      fpsSel=$('fps'), fmtSel=$('fmt'), marksEl=$('marks'), chipsEl=$('chips'),
+      marksEl=$('marks'), chipsEl=$('chips'),
       banner=$('banner'), fineLabel=$('finelabel'),
       sheet=$('sheet'), sheetImg=$('sheetimg'), sheetInfo=$('sheetinfo'), sheetHint=$('sheethint'),
       sheetCheck=$('sheetcheck'), sheetMeta=$('sheetmeta'),
@@ -947,7 +911,7 @@ function injectPng(bytes, payload){
   }
   function working(on,l){ busy.className=on?'busy on':'busy'; if(l)busyTxt.textContent=l; }
   function setEnabled(on){
-    state.ready=on; fpsSel.disabled=!on;
+    state.ready=on;
     scrubEl.setAttribute('aria-disabled', on?'false':'true');
     Object.keys(btns).forEach(function(k){ btns[k].disabled=!on; });
   }
@@ -1050,15 +1014,7 @@ function injectPng(bytes, payload){
           note='Measured '+state.fps+' fps, which is not a standard rate. This clip probably has a variable frame rate, so frame numbers may drift. The saved picture is still correct.';
           warn=true;
         } else {
-          state.fps=30; note='Could not measure the frame rate; it is set to 30. Change it under Rate if that is wrong.'; warn=true;
-        }
-        var opt=Array.prototype.find.call(fpsSel.options,function(o){
-          return Math.abs(parseFloat(o.value)-state.fps)<0.01; });
-        if(opt) fpsSel.value=opt.value;
-        else {
-          var c=document.createElement('option');
-          c.value=String(state.fps); c.textContent=state.fps+' (measured)'; c.selected=true;
-          fpsSel.appendChild(c);
+          state.fps=30; note='Could not measure the frame rate, so frame numbers assume 30 fps and may be approximate. The saved picture is still correct.'; warn=true;
         }
         video.currentTime=0; recomputeTotal(); setEnabled(true); working(false);
         state.rot=0; $('brotate').className='ic';
@@ -1229,7 +1185,7 @@ function injectPng(bytes, payload){
       ctx.drawImage(video, r.sx, r.sy, r.w, r.h, -r.w/2, -r.h/2, r.w, r.h);
       ctx.restore();
     }catch(e){ return Promise.resolve(null); }
-    var mime=fmtSel.value;
+    var mime='image/png';
     return new Promise(function(res){ c.toBlob(res,mime,mime==='image/png'?undefined:1.0); })
       .then(function(blob){
         if(!blob) return null;
@@ -1281,10 +1237,9 @@ function injectPng(bytes, payload){
     if(!env.share) return 'This browser has no share sheet. Press and hold the image to save it.';
     return 'Or press and hold the image to save it.';
   }
-  function extFor(m){ return m==='image/png'?'png':'jpg'; }
   function nameFor(f){
     var t=timecode(f,state.fps);
-    return state.base+'_'+t.h+'-'+t.m+'-'+t.s+'-'+t.f+'.'+extFor(fmtSel.value);
+    return state.base+'_'+t.h+'-'+t.m+'-'+t.s+'-'+t.f+'.png';
   }
   function downloadBlob(blob,name){
     var u=URL.createObjectURL(blob), a=document.createElement('a');
@@ -1299,15 +1254,12 @@ function injectPng(bytes, payload){
     sheetInfo.textContent=(v?v.w:w)+' \u00d7 '+(v?v.h:h)+
       '  \u00b7  '+(blob.size/1048576).toFixed(1)+' MB  \u00b7  '+name;
 
-    var lossless = (fmtSel.value==='image/png');
     if(v && v.w===w && v.h===h){
       sheetCheck.className='sheetcheck';
       var whole = isFullFrame();
-      sheetCheck.textContent = lossless
-        ? (whole ? 'Checked: every pixel of the video frame, stored losslessly.'
-                 : 'Checked: every pixel inside the crop, stored losslessly.')
-        : (whole ? 'Checked: full size, JPEG at maximum quality.'
-                 : 'Checked: full crop size, JPEG at maximum quality.');
+      sheetCheck.textContent = whole
+        ? 'Checked: every pixel of the video frame, stored losslessly.'
+        : 'Checked: every pixel inside the crop, stored losslessly.';
     } else if(v){
       sheetCheck.className='sheetcheck bad';
       sheetCheck.textContent='Warning: saved at '+v.w+' \u00d7 '+v.h+
@@ -1490,12 +1442,6 @@ function injectPng(bytes, payload){
     else if(e.key==='Home'){ e.preventDefault(); requestFrame(0); }
     else if(e.key==='End'){ e.preventDefault(); requestFrame(state.total-1); }
   });
-  fpsSel.addEventListener('change',function(){
-    var t=video.currentTime; state.fps=parseFloat(fpsSel.value);
-    recomputeTotal(); requestFrame(timeToFrame(t)); paintMarks();
-    say('Frame rate set to '+state.fps+' fps.');
-  });
-
   holdRepeat(btns.b10back, -10);
   holdRepeat(btns.bback,    -1);
   holdRepeat(btns.bfwd,      1);
