@@ -315,7 +315,7 @@
     <button class="t primary" id="bsave" disabled>Save</button>
   </div>
 
-  <button class="t wide" id="bcompare" disabled>Compare marks</button>
+  <button class="t wide hidden" id="bcompare" disabled>Compare marks</button>
 
   <div class="marks" id="marks">
     <div class="markhead">
@@ -1308,7 +1308,9 @@ function injectPng(bytes, payload){
   function paintMarks(){
     chipsEl.textContent='';
     marksEl.className=state.marks.length?'marks on':'marks';
-    $('bcompare').disabled = !(state.ready && state.marks.length>=2);
+    var canCompare=state.ready && state.marks.length>=2;
+    $('bcompare').disabled=!canCompare;
+    $('bcompare').className=canCompare?'t wide':'t wide hidden';
     state.marks.slice().sort(function(a,b){return a-b;}).forEach(function(f){
       var t=timecode(f,state.fps), b=document.createElement('button');
       b.className='chip'; b.type='button';
