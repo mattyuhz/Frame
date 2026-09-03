@@ -33,7 +33,7 @@ grep -c "connect-src 'none'" index.html            # must be 1
 
 1. **Syntax:** extract the `<script>` body to a temp file, `node --check`.
 2. **Runtime:** boot the page in jsdom with `runScripts:'dangerously'` and error listeners; assert zero init errors and that key element IDs exist. *Syntax passing is not enough — jsdom twice caught whole modules missing after a patch script over-cut between text markers.*
-3. **Logic:** regex-extract shipped functions from index.html (pattern `  function NAME\([\s\S]*?\n  }`) and `eval` them with stubbed `scan`/`state` against synthetic signals. Test the shipped bytes, not a re-typed copy.
+3. **Logic:** regex-extract shipped functions from index.html (pattern `  function NAME\([\s\S]*?\n  }`) and `eval` them with stubbed state against synthetic signals. Test the shipped bytes, not a re-typed copy.
 4. **ID cross-reference:** every `$('id')` must match an `id="..."` in markup.
 5. When a harness gives a surprising result, **suspect the harness first** — one test "failure" was a broken synthetic pan (content drifted off-canvas producing identical blank frames), not the algorithm.
 
@@ -48,12 +48,9 @@ grep -c "connect-src 'none'" index.html            # must be 1
 - **Zoom** (main viewer) — pinch/pan on `#vframe`, double-tap toggles fit ↔ actual pixels (dpr-aware). Crop overlay lives inside the same transformed element.
 - **Crop** — aspect presets as pills, rule-of-thirds grid, drag/pinch. `cropRect()` clamps so it can never escape the frame (verified across corner cases). **Never upscales.**
 - **Orientation** — `Rotate` bakes 90° steps into exported pixels via canvas rotate (not an EXIF flag); `unrotate()` maps drag gestures back to source space; aspect ratios are interpreted in *output* space when rotated. `Fit to picture` detects letterbox/pillarbox bars (rows/cols ≥96% near-black at ≤45/765 luma) and sets the crop to the active picture. Key fact: a video file has ONE frame size for its whole length — mid-clip "orientation changes" are bars appearing, which is why this is a crop problem, not a split problem.
-- **Scan** — plays the clip at rate 4 sampling every *presented* frame via `requestVideoFrameCallback`; a 1.5 s watchdog halves the rate if playback advances <0.35 s. Never assumes a sample rate (iOS presents far fewer frames at speed — this caused the "only 5 thumbnails" bug): thumbnails decimate adaptively (72 → thin to ≤24 evenly), and if <8 cells arrive it falls back to seeking 12 evenly spaced frames. Samples store `{t: mediaTime, diff, asp}` so fps changes don't misalign anything. Movement curve + white mark ticks render into the scrubber canvas.
-- **Calmest moments** — local minima of ±2-smoothed diffs; candidate gate `med − 0.3·(med − min)` (prominence, so jitter dips can't qualify); uniform clip (`med−min < 0.15·med`) → marks nothing and says so; <8 samples → null → in-sheet message. Validated against pan-with-two-windows, gimbal-two-dips, uniform-noise, starved-data signals.
-- **Shape runs** — groups samples by active-picture aspect (8% tolerance), drops runs <3 samples, merges same-shape neighbours so a one-frame glitch can't split a section. Scan header reports "the picture changes shape N times: 9:16 → 16:9 → 9:16"; `Mark each shape` drops one mark per section.
 - **Compare / flipbook** — tap a thumbnail → full-native-res viewer; Prev/Next through all marks; **Pin** the champion; tap flips current vs pinned at locked zoom/pan (blink comparison). Max 3 full-res frames in memory (LRU, pinned+current protected) — this cap exists because 8 caused decoder eviction.
 - **Save flow** — capture → EXIF inject → re-decode and verify true dimensions → full-screen sheet with share-to-Photos (`navigator.share`, needs https; falls back to download with an explanatory line). Batch save of marks = sequential downloads.
-- **Panels** — save sheet / compare / scan are full-screen fixed. **Exactly one may be open**: `showSheet()`/`closeAllSheets()`; backgrounds fully opaque; content max-width 760 px. (Two stacking at 97% opacity produced a ghost-double-Close bug.)
+- **Panels** — save and compare sheets are full-screen fixed. **Exactly one may be open**: `showSheet()`/`closeAllSheets()`; backgrounds fully opaque; content max-width 760 px. (Two stacking at 97% opacity produced a ghost-double-Close bug.)
 - **Hotkeys** — arrows/Shift-arrows/Space/S/M still work but are dead while any panel is open (S was silently saving behind sheets); Escape closes the top panel. The on-screen shortcut legend was removed by request; the bindings remain.
 - **Offline registration** — guarded (`https:` + not restricted + serviceWorker present).
 
@@ -110,7 +107,7 @@ Pure black `#000`; surfaces `rgba(255,255,255,.08)` (pressed `.14`); strokes `rg
 1. ~~Instagram story export~~ — superseded by Compose, which owns the 1080×1920 output (a proper multi-step downscale from 4K sources lives there; keep PNG in Frame as archive).
 2. Reference font family name (ask the user).
 3. Figma remote MCP (`https://mcp.figma.com/mcp`) works on their free plan (6 calls/mo); desktop Dev Mode server needs a paid seat and was never reachable.
-4. Roadmap, no longer gated on constraints (in order): WebCodecs + demuxer (exact VFR frames, 10× scans, controlled encodes for Compose) → ffmpeg.wasm (ProRes) → WebGPU aligned burst merge (Wronski et al. 2019) → on-device ML (eyes-open, subject tracking) → opt-in per-image Claude critique → native app (PhotoKit + AVAssetImageGenerator tolerance-zero) at archive scale.
+4. Roadmap, no longer gated on constraints (in order): WebCodecs + demuxer (exact VFR frame access and controlled encodes for Compose) → ffmpeg.wasm (ProRes) → WebGPU aligned burst merge (Wronski et al. 2019) → on-device ML (eyes-open, subject tracking) → opt-in per-image Claude critique → native app (PhotoKit + AVAssetImageGenerator tolerance-zero) at archive scale.
 
 ## Working style this project expects
 
