@@ -39,6 +39,12 @@ const instrumented = html.replace(/\}\)\(\);\s*<\/script>/, `window.__sceneQA={s
       await page.locator('#bsections').click();
       assert.equal(await page.locator('#bsections').getAttribute('aria-checked'), 'true');
       assert.deepEqual(await page.evaluate(() => [window.__sceneQA.sceneNav.scan, window.__sceneQA.sceneNav.timer, window.__sceneQA.sceneNav.samples.length]), [null, null, 0], 'Sections is navigation only until Find scenes');
+      if (await page.evaluate(() => window.__sceneQA.sceneNav.items.length === 1)) {
+        assert.equal(await page.locator('.scenecard').count(), 0, 'single-range sources do not show a redundant card');
+        assert.equal(await page.locator('#scenetitle').isVisible(), false);
+        assert.equal(await page.locator('#scenefocus').isVisible(), false);
+        assert.equal(await page.locator('#bscanscenes').isVisible(), true, 'Find scenes remains available before analysis');
+      }
       await page.locator('#bscanscenes').click();
     }
   }
@@ -69,8 +75,28 @@ const instrumented = html.replace(/\}\)\(\);\s*<\/script>/, `window.__sceneQA={s
       assert.equal(result.thumbnails, result.sections, fixture.file + ': every scene has a visual preview');
     }
     if (['02-long-continuous.mp4', '03-flashes-and-pan.mp4', '07-subsecond.mp4'].includes(fixture.file)) assert.deepEqual(result.cuts, [], fixture.file + ': no false cuts');
-    await page.locator('.scenecard').last().click();
-    await page.waitForFunction(() => !window.__sceneQA.state.seeking);
+    if (result.sections > 1) {
+      assert.equal(await page.locator('.scenecard').count(), result.sections);
+      assert.equal(await page.locator('#scenefocus').isVisible(), true);
+      if (fixture.file === '02-long-continuous.mp4') assert.equal(result.sections, 6, 'long uncut footage keeps useful time sections');
+      await page.locator('.scenecard').last().click();
+      await page.waitForFunction(() => !window.__sceneQA.state.seeking);
+    } else {
+      assert.equal(await page.locator('.scenecard').count(), 0, fixture.file + ': no redundant whole-video card');
+      assert.equal(await page.locator('#scenetitle').isVisible(), false);
+      assert.equal(await page.locator('#bscanscenes').isVisible(), false, 'completed single-range scans have no Scan complete button');
+      assert.equal(await page.locator('#scenefocus').isVisible(), false);
+      assert.equal(result.status, 'No scene changes found.');
+      await page.locator('#bsections').click();await page.locator('#bsections').click();
+      assert.equal(await page.locator('#sceneoptions').isVisible(), false, 'mode toggle preserves compact state');
+      assert.equal(await page.locator('#scenefocus').isVisible(), false);
+      assert.equal(await page.locator('.scenecard').count(), 0);
+      if (fixture.file === '07-subsecond.mp4') {
+        await page.setViewportSize({ width: 390, height: 1000 });
+        await page.screenshot({ path: path.join(output, 'no-cuts-mobile.png'), fullPage: true });
+        await page.setViewportSize({ width: 1024, height: 1050 });
+      }
+    }
     await page.locator('#scrub').focus();await page.keyboard.press('End');
     await page.waitForFunction(() => !window.__sceneQA.state.seeking);
     const endpoint = await page.evaluate(() => ({ frame: window.__sceneQA.state.frame, total: window.__sceneQA.state.total, time: document.querySelector('video').currentTime, bounds: window.__sceneQA.sceneBounds() }));
@@ -163,9 +189,12 @@ const instrumented = html.replace(/\}\)\(\);\s*<\/script>/, `window.__sceneQA={s
   assert.equal(await page.locator('#scenebody').isVisible(), false);
   assert.deepEqual(await page.evaluate(() => [window.__sceneQA.sceneNav.scan, window.__sceneQA.sceneNav.samples.length]), [null, 0]);
   await page.locator('#bsections').click();
+  assert.equal(await page.locator('#bscanscenes').isVisible(), true, 'replacement restores Find scenes');
+  assert.equal(await page.locator('#bscanscenes').isEnabled(), true);
   await page.locator('#bscanscenes').click();
   await page.waitForFunction(() => window.__sceneQA.sceneNav.done && window.__sceneQA.sceneNav.duration < 1);
-  assert.equal(await page.locator('.scenecard').count(), 1);
+  assert.equal(await page.locator('.scenecard').count(), 0);
+  assert.equal(await page.locator('#sceneoptions').isVisible(), false);
   // Uninstrumented page: startup, real video and responsive screenshots.
   await page.unroute(base + '/');await page.goto(base + '/');
   await page.locator('#file').setInputFiles(path.join(__dirname, 'fixtures/scenes/01-hard-cuts.mp4'));

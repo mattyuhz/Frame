@@ -66,6 +66,20 @@ function providePixels(f, getPixels) {
     return element;
   };
 }
+async function finishScan(f) {
+  f.scene.startSceneScan();
+  for (let i = 0; i < 500 && !f.scene.sceneNav.done; i++) {
+    await flush();
+    const timer = f.scene.sceneNav.timer;
+    if (timer !== null) {
+      const callback = f.timers.get(timer);
+      assert.equal(typeof callback, 'function');
+      f.timers.delete(timer); callback();
+    }
+  }
+  await flush();
+  assert.equal(f.scene.sceneNav.done, true, 'scene scan finishes within its bounded sample budget');
+}
 
 test('time sections cover the whole source once and keep a long video overview bounded', () => {
   const f = setup();
@@ -293,6 +307,74 @@ test('turning Sections off cancels analysis and returns to the whole video at th
   assert.equal(f.api.state.frame, 2800);
 });
 
+test('short uncut clips show Find scenes before scanning and only a brief result after scanning', async () => {
+  for (const duration of [0.4, 3.1, 18]) {
+    const f = setup(duration);
+    providePixels(f, () => solid(40, 80, 120));
+    f.scene.prepareScenes();
+    assert.equal(f.scene.sceneNav.items.length, 1, 'the internal range still covers the source');
+    assert.equal(f.ids.get('scenelist').children.length, 0, 'a single whole-video range has no redundant card');
+    assert.equal(f.ids.get('scenelist').hidden, true);
+    assert.equal(f.ids.get('scenefocus').hidden, true);
+    assert.equal(f.ids.get('scenetitle').hidden, true);
+    assert.equal(f.ids.get('sceneoptions').hidden, false);
+    assert.equal(f.ids.get('bscanscenes').disabled, false);
+    assert.equal(f.ids.get('bscanscenes').textContent, 'Find scenes');
+    assert.equal(f.ids.get('scenestatus').textContent, '');
+    await finishScan(f);
+    assert.equal(f.scene.sceneNav.items.length, 1);
+    assert.equal(f.ids.get('scenelist').children.length, 0);
+    assert.equal(f.ids.get('scenefocus').hidden, true);
+    assert.equal(f.ids.get('sceneoptions').hidden, true, 'no disabled Scan complete action occupies the panel');
+    assert.equal(f.ids.get('scenetitle').hidden, true);
+    assert.equal(f.ids.get('scenestatus').textContent, 'No scene changes found.');
+    f.scene.setSections(false); f.scene.setSections(true);
+    assert.equal(f.ids.get('sceneoptions').hidden, true, 'mode toggles retain the completed compact state');
+    assert.equal(f.ids.get('scenefocus').hidden, true);
+    assert.equal(f.ids.get('scenelist').children.length, 0);
+    assert.equal(f.scene.sceneNav.scan, null);
+    f.dispatch(f.ids.get('scrub'), 'keydown', { key: 'End' });
+    assert.equal(f.api.state.frame, f.api.state.total - 1, 'the ordinary scrubber still reaches the source end');
+  }
+});
+
+test('long uncut videos retain useful multiple sections after analysis', async () => {
+  const f = setup(180);
+  providePixels(f, () => solid(40, 80, 120));
+  f.scene.prepareScenes();
+  assert.equal(f.ids.get('scenelist').children.length, 6);
+  assert.equal(f.ids.get('scenelist').hidden, false);
+  assert.equal(f.ids.get('scenefocus').hidden, false);
+  assert.equal(f.ids.get('scenetitle').hidden, false);
+  await finishScan(f);
+  assert.equal(f.scene.sceneNav.items.length, 6);
+  assert.equal(f.ids.get('scenelist').children.length, 6);
+  assert.equal(f.ids.get('scenelist').hidden, false);
+  assert.equal(f.ids.get('scenefocus').hidden, false);
+  assert.equal(f.ids.get('scenestatus').textContent, 'No scene changes found · 6 time sections.');
+  f.scene.selectScene(5);
+  assert.deepEqual(plain(f.scene.sceneBounds()), { start: 4500, end: 5399 });
+});
+
+test('a replacement source restores Find scenes after a compact no-cut result', async () => {
+  const f = setup(0.4);
+  providePixels(f, () => solid(40, 80, 120));
+  f.scene.prepareScenes(); await finishScan(f);
+  assert.equal(f.ids.get('sceneoptions').hidden, true);
+  f.scene.resetScenes(); f.api.state.url = 'blob:next-video';
+  f.video.duration = 18; f.api.state.total = 540; f.api.state.frame = 0;
+  f.scene.prepareScenes();
+  assert.equal(f.scene.sceneNav.enabled, false);
+  f.scene.setSections(true);
+  assert.equal(f.scene.sceneNav.done, false);
+  assert.equal(f.ids.get('sceneoptions').hidden, false);
+  assert.equal(f.ids.get('bscanscenes').disabled, false);
+  assert.equal(f.ids.get('bscanscenes').textContent, 'Find scenes');
+  assert.equal(f.ids.get('scenestatus').textContent, '');
+  assert.equal(f.ids.get('scenelist').children.length, 0);
+  assert.equal(f.scene.sceneNav.scan, null);
+});
+
 test('boundary review shows the adjacent decoded frames without changing the selected moment or ranges', async () => {
   const f = setup();
   f.scene.selectScene(0);
@@ -518,7 +600,7 @@ test('a completed scan suggests cuts, keeps thumbnails, and returns to the selec
   assert.equal(f.api.state.frame, 42);
   assert.equal(f.seeks.at(-1), 42);
   assert.equal(f.ids.get('bscanscenes').disabled, true);
-  assert.match(f.ids.get('scenestatus').textContent, /Suggested scenes.*sampled every/);
+  assert.equal(f.ids.get('scenestatus').textContent, 'Suggested scenes · review a start to check it.');
   f.scene.selectScene(0);
   assert.deepEqual(plain(f.scene.sceneBounds()), { start: 0, end: 59 });
   f.scene.selectScene(1);

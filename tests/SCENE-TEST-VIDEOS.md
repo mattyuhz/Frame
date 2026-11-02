@@ -20,7 +20,7 @@ Open [Frame](http://127.0.0.1:8876/) and the [test video library](http://127.0.0
 
 Every newly opened file starts with **Sections off** and the full source timeline. Turn **Sections on** to show time-based sections immediately; enabling Sections does not start scene analysis. Choose a section to give it the full scrubber width. Playback stops at the active section's end, and the previous/next buttons move between sections. **Whole video** restores the full timeline while keeping the section list available.
 
-Choose **Find scenes** when you want automatic suggestions. Editing pauses the scan, and **Continue scan** resumes it. Turning **Sections off** stops scanning and returns to the full timeline. Turning it on again retains section results already prepared for this file without automatically resuming analysis. Opening another file resets Sections to off. Suggestions remain approximate; short shots, fades, and similar-color cuts can be missed, so time-based sections remain useful for uninterrupted footage too.
+Choose **Find scenes** when you want automatic suggestions. Editing pauses the scan, and **Continue scan** resumes it. Turning **Sections off** stops scanning and returns to the full timeline. Turning it on again retains section results already prepared for this file without automatically resuming analysis. Opening another file resets Sections to off. Suggestions remain approximate; short shots, fades, and similar-color cuts can be missed, so time-based sections remain useful for uninterrupted footage too. Cards and navigation appear only when there are multiple ranges. For a short clip with no detected cuts, the completed panel reduces to **No scene changes found.**; the full timeline stays available. Long clips without cuts retain their useful time sections.
 
 ### Review and adjust a boundary
 
@@ -58,14 +58,14 @@ node tests/scenes-browser.cjs
 | [Fades, black, similar colors](fixtures/scenes/04-fades-black-similar-colors.mp4) | 18 s | Fade out **4–5 s**, black **5–6 s**, fade in **6–7 s**, then a same-palette cut at **12 s**. Coarse detection may miss these; navigation must remain useful. |
 | [Rapid cuts](fixtures/scenes/05-rapid-cuts.mp4) | 6 s | Nine cuts, including a **0.1 s** shot. Exercise missed-cut handling, tightly spaced boundaries, and first/last frame access. Exact edit times are in the manifest. |
 | [Portrait variable frame rate](fixtures/scenes/06-portrait-variable-rate.mp4) | 12 s | 360×640, with **15 → 30 → 60 fps** intervals and cuts at **4, 8 s**. Verify portrait thumbnails and source-relative timestamps. Frame's frame numbers remain approximate for VFR. |
-| [Subsecond clip](fixtures/scenes/07-subsecond.mp4) | 0.4 s | Only 12 frames. No empty sections, broken slider ranges, or endless scanning; frame saving should work. |
+| [Subsecond clip](fixtures/scenes/07-subsecond.mp4) | 0.4 s | Only 12 frames. After scanning, show only No scene changes found, with no redundant section card or disabled navigation. Normal scrubbing and frame saving should work. |
 | [4K cut](fixtures/scenes/08-4k-cuts.mp4) | 4 s | 3840×2160, cut at **2 s**. Check source-size frame export and responsiveness. This is not a sustained 4K stress test. |
 
 ## Cross-video checks
 
 ### Verified prototype behavior
 
-Desktop Chrome checks on November 2, 2026 passed for Sections defaulting off, explicit scanning, cancellation, source replacement, and keeping manual boundaries across mode toggles. The boundary review decoded distinct blue/burgundy pictures at the hard-cut fixture's frames 119/120; keyboard adjustment, Cancel restoring the selected source frame, and Apply updating the shared edge also passed. The full unit regression suite has **135 passing tests**.
+Desktop Chrome checks on November 2, 2026 passed for Sections defaulting off, explicit scanning, cancellation, source replacement, and keeping manual boundaries across mode toggles. The boundary review decoded distinct blue/burgundy pictures at the hard-cut fixture's frames 119/120; keyboard adjustment, Cancel restoring the selected source frame, and Apply updating the shared edge also passed. Short uncut clips reduce to a brief result with no card or navigation; long uncut clips retain useful time sections. The full unit regression suite has **138 passing tests**.
 
 All eight synthetic fixtures were exercised. The detector found all expected cuts in the hard-cut, portrait, and 4K fixtures, with no false cuts in the continuous, flash/pan, or tiny fixtures. The long clip produced six time sections. The rapid-edit clip produced three of nine cuts; the similar-color cut at 12 seconds was missed, while the fade-through-black produced two suggestions. The uncropped 4K still exported and re-decoded at 3840×2160. Browser checks found no page errors, external requests, or horizontal overflow at mobile width.
 
@@ -89,7 +89,7 @@ These checks cover the synthetic dataset and desktop Chrome, not real-footage de
 3. Choose **Cancel**, then reopen Review start. The original boundary must be intact. Repeat an adjustment and press Escape to check the same cancellation behavior.
 4. Adjust and choose **Apply boundary**. Confirm **Boundary adjusted** and the disabled **Manual boundaries** scan button. The previous section's end and selected section's start must meet, with no missing, duplicated, or empty navigation range. Step through both sides and verify the source pictures remain unchanged.
 5. Turn Sections off and on. The edited boundary should remain. Reopen the same file: Sections should default to off, the edit should be reset, and enabling Sections should make a fresh Find scenes pass available.
-6. Select the first section and the one-section subsecond clip. Neither should offer a start boundary that can be moved before the source begins. Try adjusting boundaries next to short sections in **Rapid cuts**; neither neighbor should collapse to an empty range.
+6. Select the first section: its source start is fixed. On the subsecond clip, the redundant single section and boundary-review controls should be absent. Try adjusting boundaries next to short sections in **Rapid cuts**; neither neighbor should collapse to an empty range.
 7. Repeat review on **Portrait variable frame rate**. Check portrait images remain readable and source times are preserved. Judge the actual pictures; approximate frame steps are not proof that every VFR source frame has been visited.
 8. While previews are being prepared, switch Sections off, replace the file, or hide the tab. Old previews must not reappear or apply to a new source. Confirm the main scrubber is still usable after cancellation.
 

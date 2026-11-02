@@ -118,6 +118,7 @@
   .scenes button:disabled{opacity:.32;cursor:default}
   .scenes button:focus-visible{outline:2px solid white;outline-offset:2px}
   .scenestatus{color:#aaa;font-size:12px;line-height:1.5;margin:6px 0 10px;min-height:18px}
+  .scenestatus:empty{display:none}
   .scenelist{display:flex;gap:8px;overflow-x:auto;padding:3px 2px 10px;scroll-snap-type:x proximity}
   .scenecard{flex:0 0 124px;min-height:105px;text-align:left;color:white;background:var(--raise);border:1px solid var(--rule);border-radius:12px;padding:6px;cursor:pointer;scroll-snap-align:start}
   .scenecard[aria-pressed="true"]{border-color:white;background:var(--raise-hi)}
@@ -388,10 +389,10 @@
   <section class="scenes" id="scenes" aria-label="Video sections" hidden>
     <div class="scenehead"><strong>Sections</strong><button type="button" class="sectionswitch" id="bsections" role="switch" aria-checked="false" aria-controls="scenebody" aria-label="Sections">Off</button></div>
     <div id="scenebody" hidden>
-    <div class="scenehead sceneoptions"><strong id="scenetitle">Explore the video</strong><button type="button" id="bscanscenes">Find scenes</button></div>
+    <div class="scenehead sceneoptions" id="sceneoptions"><strong id="scenetitle">Explore the video</strong><button type="button" id="bscanscenes">Find scenes</button></div>
     <p class="scenestatus" id="scenestatus" role="status" aria-live="polite">Choose a section to scrub in detail.</p>
     <div class="scenelist" id="scenelist" aria-label="Sections"></div>
-    <div class="scenefocus"><span id="scenerange">Whole video</span><nav aria-label="Section navigation">
+    <div class="scenefocus" id="scenefocus"><span id="scenerange">Whole video</span><nav aria-label="Section navigation">
       <button type="button" id="bsceneprev" aria-label="Previous section" disabled>&larr;</button>
       <button type="button" id="bscenenext" aria-label="Next section" disabled>&rarr;</button>
       <button type="button" id="bscenewhole" disabled>Whole video</button>
@@ -1051,9 +1052,14 @@ function injectPng(bytes, payload){
   }
   function paintSceneFocus(){
     var r=sceneBounds(), item=sceneNav.enabled&&sceneNav.items[sceneNav.active];
+    var multiple=sceneNav.items.length>1;
     $('bsections').setAttribute('aria-checked',String(sceneNav.enabled));
     $('bsections').textContent=sceneNav.enabled?'On':'Off';
     $('scenebody').hidden=!sceneNav.enabled;
+    $('sceneoptions').hidden=sceneNav.done&&!multiple;
+    $('scenetitle').hidden=!multiple;
+    $('scenelist').hidden=!multiple;
+    $('scenefocus').hidden=!multiple;
     scrubEl.setAttribute('aria-valuemin',String(r.start));
     scrubEl.setAttribute('aria-valuemax',String(r.end));
     scrubEl.setAttribute('aria-label',item?'Position in selected '+item.kind.toLowerCase():'Position in the video');
@@ -1073,7 +1079,7 @@ function injectPng(bytes, payload){
   }
   function paintSceneCards(){
     var list=$('scenelist'), scroll=list.scrollLeft||0; list.textContent='';
-    sceneNav.items.forEach(function(item,i){
+    if(sceneNav.items.length>1)sceneNav.items.forEach(function(item,i){
       var b=document.createElement('button'), title=document.createElement('b'), label=document.createElement('span');
       b.type='button'; b.className='scenecard'; b.setAttribute('aria-pressed',String(i===sceneNav.active));
       var url=sceneThumb(item), pic=document.createElement(url?'img':'span');
@@ -1112,7 +1118,7 @@ function injectPng(bytes, payload){
     sceneNav.interval=Math.max(0.5,video.duration/240);
     $('scenes').hidden=!sceneNav.items.length;
     $('scenetitle').textContent='Explore the video';
-    $('scenestatus').textContent='Choose a section to scrub in detail. Scene suggestions are approximate.';
+    $('scenestatus').textContent=sceneNav.items.length>1?'Choose a section to scrub in detail.':'';
     $('bscanscenes').textContent='Find scenes'; $('bscanscenes').disabled=false;
     paintSceneCards();
   }
@@ -1290,8 +1296,8 @@ function injectPng(bytes, payload){
         sceneNav.items=buildSceneRanges(sceneNav.duration,sceneNav.cuts);sceneNav.active=-1;
         paintSceneCards();
         $('scenetitle').textContent=sceneNav.cuts.length?'Scenes & sections':'Explore the video';
-        $('scenestatus').textContent=(sceneNav.cuts.length?'Suggested scenes':'No clear cuts found · time sections')+
-          ' · sampled every '+sceneNav.interval.toFixed(1)+'s. Short scenes and fades may be missed.';
+        $('scenestatus').textContent=sceneNav.cuts.length?'Suggested scenes · review a start to check it.':
+          (sceneNav.items.length>1?'No scene changes found · '+sceneNav.items.length+' time sections.':'No scene changes found.');
         $('bscanscenes').textContent='Scan complete';$('bscanscenes').disabled=true;
       }
       goToFrame(scan.frame);
