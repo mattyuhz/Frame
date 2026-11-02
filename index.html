@@ -107,6 +107,23 @@
 
 
   .scrubwrap{position:relative}
+  .scenes{margin:0 0 16px;border-top:1px solid var(--rule);padding-top:12px}
+  .scenes[hidden]{display:none}
+  .scenehead,.scenefocus{display:flex;align-items:center;justify-content:space-between;gap:8px}
+  .scenehead strong{font-size:14px;font-weight:500}
+  .scenehead button,.scenefocus button{font:inherit;color:var(--read);background:var(--raise);border:0;border-radius:16px;min-height:44px;padding:8px 12px;cursor:pointer}
+  .scenes button:disabled{opacity:.32;cursor:default}
+  .scenes button:focus-visible{outline:2px solid white;outline-offset:2px}
+  .scenestatus{color:#aaa;font-size:12px;line-height:1.5;margin:6px 0 10px;min-height:18px}
+  .scenelist{display:flex;gap:8px;overflow-x:auto;padding:3px 2px 10px;scroll-snap-type:x proximity}
+  .scenecard{flex:0 0 124px;min-height:105px;text-align:left;color:white;background:var(--raise);border:1px solid var(--rule);border-radius:12px;padding:6px;cursor:pointer;scroll-snap-align:start}
+  .scenecard[aria-pressed="true"]{border-color:white;background:var(--raise-hi)}
+  .scenecard img{display:block;width:110px;height:62px;object-fit:contain;background:#111;border-radius:6px}
+  .sceneplaceholder{display:flex;width:110px;height:62px;align-items:center;justify-content:center;background:#111;border-radius:6px;font-size:22px;color:#aaa}
+  .scenecard span:last-child{display:block;font-size:11px;color:#bbb;margin-top:3px;font-variant-numeric:tabular-nums}
+  .scenecard b{display:block;font-size:12px;font-weight:500;margin-top:6px}
+  .scenefocus{font-size:12px;color:#bbb;flex-wrap:wrap;margin-top:2px}
+  .scenefocus nav{display:flex;gap:6px}
   .fine{position:absolute;left:50%;transform:translateX(-50%);top:-20px;
     font-family:var(--sans);font-size:13px;
     color:var(--read);opacity:0;pointer-events:none;white-space:nowrap}
@@ -354,6 +371,17 @@
       <div>frame <b id="mFrame">&mdash;</b> of <b id="mTotal">&mdash;</b></div>
     </div>
   </div>
+
+  <section class="scenes" id="scenes" aria-label="Video sections" hidden>
+    <div class="scenehead"><strong id="scenetitle">Explore the video</strong><button type="button" id="bscanscenes">Find scenes</button></div>
+    <p class="scenestatus" id="scenestatus" role="status" aria-live="polite">Choose a section to scrub in detail.</p>
+    <div class="scenelist" id="scenelist" aria-label="Sections"></div>
+    <div class="scenefocus"><span id="scenerange">Whole video</span><nav aria-label="Section navigation">
+      <button type="button" id="bsceneprev" aria-label="Previous section" disabled>&larr;</button>
+      <button type="button" id="bscenenext" aria-label="Next section" disabled>&rarr;</button>
+      <button type="button" id="bscenewhole" disabled>Whole video</button>
+    </nav></div>
+  </section>
 
   <div class="scrubwrap" id="scrubwrap"><div class="scrub" id="scrub" role="slider" tabindex="0" aria-disabled="true"
        aria-label="Position in the video" aria-valuemin="0" aria-valuemax="0" aria-valuenow="0">
@@ -934,6 +962,7 @@ function injectPng(bytes, payload){
     var ab=document.getElementById('cmpab'); if(ab) ab.className='cmpab';
   }
   function showSheet(id){
+    cancelSceneScan(true);
     closeAllSheets();
     var s=document.getElementById(id); if(s) s.className='sheet on';
   }
@@ -950,6 +979,239 @@ function injectPng(bytes, payload){
   function timeToFrame(t){
     return Math.min(Math.max(Math.floor(t*state.fps+1e-6),0),Math.max(0,state.total-1));
   }
+
+  /* Sections are views into the original source, never new media files.
+     A bounded, sampled pass borrows the visible decoder. Every interaction
+     returns it to the editor; hidden iOS decoders are deliberately avoided. */
+  var sceneNav={items:[],active:-1,cuts:[],samples:[],scan:null,timer:null,
+                serial:0,interval:0.5,next:0,done:false,duration:0,thumbs:[]};
+  var fileSerial=0;
+
+  function sceneTime(t){
+    var tenths=Math.round(Math.max(0,t)*10),s=Math.floor(tenths/10),fraction=tenths%10;
+    return (s>=3600?Math.floor(s/3600)+':':'')+pad(Math.floor(s/60)%60)+':'+pad(s%60)+(fraction?'.'+fraction:'');
+  }
+  function buildSceneRanges(duration,cuts){
+    if(!isFinite(duration)||duration<=0) return [];
+    var edges=[0], items=[], span=Math.max(30,duration/120);
+    cuts.slice().sort(function(a,b){return a-b;}).forEach(function(t){
+      if(isFinite(t)&&t>edges[edges.length-1]+0.1&&t<duration-0.1) edges.push(t);
+    });
+    edges.push(duration);
+    for(var i=0;i<edges.length-1;i++){
+      var start=edges[i], end=edges[i+1], count=Math.ceil((end-start)/span);
+      for(var j=0;j<count;j++) items.push({start:start+j*(end-start)/count,
+        end:start+(j+1)*(end-start)/count,kind:edges.length>2&&count===1?'Scene':'Section'});
+    }
+    return items;
+  }
+  function sceneBounds(){
+    var item=sceneNav.items[sceneNav.active];
+    return item?{start:clampFrame(Math.ceil(item.start*state.fps-1e-7)),
+      end:clampFrame(Math.ceil(item.end*state.fps-1e-7)-1)}:{start:0,end:Math.max(0,state.total-1)};
+  }
+  function clampSceneFrame(n){
+    var r=sceneBounds(); return Math.max(r.start,Math.min(r.end,Math.round(n)));
+  }
+  function paintSceneFocus(){
+    var r=sceneBounds(), item=sceneNav.items[sceneNav.active];
+    scrubEl.setAttribute('aria-valuemin',String(r.start));
+    scrubEl.setAttribute('aria-valuemax',String(r.end));
+    scrubEl.setAttribute('aria-label',item?'Position in selected '+item.kind.toLowerCase():'Position in the video');
+    $('scenerange').textContent=item?item.kind+' '+(sceneNav.active+1)+' · '+sceneTime(item.start)+'–'+sceneTime(item.end):'Whole video';
+    $('bscenewhole').disabled=!item;
+    $('bsceneprev').disabled=!item||sceneNav.active===0;
+    $('bscenenext').disabled=sceneNav.items.length<2||sceneNav.active>=sceneNav.items.length-1;
+    var children=$('scenelist').children;
+    for(var i=0;i<children.length;i++) children[i].setAttribute('aria-pressed',String(i===sceneNav.active));
+  }
+  function sceneThumb(item){
+    for(var i=0;i<sceneNav.thumbs.length;i++){
+      var thumb=sceneNav.thumbs[i]; if(thumb.time>=item.start&&thumb.time<item.end) return thumb.url;
+    }
+    return null;
+  }
+  function paintSceneCards(){
+    var list=$('scenelist'), scroll=list.scrollLeft||0; list.textContent='';
+    sceneNav.items.forEach(function(item,i){
+      var b=document.createElement('button'), title=document.createElement('b'), label=document.createElement('span');
+      b.type='button'; b.className='scenecard'; b.setAttribute('aria-pressed',String(i===sceneNav.active));
+      var url=sceneThumb(item), pic=document.createElement(url?'img':'span');
+      if(url){ pic.src=url; pic.alt=''; }else{pic.className='sceneplaceholder';pic.textContent=String(i+1);}
+      title.textContent=item.kind+' '+(i+1); label.textContent=sceneTime(item.start)+'–'+sceneTime(item.end);
+      b.setAttribute('aria-label',(item.kind==='Scene'?'Suggested scene':item.kind)+' '+(i+1)+', '+label.textContent);
+      b.appendChild(pic); b.appendChild(title); b.appendChild(label);
+      b.addEventListener('click',function(){ selectScene(i); }); list.appendChild(b);
+    });
+    list.scrollLeft=scroll; paintSceneFocus();
+  }
+  function selectScene(index){
+    if(!state.ready||saving) return;
+    cancelSceneScan(false); video.pause();
+    sceneNav.active=index>=0&&index<sceneNav.items.length?index:-1;
+    paintSceneFocus();
+    goToFrame(sceneNav.active<0?state.frame:sceneBounds().start);
+  }
+  function resetScenes(){
+    cancelSceneScan(false); sceneNav.serial++; sceneNav.items=[];sceneNav.active=-1;
+    sceneNav.cuts=[];sceneNav.samples=[];sceneNav.thumbs=[];sceneNav.next=0;sceneNav.done=false;sceneNav.duration=0;
+    $('scenes').hidden=true; $('scenelist').textContent='';
+  }
+  function prepareScenes(){
+    sceneNav.duration=video.duration;
+    sceneNav.items=buildSceneRanges(video.duration,[]);
+    sceneNav.interval=Math.max(0.5,video.duration/240);
+    $('scenes').hidden=!sceneNav.items.length;
+    $('scenetitle').textContent='Explore the video';
+    $('scenestatus').textContent='Choose a section to scrub in detail. Scene suggestions are approximate.';
+    $('bscanscenes').textContent='Find scenes'; $('bscanscenes').disabled=false;
+    paintSceneCards();
+    var serial=sceneNav.serial;
+    sceneNav.timer=setTimeout(function(){sceneNav.timer=null;if(serial===sceneNav.serial)startSceneScan();},500);
+  }
+  function sceneSignature(pixels){
+    var hist=new Array(48).fill(0), small=[], count=pixels.length/4;
+    for(var i=0;i<pixels.length;i+=4){
+      for(var c=0;c<3;c++){ var v=pixels[i+c]; hist[c*16+(v>>4)]+=1/count;small.push(v/255); }
+    }
+    return {hist:hist,pixels:small};
+  }
+  function sceneDifference(a,b){
+    var h=0,p=0;
+    for(var i=0;i<a.hist.length;i++)h+=Math.abs(a.hist[i]-b.hist[i]);
+    for(var j=0;j<a.pixels.length;j++)p+=Math.abs(a.pixels[j]-b.pixels[j]);
+    return 0.7*h/6+0.3*p/a.pixels.length;
+  }
+  function detectSceneCuts(samples){
+    var cuts=[];
+    // Require a change that survives the next sample. Reject a return from a
+    // single-sample flash as well. Sparse sampling can miss very short shots.
+    for(var i=1;i<samples.length-1;i++){
+      var a=samples[i-1],b=samples[i],c=samples[i+1];
+      if(sceneDifference(a.sig,b.sig)<0.30||sceneDifference(a.sig,c.sig)<0.25)continue;
+      if(i>1&&sceneDifference(samples[i-2].sig,b.sig)<0.25)continue;
+      var t=(a.time+b.time)/2;
+      if(!cuts.length||t-cuts[cuts.length-1]>=0.75)cuts.push(t);
+    }
+    return cuts;
+  }
+  function cancelSceneScan(restore){
+    var queued=sceneNav.timer!==null, scan=sceneNav.scan;
+    if(queued){clearTimeout(sceneNav.timer);sceneNav.timer=null;}
+    if(!scan){
+      if(queued)$('scenestatus').textContent='Choose a section, or find scenes when you are ready.';
+      return false;
+    }
+    sceneNav.scan=null;sceneNav.serial++;seekToken++;pending=null;state.seeking=false;
+    working(false);
+    $('bscanscenes').textContent='Continue scan';
+    $('scenestatus').textContent='Scan paused · sections are ready to use.';
+    if(restore&&state.ready)goToFrame(state.frame);
+    return true;
+  }
+  function startSceneScan(){
+    if(!state.ready||saving||sceneNav.scan||sceneNav.done||document.hidden||!sceneNav.items.length)return;
+    if(sceneNav.timer!==null){clearTimeout(sceneNav.timer);sceneNav.timer=null;}
+    video.pause();
+    // An edit seek must settle before analysis borrows the decoder.
+    if(state.seeking){
+      sceneNav.timer=setTimeout(function(){sceneNav.timer=null;startSceneScan();},150);return;
+    }
+    var scan={serial:++sceneNav.serial,source:state.url,frame:state.frame};sceneNav.scan=scan;
+    var canvas=document.createElement('canvas');canvas.width=32;canvas.height=18;
+    var ctx=canvas.getContext('2d',{willReadFrequently:true});
+    $('bscanscenes').textContent='Pause scan';
+    function alive(){return sceneNav.scan===scan&&scan.source===state.url&&scan.serial===sceneNav.serial;}
+    function finish(failed,cuts){
+      if(!alive())return;
+      sceneNav.scan=null;working(false);
+      if(failed){
+        $('scenestatus').textContent='Scene scan could not finish. Sections still work; you can retry.';
+        $('bscanscenes').textContent='Continue scan';
+      }else{
+        sceneNav.done=true;sceneNav.cuts=cuts||detectSceneCuts(sceneNav.samples);
+        sceneNav.items=buildSceneRanges(sceneNav.duration,sceneNav.cuts);sceneNav.active=-1;
+        paintSceneCards();
+        $('scenetitle').textContent=sceneNav.cuts.length?'Scenes & sections':'Explore the video';
+        $('scenestatus').textContent=(sceneNav.cuts.length?'Suggested scenes':'No clear cuts found · time sections')+
+          ' · sampled every '+sceneNav.interval.toFixed(1)+'s. Short scenes and fades may be missed.';
+        $('bscanscenes').textContent='Scan complete';$('bscanscenes').disabled=true;
+      }
+      goToFrame(scan.frame);
+    }
+    function refine(){
+      var cuts=detectSceneCuts(sceneNav.samples), index=0;
+      function boundary(){
+        if(!alive())return;
+        // Keep the import pass bounded even for rapidly edited videos.
+        if(index>=cuts.length||index>=40){finish(false,cuts);return;}
+        var j=1;while(j<sceneNav.samples.length&&sceneNav.samples[j].time<cuts[index])j++;
+        var left=sceneNav.samples[j-1],right=sceneNav.samples[j],lo=left.time,hi=right.time,tries=0;
+        working(true,'Refining scene '+(index+1)+' of '+Math.min(40,cuts.length));
+        function probe(){
+          if(!alive())return;
+          var frame=timeToFrame((lo+hi)/2), at=frameToTime(frame);
+          if(++tries>6||hi-lo<=Math.max(0.035,1/state.fps)||at<=lo||at>=hi){
+            cuts[index++]=timeToFrame(hi)/state.fps;boundary();return;
+          }
+          runSeek(frame).then(function(how){
+            if(!alive())return;
+            if(how!=='frame'&&how!=='seeked'){finish(true);return;}
+            try{
+              ctx.drawImage(video,0,0,32,18);
+              var sig=sceneSignature(ctx.getImageData(0,0,32,18).data);
+              if(sceneDifference(left.sig,sig)>=0.30)hi=at;else lo=at;
+            }catch(err){finish(true);return;}
+            sceneNav.timer=setTimeout(function(){sceneNav.timer=null;probe();},25);
+          });
+        }
+        probe();
+      }
+      boundary();
+    }
+    function next(){
+      if(!alive())return;
+      if(document.hidden){cancelSceneScan(true);return;}
+      var t=sceneNav.next*sceneNav.interval;
+      if(t>=sceneNav.duration){refine();return;}
+      working(true,'Finding scenes · '+Math.round(t/sceneNav.duration*100)+'%');
+      $('scenestatus').textContent='Finding scenes · '+Math.round(t/sceneNav.duration*100)+'% · touch any control to start editing.';
+      var sampleFrame=timeToFrame(t),sampleTime=frameToTime(sampleFrame);
+      runSeek(sampleFrame).then(function(how){
+        if(!alive())return;
+        if(how!=='seeked'&&how!=='frame'){finish(true);return;}
+        try{
+          ctx.drawImage(video,0,0,32,18);
+          var sig=sceneSignature(ctx.getImageData(0,0,32,18).data);
+          sceneNav.samples.push({time:sampleTime,sig:sig});
+          var item=sceneNav.items.filter(function(r){return sampleTime>=r.start&&sampleTime<r.end;})[0];
+          var previous=sceneNav.samples[sceneNav.samples.length-2];
+          if(item&&(!sceneThumb(item)||(previous&&sceneDifference(previous.sig,sig)>=0.30))){
+            var thumb=document.createElement('canvas');thumb.width=160;thumb.height=90;
+            var x=thumb.getContext('2d'), scale=Math.min(160/video.videoWidth,90/video.videoHeight);
+            x.fillStyle='#111';x.fillRect(0,0,160,90);
+            x.drawImage(video,(160-video.videoWidth*scale)/2,(90-video.videoHeight*scale)/2,video.videoWidth*scale,video.videoHeight*scale);
+            sceneNav.thumbs.push({time:sampleTime,url:thumb.toDataURL('image/jpeg',0.65)});paintSceneCards();
+          }
+        }catch(err){finish(true);return;}
+        sceneNav.next++;sceneNav.timer=setTimeout(function(){sceneNav.timer=null;next();},25);
+      });
+    }
+    next();
+  }
+  $('bscanscenes').addEventListener('click',function(){if(sceneNav.scan)cancelSceneScan(true);else startSceneScan();});
+  $('bsceneprev').addEventListener('click',function(){selectScene(sceneNav.active-1);});
+  $('bscenenext').addEventListener('click',function(){selectScene(sceneNav.active+1);});
+  $('bscenewhole').addEventListener('click',function(){selectScene(-1);});
+  function interruptSceneScan(e){
+    if(e.target===$('bscanscenes'))return;
+    cancelSceneScan(true);
+  }
+  document.addEventListener('pointerdown',interruptSceneScan,true);
+  document.addEventListener('click',interruptSceneScan,true);
+  document.addEventListener('keydown',interruptSceneScan,true);
+  document.addEventListener('visibilitychange',function(){if(document.hidden)cancelSceneScan(true);});
+
   function nextPresented(ms){
     return new Promise(function(res){
       var done=false, timer=null;
@@ -973,9 +1235,11 @@ function injectPng(bytes, payload){
   function detectFps(){
     return new Promise(function(resolve){
       if(typeof video.requestVideoFrameCallback!=='function'){ resolve(null); return; }
-      var first=null,last=null,n=0,fin=false;
+      var first=null,last=null,n=0,fin=false,source=state.url;
       function stop(){
-        if(fin)return; fin=true; video.pause();
+        if(fin)return; fin=true;
+        if(source!==state.url){resolve(null);return;}
+        video.pause();
         if(first&&last&&last.p>first.p&&last.m>first.m){
           var raw=(last.p-first.p)/(last.m-first.m);
           resolve(raw>0.5&&raw<400?raw:null);
@@ -983,6 +1247,7 @@ function injectPng(bytes, payload){
       }
       function tick(now,meta){
         if(fin)return;
+        if(source!==state.url){stop();return;}
         var s={p:meta.presentedFrames,m:meta.mediaTime};
         if(first===null) first=s; else last=s;
         if(++n>=45){ stop(); return; }
@@ -1003,6 +1268,9 @@ function injectPng(bytes, payload){
   /* ---------- loading ---------- */
   function loadFile(file){
     if(!file) return;
+    var serial=++fileSerial;
+    resetScenes();seekToken++;pending=null;state.seeking=false;stalls=0;setEnabled(false);
+    video.pause();
     saveToken++; preparedSave=null; saving=false; sharing=false; clearSaveToast();
     setCropMode(false);
     state.crop={ratio:0,scale:1,cx:0.5,cy:0.5,free:true};
@@ -1011,6 +1279,7 @@ function injectPng(bytes, payload){
     state.marks=[]; lastFile=file; lastError=null; canvasState='not tested';
     state.meta={}; state.metaCount=0;
     readVideoMetadata(file).then(function(m){
+      if(serial!==fileSerial)return;
       state.meta=m||{}; state.metaCount=Object.keys(state.meta).length;
     });
     paintMarks(); say(''); working(true,'Reading');
@@ -1020,6 +1289,8 @@ function injectPng(bytes, payload){
 
     var failed=false;
     video.onerror=function(){
+      if(serial!==fileSerial)return;
+      cancelSceneScan(false);
       failed=true; lastError=video.error||{code:0,message:''};
       working(false); setEnabled(false);
       var reason=MEDIA_ERR[lastError.code]||'The browser did not say why.';
@@ -1032,12 +1303,13 @@ function injectPng(bytes, payload){
     };
 
     video.onloadedmetadata=function(){
-      if(failed) return;
+      if(failed||serial!==fileSerial) return;
       working(true,'Reading frame rate');
       drop.className='drop gone'; viewport.className='viewport live';
       $('iconbar').className='iconbar on'; $('bnew').title='Open another video — '+file.name;
 
       detectFps().then(function(raw){
+        if(failed||serial!==fileSerial)return;
         var snapped=raw?snapToStandard(raw):null, note='';
         if(snapped){ state.fps=snapped; }
         else if(raw){
@@ -1051,10 +1323,11 @@ function injectPng(bytes, payload){
         layoutViewer(); zoomFit();
         setTimeout(function(){ layoutViewer(); layoutCrop(); },60);
         goToFrame(0).then(function(){
+          if(failed||serial!==fileSerial)return;
           canvasState=testCanvas();
           if(canvasState!=='working'){
             say('The video loaded, but this browser will not let the page copy pixels out of it ('+canvasState+'). Saving will fail here. Open the address in Safari directly.',true);
-          } else say(note,!!note);
+          } else {say(note,!!note);prepareScenes();}
         });
       });
     };
@@ -1086,7 +1359,9 @@ function injectPng(bytes, payload){
   function setFrameUI(n){
     state.frame = n;
     mFrame.textContent = String(n);
-    var pct = state.total > 1 ? (n/(state.total-1))*100 : 0;
+    var r=sceneBounds();
+    if(sceneNav.active>=0&&(n<r.start||n>r.end)){sceneNav.active=-1;paintSceneFocus();r=sceneBounds();}
+    var pct = r.end>r.start ? ((n-r.start)/(r.end-r.start))*100 : 0;
     playhead.style.left = pct+'%';
     scrubFill.style.width = pct+'%';
     scrubEl.setAttribute('aria-valuenow', String(n));
@@ -1110,7 +1385,7 @@ function injectPng(bytes, payload){
     return nextPresented().then(function(how){
       if(mine !== seekToken) return 'superseded'; // a newer seek has taken over
       state.seeking = false;
-      if(how === 'timeout'){ if(++stalls >= 2) recoverVideo(); }
+      if(how === 'timeout'){ if(++stalls >= 2&&!sceneNav.scan) recoverVideo(); }
       else stalls = 0;
       if(pending !== null){
         var p = pending; pending = null;
@@ -1139,25 +1414,27 @@ function injectPng(bytes, payload){
 
   function requestFrame(n){
     if(!state.ready) return;
+    var interrupted=cancelSceneScan(false);
     n = clampFrame(n);
     // A seek still "in progress" after 3s is dead. Take the flag back.
     if(state.seeking && Date.now() - (state.seekAt||0) > 3000){
       state.seeking = false; pending = null;
     }
-    if(n === state.frame && !state.seeking) return;
+    if(n === state.frame && !state.seeking&&!interrupted) return;
     setFrameUI(n);
     if(state.seeking){ pending = n; return; }
     runSeek(n);
   }
 
   function goToFrame(n){
+    cancelSceneScan(false);
     n = clampFrame(n);
     setFrameUI(n);
     pending = null;
     return runSeek(n);
   }
 
-  function step(d){ if(!video.paused) video.pause(); requestFrame(state.frame + d); }
+  function step(d){ if(!video.paused) video.pause(); requestFrame(clampSceneFrame(state.frame + d)); }
 
   /* Press and hold to keep stepping, easing into a faster rate. */
   var holdStops = [];
@@ -1318,6 +1595,7 @@ function injectPng(bytes, payload){
   }
   function saveCurrent(){
     if(!state.ready || saving) return Promise.resolve();
+    cancelSceneScan(true);
     var cr=cropRect(); if(!cr) return Promise.resolve();
     var wasPlaying=!video.paused, frame=wasPlaying?timeToFrame(video.currentTime):state.frame;
     var snapshot={crop:cr,rot:state.rot,meta:state.meta,metaCount:state.metaCount};
@@ -1359,6 +1637,7 @@ function injectPng(bytes, payload){
 
   function saveAllMarks(){
     if(saving || !state.marks.length) return;
+    cancelSceneScan(false);
     var list=state.marks.slice().sort(function(a,b){return a-b;}), i=0;
     working(true,'Saving');
     function next(){
@@ -1391,6 +1670,7 @@ function injectPng(bytes, payload){
   }
   function toggleMark(){
     if(!state.ready) return;
+    cancelSceneScan(true);
     var i=state.marks.indexOf(state.frame);
     if(i>=0) state.marks.splice(i,1); else state.marks.push(state.frame);
     paintMarks();
@@ -1427,13 +1707,13 @@ function injectPng(bytes, payload){
   }
   function framesPerPx(){
     var w=scrubEl.getBoundingClientRect().width||1;
-    return Math.max(0,state.total-1)/w;
+    var range=sceneBounds();return Math.max(0,range.end-range.start)/w;
   }
   function scrubAbsolute(clientX){
     var r=scrubEl.getBoundingClientRect();
     if(!r.width) return;
     var t=clamp((clientX-r.left)/r.width,0,1);
-    requestFrame(Math.round(t*Math.max(0,state.total-1)));
+    var range=sceneBounds();requestFrame(range.start+Math.round(t*Math.max(0,range.end-range.start)));
   }
 
   scrubEl.addEventListener('pointerdown',function(e){
@@ -1454,7 +1734,7 @@ function injectPng(bytes, payload){
     var dy=Math.max(0, Math.max(r.top-e.clientY, e.clientY-r.bottom));
     var t=tierFor(dy);
     if(t!==tier){ tier=t; anchorX=e.clientX; anchorFrame=state.frame; showTier(t); }
-    requestFrame(Math.round(anchorFrame+(e.clientX-anchorX)*framesPerPx()*TIERS[tier].f));
+    requestFrame(clampSceneFrame(anchorFrame+(e.clientX-anchorX)*framesPerPx()*TIERS[tier].f));
   });
   ['pointerup','pointercancel'].forEach(function(ev){
     scrubEl.addEventListener(ev,function(){
@@ -1476,8 +1756,8 @@ function injectPng(bytes, payload){
     var big=Math.max(1,Math.round(state.fps));
     if(e.key==='ArrowRight'){ e.preventDefault(); step(e.shiftKey?big:1); }
     else if(e.key==='ArrowLeft'){ e.preventDefault(); step(e.shiftKey?-big:-1); }
-    else if(e.key==='Home'){ e.preventDefault(); requestFrame(0); }
-    else if(e.key==='End'){ e.preventDefault(); requestFrame(state.total-1); }
+    else if(e.key==='Home'){ e.preventDefault(); requestFrame(sceneBounds().start); }
+    else if(e.key==='End'){ e.preventDefault(); requestFrame(sceneBounds().end); }
   });
   holdRepeat(btns.b10back, -10);
   holdRepeat(btns.bback,    -1);
@@ -1488,26 +1768,46 @@ function injectPng(bytes, payload){
   $('bsaveall').addEventListener('click',saveAllMarks);
   $('bclear').addEventListener('click',function(){ state.marks=[]; paintMarks(); });
 
-  btns.bplay.addEventListener('click',function(){
-    if(video.paused) video.play().catch(function(){}); else video.pause();
-  });
+  function togglePlayback(){
+    if(!state.ready)return;
+    cancelSceneScan(true);
+    if(!video.paused){video.pause();return;}
+    var r=sceneBounds(), source=state.url;
+    if(state.seeking||video.seeking||(sceneNav.active>=0&&state.frame>=r.end)){
+      goToFrame(state.frame>=r.end?r.start:state.frame).then(function(how){
+        if(source===state.url&&(how==='frame'||how==='seeked'))video.play().catch(function(){});
+      });
+    }else video.play().catch(function(){});
+  }
+  function tickScenePlayback(){
+    if(video.paused)return;
+    if(state.ready&&sceneNav.active>=0&&!sceneNav.scan){
+      var r=sceneBounds();
+      if(video.currentTime>=frameToTime(r.end)){video.pause();goToFrame(r.end);return;}
+    }
+    requestAnimationFrame(tickScenePlayback);
+  }
+  btns.bplay.addEventListener('click',togglePlayback);
   video.addEventListener('play',function(){
     btns.bplay.textContent='\u2759\u2759';
+    requestAnimationFrame(tickScenePlayback);
   });
   video.addEventListener('pause',function(){
     btns.bplay.textContent='\u25B6';
-    if(!state.ready||state.seeking||!state.total) return;
-    requestFrame(timeToFrame(video.currentTime));
+    if(!state.ready||state.seeking||!state.total||sceneNav.scan) return;
+    var actual=timeToFrame(video.currentTime), target=clampSceneFrame(actual);
+    if(actual!==target)goToFrame(target);else requestFrame(target);
   });
   video.addEventListener('timeupdate',function(){
     if(video.paused||state.seeking) return;
-    setFrameUI(timeToFrame(video.currentTime));
+    setFrameUI(clampSceneFrame(timeToFrame(video.currentTime)));
   });
 
   document.addEventListener('keydown',function(e){
     var tag=(e.target&&e.target.tagName)||'';
     if(tag==='SELECT'||tag==='TEXTAREA') return;
     if(tag==='INPUT') return;
+    if(tag==='BUTTON'&&(e.key===' '||e.key==='Enter'))return;
     if(e.target===scrubEl) return;   // the scrubber handles its own keys
     if(!state.ready) return;
     var k=e.key;
