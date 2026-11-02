@@ -8,7 +8,7 @@ const { boot, near } = require('./crop.test.cjs');
 
 const exposure = `
   window.__sceneTest = {
-    sceneNav, buildSceneRanges, sceneBounds, clampSceneFrame, selectScene,
+    markFlow, sceneNav, buildSceneRanges, sceneBounds, clampSceneFrame, selectScene,
     prepareScenes, resetScenes, setSections, cancelSceneScan, startSceneScan,
     sceneSignature, sceneDifference, detectSceneCuts, framesPerPx,
     scrubAbsolute, step, requestFrame, setFrameUI, tickScenePlayback,
@@ -218,7 +218,8 @@ test('marks outside a scene return to the original source and export keeps the o
   f.scene.selectScene(2); f.scene.setFrameUI(1901); f.scene.toggleMark();
   assert.deepEqual([...f.api.state.marks], [1901]);
   f.scene.selectScene(0);
-  f.ids.get('chips').children[0].click();
+  f.scene.markFlow.setMode('filmstrip');
+  f.ids.get('markstrip').children[0].click();
   assert.equal(f.api.state.frame, 1901);
   assert.equal(f.scene.sceneNav.active, -1, 'a source mark outside focus remains reachable');
   const downloads = [];
