@@ -52,7 +52,7 @@
     -webkit-font-smoothing:antialiased;
     padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
   }
-  .wrap{max-width:760px;margin:0 auto;padding:16px 16px 48px}
+  .wrap{--page-pad:16px;max-width:760px;margin:0 auto;padding:16px 16px 48px}
   .eyebrow{font-family:var(--sans);font-size:13px;letter-spacing:0;text-transform:none;color:var(--dim)}
 
   .banner{display:none;border:0;border-radius:var(--r-md);padding:16px;
@@ -80,13 +80,14 @@
   .busy.on{display:flex}
   .busy span{font-family:var(--sans);font-size:14px;color:var(--read)}
 
-  .readout{display:flex;align-items:flex-end;justify-content:space-between;gap:14px;
-    flex-wrap:wrap;padding:16px 2px 10px}
+  .readout{display:flex;align-items:center;justify-content:space-between;gap:14px;
+    flex-wrap:wrap;padding:16px 0}
   .tc{font-family:var(--sans);font-variant-numeric:tabular-nums;font-size:clamp(32px,8.6vw,44px);
     font-weight:300;line-height:1;letter-spacing:-.02em;color:var(--read)}
   .tc .sep{opacity:.28}
   .tc .ff{color:var(--read)}
-  .meta{line-height:1.8;text-align:right;flex:1;min-width:130px}
+  .meta{line-height:1.35;text-align:right;flex:1;min-width:130px}
+  .meta div + div{margin-top:4px}
   .meta div{font-family:var(--sans);font-size:13px;color:var(--dim)}
   .meta b{color:var(--mid);font-weight:400}
 
@@ -173,6 +174,23 @@
   .crophandle[data-handle="se"]::after{border-bottom-width:3px;border-right-width:3px}
   .crophandle[data-handle="n"]::after,.crophandle[data-handle="s"]::after{inset:20px 12px;border-top-width:3px}
   .crophandle[data-handle="w"]::after,.crophandle[data-handle="e"]::after{inset:12px 20px;border-left-width:3px}
+  /* Keep the full touch target and corner strokes inside an edge-to-edge crop. */
+  .crophandle[data-handle="nw"]{transform:none}
+  .crophandle[data-handle="ne"]{transform:translateX(-100%)}
+  .crophandle[data-handle="sw"]{transform:translateY(-100%)}
+  .crophandle[data-handle="se"]{transform:translate(-100%,-100%)}
+  .crophandle[data-handle="nw"]::after{inset:0 22px 22px 0}
+  .crophandle[data-handle="ne"]::after{inset:0 0 22px 22px}
+  .crophandle[data-handle="sw"]::after{inset:22px 22px 0 0}
+  .crophandle[data-handle="se"]::after{inset:22px 0 0 22px}
+  .crophandle[data-handle="n"]{transform:translateX(-50%)}
+  .crophandle[data-handle="s"]{transform:translate(-50%,-100%)}
+  .crophandle[data-handle="w"]{transform:translateY(-50%)}
+  .crophandle[data-handle="e"]{transform:translate(-100%,-50%)}
+  .crophandle[data-handle="n"]::after{inset:0 12px 41px}
+  .crophandle[data-handle="s"]::after{inset:41px 12px 0}
+  .crophandle[data-handle="w"]::after{inset:12px 41px 12px 0}
+  .crophandle[data-handle="e"]::after{inset:12px 0 12px 41px}
   .cropbox:focus-visible,.crophandle:focus-visible{outline:2px solid white;outline-offset:3px}
   .cropbox{position:absolute;box-shadow:0 0 0 9999px rgba(10,10,11,.62);
     border:1px solid rgba(255,255,255,.9);box-sizing:border-box}
@@ -209,14 +227,29 @@
     color:var(--mid);border:1px solid var(--rule);border-radius:var(--r-pill);
     padding:0 16px;height:34px;cursor:pointer;min-height:0}
   button.ratio.on{background:var(--read);color:var(--void);border-color:var(--read)}
-  .croprow{display:flex;flex-wrap:wrap;gap:7px;align-items:center;margin-top:8px}
-  .cropheading{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px}
-  .croporientation{display:flex;background:var(--raise);border-radius:var(--r-pill);padding:3px}
+  .cropbar.on{display:flex;align-items:center;gap:0;flex-wrap:nowrap;
+    margin-right:calc((min(760px, 100vw) - 100vw)/2 - var(--page-pad))}
+  .cropbar .ratios{flex:1;min-width:0;padding:5px var(--page-pad) 5px 16px;
+    flex-wrap:nowrap;overflow-x:auto;overflow-y:hidden;scrollbar-width:none;
+    overscroll-behavior-x:contain;scroll-snap-type:x proximity;scroll-padding-inline:16px;
+    -webkit-mask-image:linear-gradient(to right,transparent,rgba(0,0,0,.5) 8px,rgba(0,0,0,.85) 18px,#000 30px,#000 calc(100% - 24px),transparent);
+    mask-image:linear-gradient(to right,transparent,rgba(0,0,0,.5) 8px,rgba(0,0,0,.85) 18px,#000 30px,#000 calc(100% - 24px),transparent)}
+  .cropbar .ratios::-webkit-scrollbar{display:none}
+  .cropbar .ratio{scroll-snap-align:start}
+  .croporientation{display:flex;flex:none;background:var(--raise);border-radius:var(--r-pill);padding:3px}
   .croporientation button{border:0;background:transparent;color:var(--mid);font:inherit;
-    padding:0 14px;min-height:38px;border-radius:var(--r-pill);cursor:pointer}
+    width:52px;height:40px;border-radius:var(--r-pill);cursor:pointer;display:grid;place-items:center}
   .croporientation button[aria-pressed="true"]{background:var(--read);color:var(--void)}
-  .cropdimensions{font-size:12px;color:var(--mid);white-space:nowrap;font-variant-numeric:tabular-nums}
-  .croprow #bcropdone{margin-left:auto}
+  .croporientation svg{width:24px;height:24px;fill:currentColor;fill-opacity:.18;stroke:currentColor;stroke-width:1.5}
+  .cropactions{display:none;align-items:center;gap:6px}
+  .cropactions.on{display:flex}
+  #bzoomtoggle[hidden]{display:none}
+  .iconbar{flex-wrap:wrap}
+  @media(max-width:380px){
+    .iconbar,.cropactions{gap:4px}
+    button.ic{width:44px;height:44px}
+  }
+  #cropdims{font-variant-numeric:tabular-nums}
 
   /* compare */
   .cmpbar2{display:flex;gap:7px;margin-bottom:10px}
@@ -261,7 +294,7 @@
   .hidden{display:none}
   @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
   @media (min-width:620px){
-    .wrap{padding:20px 20px 50px}
+    .wrap{--page-pad:20px;padding:20px 20px 50px}
     video{max-height:56vh}
   }
 </style>
@@ -275,8 +308,13 @@
   </div>
 
   <div class="iconbar" id="iconbar">
-    <button class="ic" id="brotate" aria-label="Rotate 90 degrees" title="Rotate 90&deg;"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 8a6 6 0 1 1 .6 4.6"/><polyline points="1.6 4.6 4 8.2 7.6 5.8"/></svg></button>
+    <button class="ic" id="brotate" aria-label="Rotate 90 degrees" title="Rotate 90&deg;"><svg viewBox="0 0 20 20" aria-hidden="true"><rect x="6" y="7" width="9" height="10" rx="1" transform="rotate(20 10.5 12)"/><path d="M4 6a7 7 0 0 1 12-2M16 1v3h-3"/></svg></button>
     <button class="ic" id="bcrop" disabled aria-label="Crop" title="Crop"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5.5 1.5v13h13"/><path d="M1.5 5.5h13v13"/></svg></button>
+    <div class="cropactions" id="cropactions" role="group" aria-label="Crop actions">
+      <button class="ic" id="bfitpic" aria-label="Fit to picture" title="Fit to picture"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 3H3v4m10-4h4v4M3 13v4h4m10-4v4h-4"/><rect x="6" y="6" width="8" height="8" rx="1"/></svg></button>
+      <button class="ic" id="bcropreset" aria-label="Reset crop" title="Reset crop"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 7a6 6 0 1 1 0 6M4 3v4h4"/></svg></button>
+      <button class="ic" id="bcropdone" aria-label="Done cropping" title="Done cropping"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m4 10 4 4 8-8"/></svg></button>
+    </div>
     <button class="ic mono" id="bzoomtoggle" aria-label="Show actual pixels" title="Show actual pixels"><span class="zoom-one" aria-hidden="true">1:1</span><svg class="zoom-fit" viewBox="0 0 20 20" aria-hidden="true"><rect x="2.5" y="4.5" width="15" height="11" rx="1"/><polyline points="6 8 6 12 10 12"/></svg></button>
     <button class="ic" id="bnew" aria-label="Open another video" title="Open another video"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 13V3"/><polyline points="6.2 6.6 10 2.8 13.8 6.6"/><path d="M3 12.5v3a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-3"/></svg></button>
   </div>
@@ -297,27 +335,18 @@
     <div class="busy" id="busy"><span id="busytext">Reading</span></div>
   </div>
 
-  <div class="cropbar">
-    <div class="cropheading">
-      <div class="croporientation" role="group" aria-label="Crop orientation">
-        <button type="button" id="bcropportrait" aria-pressed="false">Portrait</button>
-        <button type="button" id="bcroplandscape" aria-pressed="true">Landscape</button>
-      </div>
-      <span class="cropdimensions" id="cropdims" aria-label="Output image size">&mdash;</span>
+  <div class="cropbar" id="cropbar">
+    <div class="croporientation" role="group" aria-label="Crop orientation">
+      <button type="button" id="bcropportrait" aria-label="Portrait" title="Portrait" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="2" width="12" height="20" rx="1.5"/></svg></button>
+      <button type="button" id="bcroplandscape" aria-label="Landscape" title="Landscape" aria-pressed="true"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="6" width="20" height="12" rx="1.5"/></svg></button>
     </div>
     <div class="ratios" id="cropstrip" aria-label="Crop aspect ratio"></div>
-    <div class="croprow">
-      <button class="t" id="bfitpic" style="padding:9px 13px">Fit to picture</button>
-      <button class="t" id="bcropreset" style="padding:9px 13px">Reset</button>
-      <button class="t" id="bcropdone" style="padding:9px 13px">Done</button>
-    </div>
   </div>
 
   <div class="readout" id="readout">
     <div class="tc" id="tc">00<span class="sep">:</span>00<span class="sep">:</span>00<span class="sep">:</span><span class="ff">00</span></div>
     <div class="meta">
-      <div id="mName">No file</div>
-      <div><b id="mRes">&mdash;</b> &middot; <b id="mFps">&mdash;</b></div>
+      <div><b id="cropdims" aria-label="Output image size">&mdash;</b> &middot; <b id="mFps">&mdash;</b></div>
       <div>frame <b id="mFrame">&mdash;</b> of <b id="mTotal">&mdash;</b></div>
     </div>
   </div>
@@ -402,7 +431,7 @@
       busy=$('busy'), busyTxt=$('busytext'), tcEl=$('tc'),
       marksEl=$('marks'), chipsEl=$('chips'),
       banner=$('banner'), fineLabel=$('finelabel'),
-      mName=$('mName'), mRes=$('mRes'), mFps=$('mFps'), mFrame=$('mFrame'), mTotal=$('mTotal');
+      mFps=$('mFps'), mFrame=$('mFrame'), mTotal=$('mTotal');
 
   var btns = { b10back:$('b10back'), bback:$('bback'), bplay:$('bplay'), bfwd:$('bfwd'),
                b10fwd:$('b10fwd'), bmark:$('bmark'), bsave:$('bsave'), bcrop:$('bcrop') };
@@ -1002,7 +1031,7 @@ function injectPng(bytes, payload){
       if(failed) return;
       working(true,'Reading frame rate');
       drop.className='drop gone'; viewport.className='viewport live';
-      $('iconbar').className='iconbar on'; mName.textContent=file.name;
+      $('iconbar').className='iconbar on'; $('bnew').title='Open another video — '+file.name;
 
       detectFps().then(function(raw){
         var snapped=raw?snapToStandard(raw):null, note='';
@@ -1032,7 +1061,6 @@ function injectPng(bytes, payload){
     scrubEl.setAttribute('aria-valuemax', String(state.total-1));
     mTotal.textContent=String(state.total);
     mFps.textContent=state.fps+' fps';
-    mRes.textContent=video.videoWidth+' \u00d7 '+video.videoHeight;
   }
 
   function testCanvas(){
@@ -1548,7 +1576,7 @@ function injectPng(bytes, payload){
     var r=cropRect();
     if(!r || !viewport.clientWidth || !viewport.clientHeight){ cropView=null; return; }
     var w=rotSwap()?r.h:r.w, h=rotSwap()?r.w:r.h;
-    var k=Math.min(Math.max(1,viewport.clientWidth-48)/w,Math.max(1,viewport.clientHeight-48)/h);
+    var k=Math.min(Math.max(1,viewport.clientWidth)/w,Math.max(1,viewport.clientHeight)/h);
     cropView={k:k,box:{x:(viewport.clientWidth-w*k)/2,y:(viewport.clientHeight-h*k)/2,w:w*k,h:h*k}};
   }
 
@@ -1570,7 +1598,7 @@ function injectPng(bytes, payload){
       var bw=(rotSwap()?r.h:r.w)*k, bh=(rotSwap()?r.w:r.h)*k;
       b={x:viewport.clientWidth/2+vz.tx+p.x-bw/2,y:viewport.clientHeight/2+vz.ty+p.y-bh/2,w:bw,h:bh};
     }
-    cropWrap.style.display=(cropMode || !isFullFrame())?'block':'none';
+    cropWrap.style.display=cropMode?'block':'none';
     cropWrap.className='cropwrap'+(cropMode?' editing':'');
     cropBox.style.left=b.x+'px'; cropBox.style.top=b.y+'px';
     cropBox.style.width=b.w+'px'; cropBox.style.height=b.h+'px';
@@ -1586,7 +1614,7 @@ function injectPng(bytes, payload){
 
   function refreshCrop(){
     clearCropGesture(); cropView=null;
-    buildStrip(); layoutCrop();
+    buildStrip(); layoutViewer();
   }
 
   function buildStrip(){
@@ -1596,6 +1624,7 @@ function injectPng(bytes, payload){
     }
     $('bcropportrait').setAttribute('aria-pressed',String(cropOrientation==='portrait'));
     $('bcroplandscape').setAttribute('aria-pressed',String(cropOrientation==='landscape'));
+    var scroll=cropStrip.scrollLeft||0;
     cropStrip.textContent='';
     RATIOS.forEach(function(R){
       if(R.v>0 && R.v!==1 && ((R.v<1)!==(cropOrientation==='portrait'))) return;
@@ -1610,6 +1639,7 @@ function injectPng(bytes, payload){
       });
       cropStrip.appendChild(b);
     });
+    cropStrip.scrollLeft=scroll;
   }
 
   function setCropOrientation(orientation){
@@ -1630,10 +1660,12 @@ function injectPng(bytes, payload){
     vPtr={}; vPinch=null; vTapTime=0;
     bCrop.className=cropMode?'ic on':'ic'; bCrop.setAttribute('aria-pressed',String(cropMode));
     cropBox.tabIndex=cropMode?0:-1;
-    cropStrip.parentNode.className='cropbar'+(cropMode?' on':'');
+    $('cropbar').className='cropbar'+(cropMode?' on':'');
     $('bzoomtoggle').disabled=cropMode;
+    $('bzoomtoggle').hidden=cropMode;
+    $('cropactions').className='cropactions'+(cropMode?' on':'');
     if(cropMode){ video.pause(); buildStrip(); }
-    applyZoom();
+    layoutViewer();
   }
 
   bCrop.addEventListener('click',function(){ setCropMode(!cropMode); });
@@ -1673,8 +1705,8 @@ function injectPng(bytes, payload){
     var iw=(rotSwap()?video.videoHeight:video.videoWidth)*k;
     var ih=(rotSwap()?video.videoWidth:video.videoHeight)*k;
     var ix=b.x+b.w/2+center.x-iw/2, iy=b.y+b.h/2+center.y-ih/2;
-    var left=Math.max(24,ix), top=Math.max(24,iy);
-    var right=Math.min(viewport.clientWidth-24,ix+iw), bottom=Math.min(viewport.clientHeight-24,iy+ih);
+    var left=Math.max(0,ix), top=Math.max(0,iy);
+    var right=Math.min(viewport.clientWidth,ix+iw), bottom=Math.min(viewport.clientHeight,iy+ih);
     var west=handle.indexOf('w')!==-1, east=handle.indexOf('e')!==-1;
     var north=handle.indexOf('n')!==-1, south=handle.indexOf('s')!==-1;
     var minW=Math.min(b.w,44), minH=Math.min(b.h,44);
@@ -1782,8 +1814,14 @@ function injectPng(bytes, payload){
   }
 
   function applyZoom(){
-    if(cropMode){ layoutCrop(); return; }
-    vframe.style.transform='translate('+vz.tx+'px,'+vz.ty+'px) scale('+vz.z+')'+
+    if(cropMode){ vframe.style.clipPath='none'; layoutCrop(); return; }
+    var r=cropRect(), offset={x:0,y:0};
+    if(r){
+      var W=video.videoWidth, H=video.videoHeight, k=video.offsetWidth/W*vz.z;
+      offset=rotatePoint((r.sx+r.w/2-W/2)*k,(r.sy+r.h/2-H/2)*k);
+      vframe.style.clipPath='inset('+(r.sy/H*100)+'% '+((W-r.sx-r.w)/W*100)+'% '+((H-r.sy-r.h)/H*100)+'% '+(r.sx/W*100)+'%)';
+    }
+    vframe.style.transform='translate('+(vz.tx-offset.x)+'px,'+(vz.ty-offset.y)+'px) scale('+vz.z+')'+
       (state.rot?' rotate('+state.rot+'deg)':'');
     var zoomed=!viewerIsFit();
     bZoomToggle.className='ic mono'+(zoomed?' zoomed':'');
@@ -1792,9 +1830,7 @@ function injectPng(bytes, payload){
     layoutCrop();
   }
   function clampZoom(){
-    var ow=vframe.offsetWidth||1, oh=vframe.offsetHeight||1;
-    var sw=(state.rot===90||state.rot===270);
-    var w=sw?oh:ow, h=sw?ow:oh;
+    var w=viewport.clientWidth||1, h=viewport.clientHeight||1;
     var mx=Math.max(0,(w*vz.z-w)/2), my=Math.max(0,(h*vz.z-h)/2);
     vz.tx=clamp(vz.tx,-mx,mx); vz.ty=clamp(vz.ty,-my,my);
   }
@@ -2178,10 +2214,10 @@ function injectPng(bytes, payload){
   function layoutViewer(){
     if(!video.videoWidth) return;
     var W=video.videoWidth, H=video.videoHeight;
-    var dispW=rotSwap()?H:W, dispH=rotSwap()?W:H;
+    var r=cropMode?{w:W,h:H}:cropRect();
+    var dispW=rotSwap()?r.h:r.w, dispH=rotSwap()?r.w:r.h;
     var cw=viewport.clientWidth || 320;
-    var maxH=Math.round((window.innerHeight||700)*0.46);
-    var s=Math.min(cw/dispW, maxH/dispH);
+    var s=cw/dispW;
     if(!(s>0)) return;
     video.style.maxWidth='none'; video.style.maxHeight='none';
     video.style.width=Math.round(W*s)+'px';

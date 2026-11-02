@@ -568,6 +568,44 @@ test('rotation preserves its arrow and does not print a routine status message',
   }
 });
 
+test('full-frame crop reaches the viewer edges and crop actions replace zoom', () => {
+  const { api, ids }=boot();
+  for (const rot of [0,90,180,270]) {
+    api.setRotation(rot);
+    api.setCropMode(true);
+    assert.ok(Math.abs(api.cropView.box.x)<0.5,'no horizontal inset beyond pixel rounding');
+    assert.ok(Math.abs(api.cropView.box.y)<0.5,'no vertical inset beyond pixel rounding');
+    assert.ok(Math.abs(api.cropView.box.w-ids.get('viewport').clientWidth)<1,'crop fills viewer width within pixel rounding');
+    assert.equal(ids.get('bzoomtoggle').hidden,true);
+    assert.equal(ids.get('cropactions').className,'cropactions on');
+    assert.equal(ids.has('cropoptions'),false);
+    api.setCropMode(false);
+    assert.equal(ids.get('bzoomtoggle').hidden,false);
+    assert.equal(ids.get('cropactions').className,'cropactions');
+  }
+});
+
+test('Done shows only the applied crop, while reopening restores the editor', () => {
+  for(const rot of [0,90,180,270]) {
+    const { api, ids }=boot();
+    api.setRotation(rot);
+    api.setCropToRect({sx:300,sy:200,w:800,h:500});
+    const before={...api.cropRect()};
+    api.setCropMode(true);
+    assert.equal(ids.get('cropwrap').style.display,'block');
+    api.setCropMode(false);
+    assert.equal(ids.get('cropwrap').style.display,'none');
+    assert.ok(ids.get('vframe').style.clipPath.startsWith('inset('));
+    const ratio=rot%180?before.h/before.w:before.w/before.h;
+    assert.ok(Math.abs(ids.get('viewport').clientHeight-ids.get('viewport').clientWidth/ratio)<=0.5);
+    assert.deepEqual({...api.cropRect()},before,'Done preserves the export crop');
+    api.setCropMode(true);
+    assert.equal(ids.get('vframe').style.clipPath,'none');
+    assert.equal(ids.get('cropwrap').style.display,'block');
+    assert.deepEqual({...api.cropRect()},before);
+  }
+});
+
 }
 
 module.exports = { boot, assertWithin, near };
