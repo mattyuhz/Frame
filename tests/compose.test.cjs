@@ -194,3 +194,48 @@ test('Compose keeps DOM photos visible if the browser cannot allocate a canvas c
   assert.doesNotThrow(()=>context.paintPhotoPreview());
   assert.equal(board.className,'');assert.equal(surface.style.display,'none');assert.equal(draws.length,0);
 });
+function editorSetup(){
+  const elements=new Map(),draws=[];let updates=0,pauses=0;
+  const make=id=>({id,style:{},handlers:{},clientWidth:540,clientHeight:500,
+    addEventListener(t,f){this.handlers[t]=f;},showModal(){this.open=true;},close(){this.open=false;},focus(){},
+    getBoundingClientRect(){return {left:0,top:0,width:540,height:320};},
+    getContext(){return {fillRect(){},drawImage(...a){draws.push(a);}};},setPointerCapture(){}});
+  const cell={kind:'image',ready:true,w:1600,h:900,el:{},view:{cx:0.5,cy:0.5,s:2}};
+  const context={state:{cells:[cell],selected:0,exporting:false},sharing:false,ptrs:{},pinch:null,
+    OUT_W:1080,OUT_H:1920,$:id=>{if(!elements.has(id))elements.set(id,make(id));return elements.get(id);},
+    rectsFor:()=>[{x:0,y:0,w:1080,h:640}],clamp:(v,a,b)=>Math.max(a,Math.min(b,v)),
+    cellCount:()=>1,visibleCells:()=>[cell],videoCells:()=>[{el:{pause(){pauses++;}}}],
+    document:{activeElement:{focus(){}}},window:{addEventListener(){}},
+    applyCellTransform(){},updateUI(){updates++;}};
+  vm.createContext(context);
+  const clampFn=script.match(/  function clampView\([^]*?\n  }/)[0];
+  vm.runInContext(clampFn+'\n'+script.slice(script.indexOf('  var editor=$(\'cropeditor\')'),script.indexOf('  /* Keep the pan inside')),context);
+  return {context,elements,cell,draws,updates:()=>updates,pauses:()=>pauses};
+}
+test('cell editor opens the selected crop, pauses video playback, and Done preserves edits',()=>{
+  const {context,elements,cell,draws,updates,pauses}=editorSetup();
+  context.openCellEditor(0);assert.equal(elements.get('cropeditor').open,true);assert.equal(pauses(),1);
+  const start=draws.at(-1);context.moveEditor(30,-20,1);
+  assert.ok(cell.view.cx<0.5);assert.ok(cell.view.cy>0.5);assert.notEqual(draws.at(-1)[1],start[1]);
+  const view={...cell.view};context.closeCellEditor();assert.equal(elements.get('cropeditor').open,false);
+  assert.equal(context.editorIndex,-1);assert.deepEqual({...cell.view},view);assert.equal(updates(),1);
+});
+test('editor pinch preserves its focal source point and clamps zoom and crop bounds',()=>{
+  const {context,cell}=editorSetup();context.openCellEditor(0);
+  const anchor={x:300,y:170},scale=Math.max(540/1600,320/900)*cell.view.s;
+  const sourceX=cell.view.cx*1600+(anchor.x-270)/scale;
+  context.moveEditor(0,0,1.5,anchor,anchor);
+  const nextScale=Math.max(540/1600,320/900)*cell.view.s;
+  assert.ok(Math.abs(cell.view.cx*1600+(anchor.x-270)/nextScale-sourceX)<1e-8);
+  context.moveEditor(100000,-100000,100);assert.equal(cell.view.s,10);
+  assert.ok(cell.view.cx>=0 && cell.view.cx<=1 && cell.view.cy>=0 && cell.view.cy<=1);
+  context.moveEditor(0,0,0.00001);assert.equal(cell.view.s,1);
+});
+test('editor one-finger drag works, cancellation clears pointers, and Reset restores fit',()=>{
+  const {context,elements,cell}=editorSetup();context.openCellEditor(0);
+  const handlers=elements.get('editorcanvas').handlers;
+  const e=(x,y)=>({pointerId:1,clientX:x,clientY:y,button:0,preventDefault(){}});
+  handlers.pointerdown(e(250,150));handlers.pointermove(e(280,170));assert.ok(cell.view.cx<0.5);
+  handlers.pointercancel(e(280,170));assert.equal(Object.keys(context.editorPtrs).length,0);
+  elements.get('editorreset').handlers.click();assert.deepEqual({...cell.view},{cx:0.5,cy:0.5,s:1});
+});
