@@ -48,9 +48,12 @@
   <ol class="steps">
     <li>Preview a clip below, then choose <strong>Download video</strong>.</li>
     <li><a href="../index.html">Open Frame</a> and choose the downloaded file. On iPhone, save it to Files first.</li>
-    <li>Tap a section to scrub in detail. <strong>Whole video</strong> restores the full timeline.</li>
+    <li>Turn <strong>Sections on</strong> to reveal time sections. Choose one to scrub in detail, or use <strong>Whole video</strong> to restore the full timeline.</li>
+    <li>Choose <strong>Find scenes</strong> when you want automatic suggestions. Opening a file or turning Sections on does not start a scan.</li>
+    <li>To inspect a boundary, select the second or a later section and choose <strong>Review start</strong>. Compare before/after frames, adjust with <strong>−10 / −1 / +1 / +10</strong>, then choose <strong>Apply boundary</strong> or <strong>Cancel</strong>.</li>
   </ol>
-  <p class="note">Frame reads the chosen file on your device; it does not upload your video. Playback stops at the selected section's end. Touching an editing control pauses scene scanning; use <strong>Continue scan</strong> to resume. Scene suggestions are approximate, so short cuts and fades can be missed.</p>
+  <p class="note">Frame reads the chosen file on your device; it does not upload your video. Every new file starts with <strong>Sections off</strong>. Playback stops at the selected section's end. Editing pauses a scan; <strong>Continue scan</strong> resumes it. Turning Sections off stops scanning and restores the full timeline, while retaining prepared sections for this file. Scene suggestions are approximate, so short cuts and fades can be missed.</p>
+  <p class="note">Applying a boundary keeps both sections connected and leaves the source video unchanged. The scan button becomes <strong>Manual boundaries</strong>: further scanning is disabled to protect your edits. Turning Sections off/on keeps them; reopening the file resets them. Frame steps remain approximate for variable-rate footage, and before/after review does not guarantee a correct cut.</p>
 
   <div class="grid">
     <article>
@@ -118,7 +121,7 @@
       <div class="cardbody">
         <p class="meta">0.4 seconds · 640 × 360 · 30 fps</p>
         <h2>Just twelve frames</h2>
-        <p class="description">A tiny clip should load into one usable section. Check both scrubber endpoints and save a frame. No endless scan or invalid range should appear.</p>
+        <p class="description">Turn Sections on to show one usable section for this tiny clip. Check both scrubber endpoints and save a frame. No automatic scan, endless analysis, or invalid range should appear.</p>
         <span class="file">07-subsecond.mp4</span>
         <a class="button download" href="fixtures/scenes/07-subsecond.mp4" download>Download video <span aria-hidden="true">&nbsp;↓</span></a>
       </div>
