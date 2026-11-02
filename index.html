@@ -53,6 +53,9 @@
     padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
   }
   .wrap{--page-pad:16px;max-width:760px;margin:0 auto;padding:16px 16px 48px}
+  .appnav{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;font-size:13px;color:var(--dim)}
+  .appnav a{color:var(--read);text-decoration:none;padding:8px 0;touch-action:manipulation}
+  .appnav a:focus-visible{outline:2px solid var(--read);outline-offset:4px}
   .eyebrow{font-family:var(--sans);font-size:13px;letter-spacing:0;text-transform:none;color:var(--dim)}
 
   .banner{display:none;border:0;border-radius:var(--r-md);padding:16px;
@@ -301,6 +304,7 @@
 </head>
 <body>
 <div class="wrap">
+  <nav class="appnav" aria-label="Apps"><span>Frame</span><a href="./compose.html" target="_blank" rel="noopener" aria-label="Compose layouts (opens in a new tab)">Compose ↗</a></nav>
 
   <div class="banner" id="banner">
     <h2>Open this in Safari itself</h2>

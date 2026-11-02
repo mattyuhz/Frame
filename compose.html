@@ -67,9 +67,14 @@
      iOS only decodes video that is genuinely visible, so the preview
      IS the videos; a canvas is used at export time only, when the
      same visible elements are captured. */
-  #board{position:relative;background:#000;overflow:hidden;touch-action:none;cursor:pointer}
-  .cellbox{position:absolute;overflow:hidden;background:rgba(255,255,255,.05)}
+  #board{position:relative;background:#000;overflow:hidden;touch-action:pan-y;cursor:pointer}
+  .cellbox{position:absolute;overflow:hidden;background:#000}
+  .cellbox.empty{background:rgba(255,255,255,.05);box-shadow:inset 0 0 0 1px rgba(255,255,255,.08)}
+  .photo-preview .cellbox{background:transparent;box-shadow:none;z-index:3}
+  .photo-preview .media{visibility:hidden}
+  .photo-surface{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:2}
   .cellbox.sel{outline:2px solid #FFF;outline-offset:-2px;z-index:1}
+  .photo-preview .cellbox.sel{z-index:3}
   .cellbox .media{position:absolute;left:0;top:0;max-width:none;max-height:none;
     pointer-events:none;display:block}
   .cellbox .plus{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
@@ -140,6 +145,31 @@
   .sheetcheck.bad{color:var(--read);font-weight:500}
   .sheethint{font-size:13px;color:var(--dim);text-align:center;margin-bottom:12px;line-height:1.55}
 
+  /* Shared Frame control language. */
+  header{border:0;padding:0;margin-bottom:12px;font-size:13px}
+  header a{padding:8px 0;color:var(--read)}
+  .mark{font-size:13px;font-weight:400;color:var(--dim)}
+  .toolbar{display:flex;align-items:center;gap:8px;margin-bottom:12px;min-height:48px}
+  #cellbar{margin:0;padding:0;border:0}
+  #cellbar.on{display:flex;gap:8px}
+  .outputsize{margin-left:auto;font-size:13px;color:var(--dim);font-variant-numeric:tabular-nums;text-align:right}
+  button.icbtn{width:48px;height:48px;border-radius:16px}
+  .chips{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;gap:6px;padding:4px 16px 4px 0;margin:12px -16px 0 0;
+    mask-image:linear-gradient(to right,#000 calc(100% - 24px),transparent);-webkit-mask-image:linear-gradient(to right,#000 calc(100% - 24px),transparent)}
+  .chips::-webkit-scrollbar{display:none}
+  button.chip{height:44px;flex:none;font-size:14px}
+  .group{border:0;padding-top:0;margin-top:16px}
+  .group .eyebrow{margin-bottom:8px}
+  .field{justify-content:space-between}
+  .winlabel{font-variant-numeric:tabular-nums}
+  #bdurreset{width:44px;height:44px;padding:0}
+  #bdurreset.on{display:flex}
+  .status{position:fixed;bottom:calc(env(safe-area-inset-bottom) + 16px);left:50%;transform:translateX(-50%);
+    z-index:80;background:#252525;color:var(--read);border-radius:16px;padding:12px 16px;max-width:calc(100% - 32px);width:max-content;
+    margin:0;box-shadow:0 6px 24px #0008;display:none}
+  .status.on{display:block}
+  .status button{display:block;border:0;background:var(--read);color:var(--void);border-radius:12px;padding:10px 14px;margin-top:8px;font:inherit}
+  button:focus-visible,a:focus-visible{outline:2px solid white;outline-offset:3px}
   .hidden{display:none}
   @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>
@@ -148,13 +178,23 @@
 <div class="wrap">
 
   <header id="hdr">
+    <a class="eyebrow" href="./index.html">&larr; Frame</a>
     <div class="mark">Compose</div>
-    <a class="eyebrow" href="./index.html">Frame &rarr;</a>
   </header>
 
   <div class="banner" id="banner">
     <h2>Open this in Safari itself</h2>
     <p>This page is inside a restricted preview frame, where Safari blocks video from loading no matter what the file is. Open the address in Safari directly and it will work.</p>
+  </div>
+
+  <div class="toolbar">
+    <div class="group" id="cellbar">
+      <span class="hidden" id="cellhint">Cell</span>
+      <button class="icbtn" id="breplace" aria-label="Replace selected photo or video" title="Replace"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 13V3m-4 4 4-4 4 4M3 12v5h14v-5"/></svg></button>
+      <button class="icbtn" id="bcellreset" aria-label="Reset selected crop" title="Reset crop"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 7a6 6 0 1 1 0 6M4 3v4h4"/></svg></button>
+      <button class="icbtn" id="bremove" aria-label="Remove selected photo or video" title="Remove"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 5h14M7 5V3h6v2M5 5l1 12h8l1-12M8 8v6m4-6v6"/></svg></button>
+    </div>
+    <div class="outputsize">1080 × 1920 px<span id="mutednote" class="hidden"> · Silent video</span></div>
   </div>
 
   <div class="stage" id="stage">
@@ -164,16 +204,10 @@
   <div class="chips" id="laybar"></div>
   <input type="file" id="file" accept="image/*,video/*" class="hidden">
 
-  <div class="group" id="cellbar">
-    <span class="eyebrow" id="cellhint">Cell</span>
-    <div class="row2" style="margin-top:0">
-      <button class="t" id="breplace">Replace</button>
-      <button class="t" id="bremove">Remove</button>
-    </div>
-  </div>
+
 
   <div class="group" id="winrow">
-    <span class="eyebrow" id="winhint">Which part of this clip plays</span>
+    <span class="eyebrow" id="winhint">Clip window</span>
     <div class="winbar">
       <canvas class="winscrub" id="winscrub"></canvas>
       <button class="icbtn" id="bplaypause" aria-label="Pause the preview" title="Pause the preview">
@@ -189,9 +223,9 @@
     <div class="durrow">
       <input type="range" id="dur" min="0.5" max="60" step="0.1" value="10" aria-label="Story length in seconds">
       <span class="durlabel" id="durlabel">&mdash;</span>
-      <button class="t" id="bdurreset">Reset</button>
+      <button class="icbtn" id="bdurreset" aria-label="Reset story length" title="Reset length"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 7a6 6 0 1 1 0 6M4 3v4h4"/></svg></button>
     </div>
-    <div class="durnote" id="durnote"></div>
+    <div class="hidden" id="durnote"></div>
   </div>
 
   <div class="group" id="fmtrow">
@@ -204,9 +238,9 @@
     </div>
   </div>
 
-  <button class="t wide primary" id="bexport" disabled>Export story</button>
+  <button class="t wide primary" id="bexport" disabled>Save</button>
 
-  <div class="status" id="status"></div>
+  <div class="status" id="status" role="status" aria-live="polite"></div>
 
 </div>
 
@@ -264,7 +298,12 @@
   var pendingBlob=null, pendingName='', sheetUrl=null;
 
   function clamp(v,a,b){ return Math.min(Math.max(v,a),b); }
-  function say(m,w){ statusEl.textContent=m||''; statusEl.className=w?'status warn':'status'; }
+  var toastTimer=null;
+  function say(m,w){
+    clearTimeout(toastTimer);
+    statusEl.textContent=m||''; statusEl.className=m?'status on':'status';
+    if(m) toastTimer=setTimeout(function(){ statusEl.className='status'; },w?9000:4000);
+  }
   function pad2(n){ return String(n).padStart(2,'0'); }
 
   function layoutDef(){
@@ -350,7 +389,7 @@
      is updated in place; a full rebuild happens only when the number
      of cells changes. */
   function sizePreview(){
-    var maxH=Math.round((window.innerHeight||700)*0.60);
+    var maxH=Infinity;
     var maxW=stageEl.clientWidth||320;
     var h=Math.min(maxH, Math.round(maxW*16/9));
     var w=Math.round(h*9/16);
@@ -378,6 +417,28 @@
 
   /* ---------- the board: real media elements in the story grid ---------- */
   var boxes=[];
+  var photoSurface=document.createElement('canvas'), photoPaintPending=false;
+  photoSurface.className='photo-surface';
+  photoSurface.width=OUT_W; photoSurface.height=OUT_H;
+  photoSurface.setAttribute('aria-hidden','true');
+  function paintPhotoPreview(){
+    photoPaintPending=false;
+    var cells=visibleCells();
+    var photos=allFilled() && cells.every(function(c){return c.kind==='image';});
+    var context=photos?photoSurface.getContext('2d'):null;
+    photos=photos && !!context;
+    board.className=photos?'photo-preview':'';
+    photoSurface.style.display=photos?'block':'none';
+    if(!photos) return;
+    // A single raster surface avoids separate DOM image/clip layers producing
+    // antialiased cracks at shared edges. Use the exact export drawing path.
+    if(photoSurface.parentNode!==board) board.appendChild(photoSurface);
+    drawInto(context,OUT_W,OUT_H);
+  }
+  function requestPhotoPreview(){
+    if(photoPaintPending) return;
+    photoPaintPending=true; requestAnimationFrame(paintPhotoPreview);
+  }
 
   /* Position one cell's media element so the visible window matches the
      export drawing exactly: source window [sx,sx+ww] maps to [0,r.w]. */
@@ -394,6 +455,7 @@
     c.el.style.width=(c.w*s)+'px';
     c.el.style.height=(c.h*s)+'px';
     c.el.style.transform='translate('+(-sx*s)+'px,'+(-sy*s)+'px)';
+    requestPhotoPreview();
   }
 
   /* Rebuild the cell boxes (layout or size changed). */
@@ -424,9 +486,10 @@
      re-parenting elements that are already in the right place — moving
      a playing video in the DOM makes it hiccup. */
   function syncCells(){
+    requestPhotoPreview();
     for(var i=0;i<boxes.length;i++){
       var box=boxes[i], c=state.cells[i];
-      box.className='cellbox'+(i===state.selected?' sel':'');
+      box.className='cellbox'+(!(c && c.ready)?' empty':'')+(i===state.selected?' sel':'');
       if(c && c.ready && c.el){
         if(c.el.parentNode!==box){
           box.textContent='';
@@ -570,48 +633,54 @@
 
   board.addEventListener('pointerdown',function(e){
     if(state.exporting) return;   /* the recording reads these cells live */
-    e.preventDefault();
-    if(board.setPointerCapture){ try{ board.setPointerCapture(e.pointerId); }catch(_){} }
+    if(e.pointerType!=='touch') e.preventDefault();
+    if(e.pointerType!=='touch' && board.setPointerCapture){ try{ board.setPointerCapture(e.pointerId); }catch(_){} }
     var p=boardPos(e);
-    ptrs[e.pointerId]={x:p.x,y:p.y,moved:false};
+    ptrs[e.pointerId]={x:p.x,y:p.y,startX:p.x,startY:p.y,moved:false};
     if(ptrCount()===1){
       var i=hitCell(p.x,p.y);
       if(i>=0 && i!==state.selected){ state.selected=i; updateUI(true); }
     }
     var c=selCell();
-    if(ptrCount()===2 && c && c.ready) pinch={d:ptrDist(), s:c.view.s};
+    if(ptrCount()===2){
+      tapT=0;
+      Object.keys(ptrs).forEach(function(id){ptrs[id].moved=true;});
+      if(c && c.ready) pinch={d:ptrDist(),s:c.view.s};
+    }
   });
   board.addEventListener('pointermove',function(e){
     if(state.exporting) return;
     var p=ptrs[e.pointerId]; if(!p) return;
-    e.preventDefault();
+    if(e.pointerType!=='touch' || ptrCount()>1) e.preventDefault();
     var np=boardPos(e);
     var dx=np.x-p.x, dy=np.y-p.y;
-    ptrs[e.pointerId]={x:np.x,y:np.y,moved:p.moved||Math.abs(dx)>3||Math.abs(dy)>3};
+    p.x=np.x; p.y=np.y; p.moved=p.moved||Math.abs(np.x-p.startX)>3||Math.abs(np.y-p.startY)>3;
     var c=selCell();
     if(!c || !c.ready) return;
     if(ptrCount()>=2 && pinch && pinch.d>6){
       c.view.s=clamp(pinch.s*(ptrDist()/pinch.d), 1, 10);
       clampView(c);
       applyCellTransform(state.selected);
-    } else if(ptrCount()===1){
+    }
+    if(ptrCount()>=2 || e.pointerType!=='touch'){
       var rs=rectsFor(pW,pH), r=rs[state.selected];
       if(r){
         var s=Math.max(r.w/c.w, r.h/c.h)*c.view.s;
-        c.view.cx-=dx/(s*c.w);
-        c.view.cy-=dy/(s*c.h);
+        var fingers=ptrCount()>=2?2:1;
+        c.view.cx-=dx/(fingers*s*c.w);
+        c.view.cy-=dy/(fingers*s*c.h);
         clampView(c);
         applyCellTransform(state.selected);
       }
     }
   });
-  ['pointerup','pointercancel'].forEach(function(ev){
+  ['pointerup','pointercancel','lostpointercapture'].forEach(function(ev){
     board.addEventListener(ev,function(e){
       if(state.exporting){ delete ptrs[e.pointerId]; return; }
       var p=ptrs[e.pointerId], single=ptrCount()===1;
       delete ptrs[e.pointerId];
       if(ptrCount()<2) pinch=null;
-      if(!(single && p && !p.moved)) return;
+      if(ev!=='pointerup' || !(single && p && !p.moved)){tapT=0;return;}
       var i=hitCell(p.x,p.y);
       if(i<0) return;
       var c=state.cells[i];
@@ -621,9 +690,18 @@
         c.view={cx:0.5,cy:0.5,s:1};
         applyCellTransform(i);
         tapT=0;
-        say('Zoom reset for this cell.');
+        say('');
       } else tapT=now;
     });
+  });
+
+  board.addEventListener('touchmove',function(e){
+    if(e.touches.length>1) e.preventDefault();
+  },{passive:false});
+  window.addEventListener('blur',function(){ptrs={};pinch=null;tapT=0;});
+  $('bcellreset').addEventListener('click',function(){
+    var c=selCell(); if(!c || state.exporting) return;
+    c.view={cx:0.5,cy:0.5,s:1}; applyCellTransform(state.selected);
   });
 
   /* Keep the pan inside the picture at the current zoom, for the cell's
@@ -773,7 +851,7 @@
     state.cells[state.selected]=null;
     recalcStarts();
     updateUI(true);
-    say('Removed. Tap the empty cell to add something else.');
+    say('');
   });
 
   /* ---------- layout pills ---------- */
@@ -784,6 +862,7 @@
       b.type='button';
       b.className='chip'+(state.layout===L.id?' on':'');
       b.textContent=L.label;
+      b.setAttribute('aria-pressed',String(state.layout===L.id));
       b.addEventListener('click',function(){
         if(state.exporting) return;
         state.layout=L.id;
@@ -827,7 +906,7 @@
     g.strokeRect(0.5,15.5,w-1,25);
     if(!live){
       winCv.className='winscrub off';
-      winLabel.textContent='Tap a video cell to choose which part of it plays.';
+      winLabel.textContent='Select a video';
       return;
     }
     var L=effDuration()||0;
@@ -847,9 +926,8 @@
     var full=(winSpan(c)<=0.01);
     winCv.className = full ? 'winscrub off' : 'winscrub';
     winLabel.textContent = full
-      ? 'This clip plays in full ('+c.dur.toFixed(1)+' s) — it is the shortest, so there is nothing to choose here. Shorten the story length below to pick a part of it.'
-      : 'Shows '+c.start.toFixed(1)+' – '+(c.start+L).toFixed(1)+' s of '+c.dur.toFixed(1)+
-        ' s. Tap to jump, drag to move; slide your finger away for finer control.';
+      ? 'Full clip · '+c.dur.toFixed(1)+' s'
+      : c.start.toFixed(1)+' – '+(c.start+L).toFixed(1)+' s · '+c.dur.toFixed(1)+' s total';
   }
 
   /* The fine tiers ask you to slide your finger *off* the strip, so the
@@ -974,7 +1052,7 @@
     recalcStarts();
     renderDur(true);
     drawWin();
-    say('Story length reset to the shortest clip.');
+    say('');
   });
 
   /* ---------- shared UI refresh ---------- */
@@ -993,11 +1071,12 @@
         : 'Photo cell — drag the picture to frame it, pinch to zoom.';
     }
     var anyVideo=videoCells().length>0;
+    $('mutednote').className=anyVideo?'':'hidden';
     /* The strip and its transport stay put whenever there is video, so
        Play/Pause never disappears under you. */
     winRow.className=anyVideo?'group on':'group';
     var onVideo=!!(c && c.kind==='video' && c.ready);
-    winHint.textContent=onVideo?'Which part of this clip plays':'Preview';
+    winHint.textContent=onVideo?'Clip window':'Preview';
     if(anyVideo) drawWin();
     paintPlayIcon();
     renderDur(syncSlider!==false);
@@ -1051,10 +1130,12 @@
     if(!g){ say('This browser refused a drawing surface for the export.',true); return; }
     drawInto(g,OUT_W,OUT_H);
     var mime=fmtSel.value;
+    state.exporting=true; bExport.disabled=true;
     say('Encoding…');
     c.toBlob(function(b){
-      if(!b){ say('Export failed — the browser refused to encode the image.',true); return; }
+      if(!b){ state.exporting=false; bExport.disabled=!allFilled(); say('Export failed — the browser refused to encode the image.',true); return; }
       verifyImage(b).then(function(v){
+        state.exporting=false; bExport.disabled=!allFilled();
         var name='story_'+stamp()+(mime==='image/png'?'.png':'.jpg');
         openSheetStill(b,name,v);
       });
@@ -1063,6 +1144,7 @@
 
   function openSheetStill(blob,name,v){
     pendingBlob=blob; pendingName=name;
+    if(v && v.w===OUT_W && v.h===OUT_H){ sharePrepared(); return; }
     if(sheetUrl) URL.revokeObjectURL(sheetUrl);
     sheetUrl=URL.createObjectURL(blob);
     sheetVid.className='hidden'; sheetVid.removeAttribute('src');
@@ -1405,6 +1487,7 @@
 
   function openSheetVideo(blob,name,v,L,mt,stalled,black){
     pendingBlob=blob; pendingName=name;
+    if(!stalled && !black && v && v.w===OUT_W && v.h===OUT_H && isFinite(v.dur) && Math.abs(v.dur-L)<=0.6 && mt.indexOf('mp4')>=0){ sharePrepared(); return; }
     if(sheetUrl) URL.revokeObjectURL(sheetUrl);
     sheetUrl=URL.createObjectURL(blob);
     sheetImg.className='hidden'; sheetImg.removeAttribute('src');
@@ -1459,17 +1542,33 @@
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
     setTimeout(function(){ URL.revokeObjectURL(u); },4000);
   }
-  bShare.addEventListener('click',function(){
-    if(!pendingBlob) return;
-    var f=null;
-    try{ f=new File([pendingBlob],pendingName,{type:pendingBlob.type}); }catch(e){ f=null; }
-    if(f && navigator.canShare && navigator.canShare({files:[f]}) && navigator.share){
-      navigator.share({files:[f]}).catch(function(){});
-    } else {
-      downloadBlob(pendingBlob,pendingName);
-      say('No share sheet here, so the file was downloaded instead.');
-    }
-  });
+  var sharing=false;
+  function offerShareRetry(){
+    say('Ready to save. Tap to open the system menu.');
+    clearTimeout(toastTimer);
+    var retry=document.createElement('button'); retry.type='button'; retry.textContent='Open save menu';
+    retry.addEventListener('click',sharePrepared); statusEl.appendChild(retry);
+  }
+  function sharePrepared(){
+    if(!pendingBlob || sharing) return;
+    var f=null, canShare=false;
+    try{
+      f=new File([pendingBlob],pendingName,{type:pendingBlob.type});
+      canShare=!!(navigator.canShare && navigator.share && navigator.canShare({files:[f]}));
+    }catch(_){}
+    if(!canShare){ downloadBlob(pendingBlob,pendingName); closeSheet(); say('Download started'); return; }
+    sharing=true; bExport.disabled=true;
+    var result;
+    try{ result=navigator.share({files:[f]}); }catch(e){ result=Promise.reject(e); }
+    Promise.resolve(result).then(function(){
+      closeSheet(); say('Shared');
+    },function(e){
+      if(e && e.name==='AbortError'){closeSheet();say('');}
+      else if(e && e.name==='NotAllowedError'){closeSheet();offerShareRetry();}
+      else say('Could not open the save menu. Please try again.',true);
+    }).then(function(){sharing=false;bExport.disabled=!allFilled();});
+  }
+  bShare.addEventListener('click',sharePrepared);
   function closeSheet(){
     sheet.className='sheet';
     try{ sheetVid.pause(); }catch(_){}
@@ -1485,7 +1584,8 @@
 
   /* ---------- export dispatch ---------- */
   bExport.addEventListener('click',function(){
-    if(state.exporting) return;
+    if(state.exporting || sharing) return;
+    say('');
     if(!allFilled()){
       say('Fill every cell first — tap an empty cell to add a photo or video.',true);
       return;
@@ -1506,7 +1606,7 @@
   buildLayBar();
   sizePreview();
   updateUI(true);
-  say('Pick a layout, then tap a cell to add a photo or video. Everything stays on this device.');
+  say('');
   loop();
 
   /* ---- offline shell: after the first visit, the page itself opens
