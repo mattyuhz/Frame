@@ -67,7 +67,7 @@
   .viewport{position:relative;overflow:hidden;width:100%;display:none;
     align-items:center;justify-content:center;touch-action:none}
   .viewport.live{display:flex}
-  .vframe{position:relative;line-height:0;transform-origin:center center;will-change:transform}
+  .vframe{position:relative;flex:none;line-height:0;transform-origin:center center;will-change:transform}
   video{display:block;max-width:100%;max-height:46vh;width:auto;height:auto;background:#000}
   .drop{padding:44px 22px;text-align:center;width:100%}
   .drop h1{font-size:22px;font-weight:500;letter-spacing:-.01em;margin-bottom:8px}
@@ -139,25 +139,46 @@
   .status:empty{display:none}
   .status.warn{color:var(--read)}
 
+  .savetoast{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom) + 20px);
+    transform:translateX(-50%);z-index:80;display:none;align-items:center;gap:16px;
+    max-width:calc(100% - 32px);padding:14px 18px;border:1px solid var(--rule);
+    border-radius:var(--r-md);background:#222;color:var(--read);font-size:14px;
+    line-height:1.4;box-shadow:0 8px 30px rgba(0,0,0,.4)}
+  .savetoast.on{display:flex}
+  .savetoast button{border:0;border-radius:10px;background:var(--read);color:var(--void);
+    min-height:44px;padding:8px 12px;font:inherit;white-space:nowrap;cursor:pointer}
+
   /* result sheet */
   .sheet{position:fixed;inset:0;background:var(--void);z-index:50;display:none;
     flex-direction:column;padding:calc(env(safe-area-inset-top) + 16px) 16px calc(env(safe-area-inset-bottom) + 16px)}
   .sheet.on{display:flex}
   .sheet > *{width:100%;max-width:760px;align-self:center}
   .cmpab > *{width:100%;max-width:760px;align-self:center}
-  .sheetimg{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;margin-bottom:14px}
-  .sheetimg img{max-width:100%;max-height:100%;object-fit:contain;border:1px solid var(--rule)}
-  .sheetinfo{font-family:var(--sans);font-size:14px;color:var(--read);text-align:center;margin-bottom:6px}
-  .sheetcheck{font-family:var(--sans);font-size:13px;text-align:center;color:var(--mid);margin-bottom:6px}
-  .sheetcheck.bad{color:var(--read);font-weight:500}
-  .sheetmeta{font-family:var(--sans);font-size:12px;text-align:center;color:var(--dim);
-    margin-bottom:12px;line-height:1.55}
-  .sheethint{font-family:var(--sans);font-size:13px;color:var(--dim);text-align:center;
-    margin-bottom:12px;line-height:1.55}
 
   /* crop */
   .cropwrap{position:absolute;inset:0;display:none;pointer-events:none;touch-action:none;overflow:hidden}
-  .cropwrap.editing{pointer-events:auto;cursor:move}
+  .cropwrap.editing{pointer-events:auto;cursor:grab}
+  .cropwrap.editing:active{cursor:grabbing}
+  .cropwrap.editing .cropbox{touch-action:none}
+  .crophandle{display:none;position:absolute;width:44px;height:44px;padding:0;border:0;
+    border-radius:0;background:transparent;color:#fff;touch-action:none;z-index:2;transform:translate(-50%,-50%)}
+  .editing .crophandle{display:block}
+  .crophandle::after{content:'';position:absolute;inset:12px;border:0 solid currentColor}
+  .crophandle[data-handle="nw"]{left:0;top:0;cursor:nwse-resize}
+  .crophandle[data-handle="ne"]{left:100%;top:0;cursor:nesw-resize}
+  .crophandle[data-handle="sw"]{left:0;top:100%;cursor:nesw-resize}
+  .crophandle[data-handle="se"]{left:100%;top:100%;cursor:nwse-resize}
+  .crophandle[data-handle="n"]{left:50%;top:0;cursor:ns-resize}
+  .crophandle[data-handle="s"]{left:50%;top:100%;cursor:ns-resize}
+  .crophandle[data-handle="w"]{left:0;top:50%;cursor:ew-resize}
+  .crophandle[data-handle="e"]{left:100%;top:50%;cursor:ew-resize}
+  .crophandle[data-handle="nw"]::after{border-top-width:3px;border-left-width:3px}
+  .crophandle[data-handle="ne"]::after{border-top-width:3px;border-right-width:3px}
+  .crophandle[data-handle="sw"]::after{border-bottom-width:3px;border-left-width:3px}
+  .crophandle[data-handle="se"]::after{border-bottom-width:3px;border-right-width:3px}
+  .crophandle[data-handle="n"]::after,.crophandle[data-handle="s"]::after{inset:20px 12px;border-top-width:3px}
+  .crophandle[data-handle="w"]::after,.crophandle[data-handle="e"]::after{inset:12px 20px;border-left-width:3px}
+  .cropbox:focus-visible,.crophandle:focus-visible{outline:2px solid white;outline-offset:3px}
   .cropbox{position:absolute;box-shadow:0 0 0 9999px rgba(10,10,11,.62);
     border:1px solid rgba(255,255,255,.9);box-sizing:border-box}
   .cropbox::before,.cropbox::after{content:'';position:absolute;inset:0;pointer-events:none}
@@ -183,7 +204,9 @@
   button.ic.on{background:var(--read);color:var(--void);border-color:var(--read)}
   button.ic:disabled{opacity:.3}
   #bnew{margin-left:auto}
-  .ib-label{font-family:var(--sans);font-size:13px;color:var(--dim);padding-left:4px}
+  #bzoomtoggle .zoom-fit{display:none}
+  #bzoomtoggle.zoomed .zoom-fit{display:block}
+  #bzoomtoggle.zoomed .zoom-one{display:none}
   .cropbar{display:none;margin-top:12px}
   .cropbar.on{display:block}
   .ratios{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;-webkit-overflow-scrolling:touch}
@@ -191,7 +214,8 @@
     color:var(--mid);border:1px solid var(--rule);border-radius:var(--r-pill);
     padding:0 16px;height:34px;cursor:pointer;min-height:0}
   button.ratio.on{background:var(--read);color:var(--void);border-color:var(--read)}
-  .croprow{display:flex;gap:7px;align-items:center;margin-top:8px}
+  .croprow{display:flex;flex-wrap:wrap;gap:7px;align-items:center;margin-top:8px}
+  .croprow .eyebrow{min-width:110px}
   .croprow .eyebrow{flex:1}
 
   /* compare */
@@ -253,9 +277,7 @@
   <div class="iconbar" id="iconbar">
     <button class="ic" id="brotate" aria-label="Rotate 90 degrees" title="Rotate 90&deg;"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 8a6 6 0 1 1 .6 4.6"/><polyline points="1.6 4.6 4 8.2 7.6 5.8"/></svg></button>
     <button class="ic" id="bcrop" disabled aria-label="Crop" title="Crop"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5.5 1.5v13h13"/><path d="M1.5 5.5h13v13"/></svg></button>
-    <button class="ic" id="bzoomfit" aria-label="Fit to screen" title="Fit"><svg viewBox="0 0 20 20" aria-hidden="true"><rect x="2.5" y="4.5" width="15" height="11" rx="1"/><polyline points="6 8 6 12 10 12"/></svg></button>
-    <button class="ic mono" id="bzoomone" aria-label="Actual pixels" title="Actual pixels">1:1</button>
-    <span class="ib-label" id="zoomlabel">Fit</span>
+    <button class="ic mono" id="bzoomtoggle" aria-label="Show actual pixels" title="Show actual pixels"><span class="zoom-one" aria-hidden="true">1:1</span><svg class="zoom-fit" viewBox="0 0 20 20" aria-hidden="true"><rect x="2.5" y="4.5" width="15" height="11" rx="1"/><polyline points="6 8 6 12 10 12"/></svg></button>
     <button class="ic" id="bnew" aria-label="Open another video" title="Open another video"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 13V3"/><polyline points="6.2 6.6 10 2.8 13.8 6.6"/><path d="M3 12.5v3a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-3"/></svg></button>
   </div>
 
@@ -269,14 +291,14 @@
     <div class="viewport" id="viewport">
       <div class="vframe" id="vframe">
         <video id="video" playsinline muted preload="metadata"></video>
-        <div class="cropwrap" id="cropwrap"><div class="cropbox" id="cropbox"></div></div>
       </div>
+      <div class="cropwrap" id="cropwrap"><div class="cropbox" id="cropbox" role="group" aria-label="Crop. Arrow keys move the picture; plus and minus zoom." tabindex="-1"></div></div>
     </div>
     <div class="busy" id="busy"><span id="busytext">Reading</span></div>
   </div>
 
   <div class="cropbar">
-    <div class="ratios" id="cropstrip"></div>
+    <div class="ratios" id="cropstrip" aria-label="Crop aspect ratio"></div>
     <div class="croprow">
       <span class="eyebrow" id="cropdims">&mdash;</span>
       <button class="t" id="bfitpic" style="padding:9px 13px">Fit to picture</button>
@@ -360,14 +382,9 @@
   </div>
 </div>
 
-<div class="sheet" id="sheet">
-  <div class="sheetimg"><img id="sheetimg" alt="The frame you captured"></div>
-  <div class="sheetinfo" id="sheetinfo"></div>
-  <div class="sheetcheck" id="sheetcheck"></div>
-  <div class="sheetmeta" id="sheetmeta"></div>
-  <div class="sheethint" id="sheethint"></div>
-  <button class="t wide primary" id="bshare">Save to Photos</button>
-  <button class="t wide" id="bdone">Back to the video</button>
+<div class="savetoast" id="savetoast">
+  <span id="savetoasttext" role="status" aria-live="polite" aria-atomic="true"></span>
+  <button id="bsavemenu" type="button" hidden>Open save menu</button>
 </div>
 
 <script>
@@ -380,8 +397,6 @@
       busy=$('busy'), busyTxt=$('busytext'), statusEl=$('status'), tcEl=$('tc'),
       marksEl=$('marks'), chipsEl=$('chips'),
       banner=$('banner'), fineLabel=$('finelabel'),
-      sheet=$('sheet'), sheetImg=$('sheetimg'), sheetInfo=$('sheetinfo'), sheetHint=$('sheethint'),
-      sheetCheck=$('sheetcheck'), sheetMeta=$('sheetmeta'),
       mName=$('mName'), mRes=$('mRes'), mFps=$('mFps'), mFrame=$('mFrame'), mTotal=$('mTotal');
 
   var btns = { b10back:$('b10back'), bback:$('bback'), bplay:$('bplay'), bfwd:$('bfwd'),
@@ -828,7 +843,7 @@ function injectPng(bytes, payload){
   var STD=[23.976,24,25,29.97,30,48,50,59.94,60,100,119.88,120,240];
   var state = { url:null, base:'frame', fps:30, total:0, frame:0, marks:[], ready:false,
                 seeking:false, seekAt:0, meta:{}, metaCount:0 };
-  var pending = null, lastFile=null, lastError=null, canvasState='not tested', sheetUrl=null;
+  var pending = null, lastFile=null, lastError=null, canvasState='not tested';
 
   /* ---------- environment ---------- */
   var env = {
@@ -869,7 +884,7 @@ function injectPng(bytes, payload){
 
   /* Panels are all fixed and full-screen, so exactly one may be open. */
   function closeAllSheets(){
-    ['sheet','cmp'].forEach(function(id){
+    ['cmp'].forEach(function(id){
       var s=document.getElementById(id); if(s) s.className='sheet';
     });
     var ab=document.getElementById('cmpab'); if(ab) ab.className='cmpab';
@@ -944,6 +959,9 @@ function injectPng(bytes, payload){
   /* ---------- loading ---------- */
   function loadFile(file){
     if(!file) return;
+    saveToken++; preparedSave=null; saving=false; sharing=false; clearSaveToast();
+    setCropMode(false);
+    state.crop={ratio:0,scale:1,cx:0.5,cy:0.5,free:true};
     if(state.url){ URL.revokeObjectURL(state.url); state.url=null; }
     state.base=(file.name||'frame').replace(/\.[^.]+$/,'');
     state.marks=[]; lastFile=file; lastError=null; canvasState='not tested';
@@ -1044,10 +1062,10 @@ function injectPng(bytes, payload){
     catch(err){
       state.seeking = false;
       lastError = { code:0, message:'seek failed: '+(err && err.message) };
-      return Promise.resolve();
+      return Promise.resolve('failed');
     }
     return nextPresented().then(function(how){
-      if(mine !== seekToken) return;        // a newer seek has taken over
+      if(mine !== seekToken) return 'superseded'; // a newer seek has taken over
       state.seeking = false;
       if(how === 'timeout'){ if(++stalls >= 2) recoverVideo(); }
       else stalls = 0;
@@ -1055,6 +1073,7 @@ function injectPng(bytes, payload){
         var p = pending; pending = null;
         if(p !== n) return runSeek(p);
       }
+      return how;
     });
   }
 
@@ -1136,10 +1155,12 @@ function injectPng(bytes, payload){
   }
 
   /* ---------- export ---------- */
-  function currentBlob(){
-    var r=cropRect();
+  function currentBlob(snapshot){
+    var r=snapshot?snapshot.crop:cropRect();
     if(!r) return Promise.resolve(null);
-    var swap=(state.rot===90||state.rot===270);
+    var rot=snapshot?snapshot.rot:state.rot;
+    var meta=snapshot?snapshot.meta:state.meta, metaCount=snapshot?snapshot.metaCount:state.metaCount;
+    var swap=(rot===90||rot===270);
     var w=Math.round(swap?r.h:r.w), h=Math.round(swap?r.w:r.h);
     if(!w||!h) return Promise.resolve(null);
     var c=document.createElement('canvas'); c.width=w; c.height=h;
@@ -1148,7 +1169,7 @@ function injectPng(bytes, payload){
     try{
       ctx.save();
       ctx.translate(w/2,h/2);
-      if(state.rot) ctx.rotate(state.rot*Math.PI/180);
+      if(rot) ctx.rotate(rot*Math.PI/180);
       ctx.drawImage(video, r.sx, r.sy, r.w, r.h, -r.w/2, -r.h/2, r.w, r.h);
       ctx.restore();
     }catch(e){ return Promise.resolve(null); }
@@ -1156,10 +1177,10 @@ function injectPng(bytes, payload){
     return new Promise(function(res){ c.toBlob(res,mime,mime==='image/png'?undefined:1.0); })
       .then(function(blob){
         if(!blob) return null;
-        if(!state.metaCount) return blob;
+        if(!metaCount) return blob;
         return blobBuffer(blob).then(function(ab){
           var payload, bytes;
-          try { payload = buildExif(state.meta, w, h); } catch(err){ return blob; }
+          try { payload = buildExif(meta, w, h); } catch(err){ return blob; }
           try { bytes = (mime==='image/png') ? injectPng(ab, payload) : injectJpeg(ab, payload); }
           catch(err){ bytes = null; }
           return bytes ? new Blob([bytes], {type:mime}) : blob;
@@ -1186,24 +1207,6 @@ function injectPng(bytes, payload){
     });
   }
 
-  function metaSummary(){
-    var m=state.meta||{}, p=[];
-    if(m.dateTime) p.push(m.dateTime.replace(/^(\d{4}):(\d{2}):(\d{2})/,'$1-$2-$3'));
-    if(typeof m.lat==='number') p.push(m.lat.toFixed(4)+', '+m.lon.toFixed(4));
-    if(m.model) p.push(m.model);
-    else if(m.make) p.push(m.make);
-    return p.length ? p.join('  \u00b7  ') : '';
-  }
-
-  function shareHint(){
-    if(!env.secure){
-      return 'Saving into Photos needs the page opened from an https address. This one is '+
-             location.protocol+' so Safari can only offer a download. Host the file and this '+
-             'button becomes the normal iOS share sheet.';
-    }
-    if(!env.share) return 'This browser has no share sheet. Press and hold the image to save it.';
-    return 'Or press and hold the image to save it.';
-  }
   function nameFor(f){
     var t=timecode(f,state.fps);
     return state.base+'_'+t.h+'-'+t.m+'-'+t.s+'-'+t.f+'.png';
@@ -1214,89 +1217,112 @@ function injectPng(bytes, payload){
     document.body.removeChild(a); setTimeout(function(){ URL.revokeObjectURL(u); },4000);
   }
 
-  function openSheet(blob,name,v,w,h){
-    if(sheetUrl) URL.revokeObjectURL(sheetUrl);
-    sheetUrl=URL.createObjectURL(blob);
-    sheetImg.src=sheetUrl;
-    sheetInfo.textContent=(v?v.w:w)+' \u00d7 '+(v?v.h:h)+
-      '  \u00b7  '+(blob.size/1048576).toFixed(1)+' MB  \u00b7  '+name;
-
-    if(v && v.w===w && v.h===h){
-      sheetCheck.className='sheetcheck';
-      var whole = isFullFrame();
-      sheetCheck.textContent = whole
-        ? 'Checked: every pixel of the video frame, stored losslessly.'
-        : 'Checked: every pixel inside the crop, stored losslessly.';
-    } else if(v){
-      sheetCheck.className='sheetcheck bad';
-      sheetCheck.textContent='Warning: saved at '+v.w+' \u00d7 '+v.h+
-        ' but the video is '+w+' \u00d7 '+h+'. Tell me — this should not happen.';
-    } else {
-      sheetCheck.className='sheetcheck bad';
-      sheetCheck.textContent='Could not re-read the file to check its size.';
-    }
-
-    var ms=metaSummary();
-    sheetMeta.textContent = ms
-      ? 'Date, place and camera copied from the clip \u2014 '+ms
-      : 'This clip carries no date or location to copy.';
-
-    sheetHint.textContent=shareHint();
-    showSheet('sheet');
-    sheet.dataset.name=name;
+  var saving=false, sharing=false, saveToken=0, preparedSave=null, saveToastTimer=null;
+  function clearSaveToast(){
+    if(saveToastTimer){ clearTimeout(saveToastTimer); saveToastTimer=null; }
+    $('savetoast').className='savetoast';
+    $('savetoasttext').textContent=''; $('bsavemenu').hidden=true;
+  }
+  function saveToast(message,retry){
+    clearSaveToast();
+    $('savetoasttext').textContent=message;
+    $('bsavemenu').hidden=!retry;
+    $('savetoast').className='savetoast on';
+    if(!retry) saveToastTimer=setTimeout(clearSaveToast,4000);
   }
   function closeSheet(){
     closeAllSheets();
-    if(sheetUrl){ URL.revokeObjectURL(sheetUrl); sheetUrl=null; }
-    sheetImg.removeAttribute('src');
+    clearSaveToast(); preparedSave=null;
   }
-
-  var pendingBlob=null;
+  function finishSave(){
+    saving=false; sharing=false; working(false);
+    btns.bsave.disabled=!state.ready;
+  }
+  function sharePrepared(item){
+    if(!item || item.token!==saveToken || sharing) return Promise.resolve();
+    saving=true; btns.bsave.disabled=true; clearSaveToast();
+    var canShare=false;
+    try{ canShare=!!(item.file && navigator.share && navigator.canShare && navigator.canShare({files:[item.file]})); }
+    catch(_){}
+    if(!canShare){
+      try{ downloadBlob(item.blob,item.name); preparedSave=null; finishSave(); saveToast('Download started'); }
+      catch(_){ finishSave(); saveToast('Could not download. Please try again.'); }
+      return Promise.resolve();
+    }
+    function retryMenu(){
+      finishSave(); preparedSave=item;
+      saveToast('Ready to save',true);
+    }
+    // Long captures can outlast Safari's user-activation window. The retry
+    // button reuses this verified file and opens the menu in a fresh gesture.
+    if(navigator.userActivation && navigator.userActivation.isActive===false){
+      retryMenu(); return Promise.resolve();
+    }
+    function failed(err){
+      if(item.token!==saveToken) return;
+      if(err && err.name==='NotAllowedError'){ retryMenu(); return; }
+      finishSave(); preparedSave=null;
+      if(!err || err.name!=='AbortError') saveToast('Could not share. Please try again.');
+    }
+    var result;
+    try{ sharing=true; result=navigator.share({files:[item.file]}); }
+    catch(err){ failed(err); return Promise.resolve(); }
+    if(!result || typeof result.then!=='function'){ retryMenu(); return Promise.resolve(); }
+    return result.then(function(){
+      if(item.token!==saveToken) return;
+      finishSave(); preparedSave=null; saveToast('Shared');
+    },failed);
+  }
   function saveCurrent(){
-    if(!state.ready) return;
-    var cr=cropRect(); if(!cr) return;
-    var sw=(state.rot===90||state.rot===270);
+    if(!state.ready || saving) return Promise.resolve();
+    var cr=cropRect(); if(!cr) return Promise.resolve();
+    var wasPlaying=!video.paused, frame=wasPlaying?timeToFrame(video.currentTime):state.frame;
+    var snapshot={crop:cr,rot:state.rot,meta:state.meta,metaCount:state.metaCount};
+    var sw=(snapshot.rot===90||snapshot.rot===270);
     var w=Math.round(sw?cr.h:cr.w), h=Math.round(sw?cr.w:cr.h);
-    working(true,'Capturing');
-    currentBlob().then(function(blob){
-      if(!blob){
-        working(false);
-        say('The frame could not be captured. Press play briefly, pause, then try again.',true);
-        return;
+    var name=nameFor(frame), source=state.url, token=++saveToken;
+    preparedSave=null; clearSaveToast(); saving=true; btns.bsave.disabled=true;
+    video.pause(); working(true,'Capturing');
+    var ready=(wasPlaying || state.seeking || video.seeking)?goToFrame(frame):Promise.resolve('ready');
+    return ready.then(function(how){
+      if(token!==saveToken || state.url!==source) return null;
+      if((how!=='ready' && how!=='seeked' && how!=='frame') ||
+         state.seeking || video.seeking || state.frame!==frame || video.readyState<2){
+        throw new Error('The selected frame is not ready. Try saving again.');
       }
+      return currentBlob(snapshot);
+    }).then(function(blob){
+      if(token!==saveToken || state.url!==source) return;
+      if(!blob) throw new Error('Could not capture this frame. Try saving again.');
       working(true,'Checking');
       return verifyImage(blob).then(function(v){
+        if(token!==saveToken || state.url!==source) return;
+        if(!v || v.w!==w || v.h!==h) throw new Error('Could not verify this image. Try saving again.');
+        var f;
+        try{ f=new File([blob],name,{type:blob.type}); }catch(_){ f=null; }
+        preparedSave={blob:blob,file:f,name:name,token:token};
         working(false);
-        pendingBlob=blob;
-        openSheet(blob,nameFor(state.frame),v,w,h);
-        say('Captured at '+w+' \u00d7 '+h+'.');
+        return sharePrepared(preparedSave);
       });
+    }).catch(function(err){
+      if(token!==saveToken) return;
+      finishSave(); preparedSave=null;
+      saveToast(err && err.message ? err.message : 'Could not save. Please try again.');
     });
   }
-
-  $('bshare').addEventListener('click',function(){
-    if(!pendingBlob) return;
-    var name=sheet.dataset.name||'frame.png';
-    var f;
-    try{ f=new File([pendingBlob],name,{type:pendingBlob.type}); }catch(e){ f=null; }
-    if(f && navigator.canShare && navigator.canShare({files:[f]}) && navigator.share){
-      navigator.share({files:[f]}).catch(function(){});
-    } else {
-      downloadBlob(pendingBlob,name);
-      say('Your browser has no share sheet, so the file was downloaded instead.');
-    }
+  $('bsavemenu').addEventListener('click',function(){
+    if(!saving) sharePrepared(preparedSave);
   });
-  $('bdone').addEventListener('click',closeSheet);
 
   function saveAllMarks(){
-    if(!state.marks.length) return;
+    if(saving || !state.marks.length) return;
     var list=state.marks.slice().sort(function(a,b){return a-b;}), i=0;
     working(true,'Saving');
     function next(){
       if(i>=list.length){ working(false); say('Saved '+list.length+' frames.'); return; }
       var f=list[i++];
       say('Saving '+i+' of '+list.length+'\u2026');
-      goToFrame(f).then(currentBlob).then(function(b){
+      goToFrame(f).then(function(){ return currentBlob(); }).then(function(b){
         if(b) downloadBlob(b,nameFor(f));
         setTimeout(next,420);
       });
@@ -1457,7 +1483,7 @@ function injectPng(bytes, payload){
     else if(k===' '){ e.preventDefault(); btns.bplay.click(); }
     else if(k==='s'||k==='S'){ e.preventDefault(); saveCurrent(); }
     else if(k==='m'||k==='M'){ e.preventDefault(); toggleMark(); }
-    else if(k==='Escape'){ closeSheet(); }
+    else if(k==='Escape'){ if(cropMode) setCropMode(false); else closeSheet(); }
   });
 
   /* =========================== CROP =========================== */
@@ -1466,134 +1492,272 @@ function injectPng(bytes, payload){
       cropDims=$('cropdims'), bCrop=$('bcrop'), bCropReset=$('bcropreset'), bCropDone=$('bcropdone');
 
   var RATIOS = [
-    {label:'Original', v:0},   {label:'1:1', v:1},
+    {label:'Free', v:-1},      {label:'Original', v:0}, {label:'1:1', v:1},
     {label:'4:5', v:0.8},      {label:'5:4', v:1.25},
     {label:'2:3', v:2/3},      {label:'3:2', v:1.5},
     {label:'9:16', v:9/16},    {label:'16:9', v:16/9}
   ];
-  var cropMode = false;
-  state.crop = { ratio:0, scale:1, cx:0.5, cy:0.5 };
+  var cropMode = false, cropView = null, cPtr = {}, cropDrag = null;
+  var MIN_CROP_SCALE = 0.05;
+  state.crop = { ratio:0, scale:1, cx:0.5, cy:0.5, free:true };
 
   function clamp(v,a,b){ return Math.min(Math.max(v,a),b); }
-  function isFullFrame(){ return state.crop.ratio===0 && state.crop.scale===1; }
+  function isFullFrame(){
+    var r=cropRect();
+    return !r || (Math.abs(r.w-video.videoWidth)<0.01 && Math.abs(r.h-video.videoHeight)<0.01);
+  }
 
-  /* The crop window in source pixels. Cropping only ever removes pixels. */
+  /* Source pixels remain the single crop used by both the preview and export. */
   function cropRect(){
     var W=video.videoWidth, H=video.videoHeight;
     if(!W || !H) return null;
     var R = state.crop.ratio;
-    var A = R ? ((state.rot===90||state.rot===270) ? 1/R : R) : (W/H);
+    var A = R>0 ? (rotSwap() ? 1/R : R) : (W/H);
     var maxW = Math.min(W, H*A);
-    var cw = maxW * state.crop.scale;
-    var ch = cw / A;
-    if(ch > H){ ch = H; cw = ch * A; }
-    var sx = state.crop.cx*W - cw/2;
-    var sy = state.crop.cy*H - ch/2;
-    sx = clamp(sx, 0, Math.max(0, W-cw));
-    sy = clamp(sy, 0, Math.max(0, H-ch));
-    return { sx:sx, sy:sy, w:cw, h:ch };
+    state.crop.scale=clamp(state.crop.scale,MIN_CROP_SCALE,1);
+    var cw=maxW*state.crop.scale, ch=cw/A;
+    var sx=clamp(state.crop.cx*W-cw/2,0,Math.max(0,W-cw));
+    var sy=clamp(state.crop.cy*H-ch/2,0,Math.max(0,H-ch));
+    // Commit the actual center so reversing at an edge responds immediately.
+    state.crop.cx=(sx+cw/2)/W; state.crop.cy=(sy+ch/2)/H;
+    return {sx:sx,sy:sy,w:cw,h:ch};
+  }
+
+  function rotatePoint(x,y){
+    switch(state.rot){
+      case 90: return {x:-y,y:x};
+      case 180: return {x:-x,y:-y};
+      case 270: return {x:y,y:-x};
+      default: return {x:x,y:y};
+    }
+  }
+
+  function fitCropView(){
+    var r=cropRect();
+    if(!r || !viewport.clientWidth || !viewport.clientHeight){ cropView=null; return; }
+    var w=rotSwap()?r.h:r.w, h=rotSwap()?r.w:r.h;
+    var k=Math.min(Math.max(1,viewport.clientWidth-48)/w,Math.max(1,viewport.clientHeight-48)/h);
+    cropView={k:k,box:{x:(viewport.clientWidth-w*k)/2,y:(viewport.clientHeight-h*k)/2,w:w*k,h:h*k}};
   }
 
   function layoutCrop(){
-    var r = cropRect();
-    if(!r || !video.videoWidth){ cropWrap.style.display='none'; return; }
-    var W=video.videoWidth, H=video.videoHeight;
-    cropWrap.style.display = (cropMode || !isFullFrame()) ? 'block' : 'none';
-    cropBox.style.left=(r.sx/W*100)+'%';
-    cropBox.style.top=(r.sy/H*100)+'%';
-    cropBox.style.width=(r.w/W*100)+'%';
-    cropBox.style.height=(r.h/H*100)+'%';
-    cropWrap.className = 'cropwrap' + (cropMode ? ' editing' : '');
-    cropDims.textContent = Math.round(r.w)+' \u00d7 '+Math.round(r.h)+' px';
+    var r=cropRect();
+    if(!r || !video.offsetWidth){ cropWrap.style.display='none'; return; }
+    var W=video.videoWidth, H=video.videoHeight, b;
+    if(cropMode){
+      if(!cropView) fitCropView();
+      if(!cropView) return;
+      b=cropView.box;
+      var d=rotatePoint((r.sx+r.w/2-W/2)*cropView.k,(r.sy+r.h/2-H/2)*cropView.k);
+      var tx=b.x+b.w/2-viewport.clientWidth/2-d.x;
+      var ty=b.y+b.h/2-viewport.clientHeight/2-d.y;
+      vframe.style.transform='translate('+tx+'px,'+ty+'px) scale('+(cropView.k/(video.offsetWidth/W))+') rotate('+state.rot+'deg)';
+    } else {
+      var k=video.offsetWidth/W*vz.z;
+      var p=rotatePoint((r.sx+r.w/2-W/2)*k,(r.sy+r.h/2-H/2)*k);
+      var bw=(rotSwap()?r.h:r.w)*k, bh=(rotSwap()?r.w:r.h)*k;
+      b={x:viewport.clientWidth/2+vz.tx+p.x-bw/2,y:viewport.clientHeight/2+vz.ty+p.y-bh/2,w:bw,h:bh};
+    }
+    cropWrap.style.display=(cropMode || !isFullFrame())?'block':'none';
+    cropWrap.className='cropwrap'+(cropMode?' editing':'');
+    cropBox.style.left=b.x+'px'; cropBox.style.top=b.y+'px';
+    cropBox.style.width=b.w+'px'; cropBox.style.height=b.h+'px';
+    cropDims.textContent=Math.round(rotSwap()?r.h:r.w)+' \u00d7 '+Math.round(rotSwap()?r.w:r.h)+' px';
+  }
+
+  function clearCropGesture(){
+    var ids=Object.keys(cPtr); cPtr={}; cropDrag=null;
+    ids.forEach(function(id){
+      try{ if(cropWrap.hasPointerCapture(Number(id))) cropWrap.releasePointerCapture(Number(id)); }catch(_){}
+    });
+  }
+
+  function refreshCrop(){
+    clearCropGesture(); cropView=null;
+    buildStrip(); layoutCrop();
   }
 
   function buildStrip(){
     cropStrip.textContent='';
     RATIOS.forEach(function(R){
       var b=document.createElement('button');
-      b.className='ratio'+(state.crop.ratio===R.v?' on':'');
-      b.type='button';
-      b.textContent=R.label;
+      var selected=R.v===-1?state.crop.free:(!state.crop.free && state.crop.ratio===R.v);
+      b.className='ratio'+(selected?' on':''); b.type='button'; b.textContent=R.label;
+      b.setAttribute('aria-pressed',String(selected));
       b.addEventListener('click',function(){
-        state.crop.ratio=R.v;
-        state.crop.scale=Math.min(state.crop.scale,1);
-        buildStrip(); layoutCrop();
+        state.crop.free=R.v===-1;
+        if(!state.crop.free) state.crop.ratio=R.v;
+        refreshCrop();
       });
       cropStrip.appendChild(b);
     });
   }
 
   function setCropMode(on){
-    cropMode = on && state.ready;
-    bCrop.className = cropMode ? 'ic on' : 'ic';
-    cropStrip.parentNode.className = 'cropbar' + (cropMode ? ' on' : '');
-    if(cropMode) buildStrip();
-    layoutCrop();
-    if(cropMode) say('Drag the frame to move it. Pinch with two fingers to resize. Cropping only removes pixels \u2014 it never enlarges them.');
+    clearCropGesture();
+    cropMode=!!(on && state.ready); cropView=null;
+    vPtr={}; vPinch=null; vTapTime=0;
+    bCrop.className=cropMode?'ic on':'ic'; bCrop.setAttribute('aria-pressed',String(cropMode));
+    cropBox.tabIndex=cropMode?0:-1;
+    cropStrip.parentNode.className='cropbar'+(cropMode?' on':'');
+    $('bzoomtoggle').disabled=cropMode;
+    if(cropMode){ video.pause(); buildStrip(); }
+    applyZoom();
   }
 
   bCrop.addEventListener('click',function(){ setCropMode(!cropMode); });
-  bCropDone.addEventListener('click',function(){ setCropMode(false); });
+  bCropDone.addEventListener('click',function(){ setCropMode(false); bCrop.focus(); });
   bCropReset.addEventListener('click',function(){
-    state.crop.ratio=0; state.crop.scale=1; state.crop.cx=0.5; state.crop.cy=0.5;
-    buildStrip(); layoutCrop(); say('Crop reset to the whole frame.');
+    state.crop={ratio:0,scale:1,cx:0.5,cy:0.5,free:true};
+    refreshCrop(); say('');
   });
 
-  var cPtr = {}, pinch = null;
-  function ptrCount(){ return Object.keys(cPtr).length; }
-  function ptrDist(){
-    var k=Object.keys(cPtr); if(k.length<2) return 0;
-    var a=cPtr[k[0]], b=cPtr[k[1]];
-    return Math.sqrt((a.x-b.x)*(a.x-b.x)+(a.y-b.y)*(a.y-b.y));
+  // Overlay coordinates are independent of the rotated/zoomed video element.
+  function cropPoint(p){
+    var r=cropRect(), b=cropView.box;
+    var d=unrotate((p.x-b.x-b.w/2)/cropView.k,(p.y-b.y-b.h/2)/cropView.k);
+    return {x:r.sx+r.w/2+d.x,y:r.sy+r.h/2+d.y};
+  }
+  function panCrop(dx,dy){
+    if(!cropView) return;
+    var d=unrotate(dx/cropView.k,dy/cropView.k);
+    state.crop.cx-=d.x/video.videoWidth; state.crop.cy-=d.y/video.videoHeight;
+    layoutCrop();
+  }
+  function zoomCrop(factor,from,to){
+    if(!cropView) return;
+    var anchor=cropPoint(from), old=cropRect(), b=cropView.box;
+    state.crop.scale=clamp(state.crop.scale*factor,MIN_CROP_SCALE,1);
+    var r=cropRect(); cropView.k*=old.w/r.w;
+    var d=unrotate((to.x-b.x-b.w/2)/cropView.k,(to.y-b.y-b.h/2)/cropView.k);
+    state.crop.cx=(anchor.x-d.x)/video.videoWidth;
+    state.crop.cy=(anchor.y-d.y)/video.videoHeight;
+    layoutCrop();
   }
 
-  cropWrap.addEventListener('pointerdown',function(e){
-    if(!cropMode || !state.ready) return;
-    e.preventDefault();
-    if(cropWrap.setPointerCapture){ try{ cropWrap.setPointerCapture(e.pointerId); }catch(_){} }
-    cPtr[e.pointerId]={x:e.clientX,y:e.clientY};
-    if(ptrCount()===2) pinch={ d:ptrDist(), scale:state.crop.scale };
+  function resizeCrop(handle,dx,dy){
+    if(!cropView) return;
+    var b=cropView.box, k=cropView.k, r=cropRect();
+    var center=rotatePoint((video.videoWidth/2-r.sx-r.w/2)*k,(video.videoHeight/2-r.sy-r.h/2)*k);
+    var iw=(rotSwap()?video.videoHeight:video.videoWidth)*k;
+    var ih=(rotSwap()?video.videoWidth:video.videoHeight)*k;
+    var ix=b.x+b.w/2+center.x-iw/2, iy=b.y+b.h/2+center.y-ih/2;
+    var left=Math.max(24,ix), top=Math.max(24,iy);
+    var right=Math.min(viewport.clientWidth-24,ix+iw), bottom=Math.min(viewport.clientHeight-24,iy+ih);
+    var west=handle.indexOf('w')!==-1, east=handle.indexOf('e')!==-1;
+    var north=handle.indexOf('n')!==-1, south=handle.indexOf('s')!==-1;
+    var minW=Math.min(b.w,44), minH=Math.min(b.h,44);
+    var w=b.w+(west?-dx:east?dx:0), h=b.h+(north?-dy:south?dy:0);
+    var maxW=west?b.x+b.w-left:east?right-b.x:2*Math.min(b.x+b.w/2-left,right-b.x-b.w/2);
+    var maxH=north?b.y+b.h-top:south?bottom-b.y:2*Math.min(b.y+b.h/2-top,bottom-b.y-b.h/2);
+    if(!state.crop.free){
+      var a=b.w/b.h;
+      if((west||east) && (north||south)){
+        if(Math.abs(w-b.w)>=Math.abs(h-b.h)*a) h=w/a; else w=h*a;
+      } else if(west||east) h=w/a; else w=h*a;
+      w=clamp(w,Math.max(minW,minH*a),Math.min(maxW,maxH*a)); h=w/a;
+    } else { w=clamp(w,minW,maxW); h=clamp(h,minH,maxH); }
+    if(!(w>0 && h>0)) return;
+    var x=west?b.x+b.w-w:east?b.x:b.x+(b.w-w)/2;
+    var y=north?b.y+b.h-h:south?b.y:b.y+(b.h-h)/2;
+    var c=cropPoint({x:x+w/2,y:y+h/2});
+    var rw=(rotSwap()?h:w)/k, rh=(rotSwap()?w:h)/k;
+    var ratio=rw/rh, scale=rw/Math.min(video.videoWidth,video.videoHeight*ratio);
+    if(scale<MIN_CROP_SCALE) return;
+    if(state.crop.free) state.crop.ratio=rotSwap()?1/ratio:ratio;
+    state.crop.scale=scale; state.crop.cx=c.x/video.videoWidth; state.crop.cy=c.y/video.videoHeight;
+    cropView.box={x:x,y:y,w:w,h:h}; layoutCrop();
+  }
+
+  ['nw','n','ne','e','se','s','sw','w'].forEach(function(handle,i){
+    var b=document.createElement('button'); b.type='button'; b.className='crophandle';
+    b.setAttribute('data-handle',handle);
+    b.setAttribute('aria-label','Resize '+['top left','top','top right','right','bottom right','bottom','bottom left','left'][i]+' crop edge');
+    b.addEventListener('keydown',function(e){
+      if(!cropMode || e.key.indexOf('Arrow')!==0) return;
+      e.preventDefault(); e.stopPropagation();
+      var n=e.shiftKey?16:4;
+      resizeCrop(handle,e.key==='ArrowLeft'?-n:e.key==='ArrowRight'?n:0,e.key==='ArrowUp'?-n:e.key==='ArrowDown'?n:0);
+    });
+    cropBox.appendChild(b);
   });
-  cropWrap.addEventListener('pointermove',function(e){
+
+  function cropEventPoint(e){
+    var b=viewport.getBoundingClientRect(); return {x:e.clientX-b.left,y:e.clientY-b.top};
+  }
+  function cropPair(){
+    var keys=Object.keys(cPtr); if(keys.length<2) return null;
+    var a=cPtr[keys[0]], b=cPtr[keys[1]];
+    return {x:(a.x+b.x)/2,y:(a.y+b.y)/2,d:Math.hypot(a.x-b.x,a.y-b.y)};
+  }
+  cropWrap.addEventListener('pointerdown',function(e){
+    if(!cropMode || !state.ready || (e.button!==undefined && e.button!==0)) return;
+    e.preventDefault(); e.stopPropagation();
+    cPtr[e.pointerId]=cropEventPoint(e);
+    cropDrag=Object.keys(cPtr).length===1?e.target.getAttribute('data-handle'):null;
+    try{ cropWrap.setPointerCapture(e.pointerId); }catch(_){}
+  });
+  document.addEventListener('pointermove',function(e){
     if(!cropMode || !cPtr[e.pointerId]) return;
     e.preventDefault();
-    var prev=cPtr[e.pointerId];
-    var dx=e.clientX-prev.x, dy=e.clientY-prev.y;
-    cPtr[e.pointerId]={x:e.clientX,y:e.clientY};
-
-    if(ptrCount()>=2 && pinch && pinch.d>6){
-      state.crop.scale = clamp(pinch.scale * (ptrDist()/pinch.d), 0.12, 1);
-    } else {
-      var k=(video.offsetWidth*vz.z)/video.videoWidth;
-      if(k>0){
-        var m=unrotate(dx,dy);
-        state.crop.cx = clamp(state.crop.cx + (m.x/k)/video.videoWidth, 0, 1);
-        state.crop.cy = clamp(state.crop.cy + (m.y/k)/video.videoHeight, 0, 1);
-      }
+    var prev=cPtr[e.pointerId], pair=cropPair(), p=cropEventPoint(e);
+    cPtr[e.pointerId]=p;
+    var next=cropPair();
+    if(pair && next){
+      if(pair.d>6 && next.d>6) zoomCrop(pair.d/next.d,pair,next);
+    } else if(cropDrag){ resizeCrop(cropDrag,p.x-prev.x,p.y-prev.y); }
+    else panCrop(p.x-prev.x,p.y-prev.y);
+  },{passive:false});
+  function finishCropPointer(e){
+    if(!cPtr[e.pointerId]) return;
+    delete cPtr[e.pointerId];
+    var resized=cropDrag; cropDrag=null;
+    if(!Object.keys(cPtr).length && resized){ fitCropView(); layoutCrop(); }
+  }
+  ['pointerup','pointercancel'].forEach(function(ev){ document.addEventListener(ev,finishCropPointer); });
+  cropWrap.addEventListener('lostpointercapture',finishCropPointer);
+  cropWrap.addEventListener('wheel',function(e){
+    if(!cropMode) return;
+    e.preventDefault(); e.stopPropagation();
+    var p=cropEventPoint(e), unit=e.deltaMode===1?16:e.deltaMode===2?viewport.clientHeight:1;
+    zoomCrop(Math.exp(clamp(e.deltaY*unit,-200,200)*0.002),p,p);
+  },{passive:false});
+  cropBox.addEventListener('keydown',function(e){
+    if(!cropMode) return;
+    var n=e.shiftKey?16:4, b=cropView && cropView.box;
+    if(e.key.indexOf('Arrow')===0){
+      e.preventDefault(); e.stopPropagation();
+      panCrop(e.key==='ArrowLeft'?-n:e.key==='ArrowRight'?n:0,e.key==='ArrowUp'?-n:e.key==='ArrowDown'?n:0);
+    } else if(b && (e.key==='+' || e.key==='=' || e.key==='-')){
+      e.preventDefault(); e.stopPropagation();
+      var p={x:b.x+b.w/2,y:b.y+b.h/2}; zoomCrop(e.key==='-'?1.1:1/1.1,p,p);
     }
-    layoutCrop();
   });
-  ['pointerup','pointercancel'].forEach(function(ev){
-    cropWrap.addEventListener(ev,function(e){
-      delete cPtr[e.pointerId];
-      if(ptrCount()<2) pinch=null;
-    });
-  });
-
-  window.addEventListener('resize', function(){ layoutViewer(); layoutCrop(); });
-  window.addEventListener('orientationchange', function(){ setTimeout(layoutCrop,300); });
+  window.addEventListener('blur',clearCropGesture);
+  document.addEventListener('visibilitychange',function(){ if(document.hidden) clearCropGesture(); });
+  window.addEventListener('resize',function(){ clearCropGesture(); cropView=null; layoutViewer(); });
+  window.addEventListener('orientationchange',function(){ setTimeout(function(){ cropView=null; layoutViewer(); },300); });
 
   /* ====================== MAIN VIEW ZOOM ======================
      Park at actual pixels on your subject, then step frames underneath it. */
 
-  var viewport=$('viewport'), vframe=$('vframe'), zoomLabel=$('zoomlabel');
+  var viewport=$('viewport'), vframe=$('vframe'), bZoomToggle=$('bzoomtoggle');
   var vz={z:1,tx:0,ty:0};
 
+  function viewerIsFit(){ return Math.abs(vz.z-1)<0.001; }
+  function actualZoom(){
+    var w=vframe.offsetWidth||1, dpr=window.devicePixelRatio||1;
+    return clamp((video.videoWidth||w)/(w*dpr),0.05,12);
+  }
+
   function applyZoom(){
+    if(cropMode){ layoutCrop(); return; }
     vframe.style.transform='translate('+vz.tx+'px,'+vz.ty+'px) scale('+vz.z+')'+
       (state.rot?' rotate('+state.rot+'deg)':'');
-    zoomLabel.textContent = (vz.z<=1.001 ? 'Fit' : '\u00d7'+vz.z.toFixed(1)) +
-      (state.rot ? ' \u00b7 '+state.rot+'\u00b0' : '');
+    var zoomed=!viewerIsFit();
+    bZoomToggle.className='ic mono'+(zoomed?' zoomed':'');
+    bZoomToggle.setAttribute('aria-label',zoomed?'Fit to screen':'Show actual pixels');
+    bZoomToggle.title=zoomed?'Fit to screen':'Show actual pixels';
     layoutCrop();
   }
   function clampZoom(){
@@ -1606,8 +1770,7 @@ function injectPng(bytes, payload){
   function zoomFit(){ vz={z:1,tx:0,ty:0}; applyZoom(); }
   function zoomActual(){
     if(!video.videoWidth || !vframe.offsetWidth) return;
-    var w=vframe.offsetWidth, dpr=window.devicePixelRatio||1;
-    vz.z=clamp((video.videoWidth||w)/(w*dpr), 1, 12);
+    vz.z=actualZoom();
     vz.tx=0; vz.ty=0; applyZoom();
   }
 
@@ -1619,19 +1782,19 @@ function injectPng(bytes, payload){
     return Math.sqrt((a.x-b.x)*(a.x-b.x)+(a.y-b.y)*(a.y-b.y));
   }
   viewport.addEventListener('pointerdown',function(e){
-    if(!state.ready) return;
+    if(!state.ready || cropMode) return;
     e.preventDefault();
     if(viewport.setPointerCapture){ try{ viewport.setPointerCapture(e.pointerId); }catch(_){} }
     vPtr[e.pointerId]={x:e.clientX,y:e.clientY,moved:false};
     if(vCount()===2) vPinch={d:vDist(),z:vz.z};
   });
   viewport.addEventListener('pointermove',function(e){
-    var p=vPtr[e.pointerId]; if(!p) return;
+    var p=vPtr[e.pointerId]; if(cropMode || !p) return;
     e.preventDefault();
     var dx=e.clientX-p.x, dy=e.clientY-p.y;
     vPtr[e.pointerId]={x:e.clientX,y:e.clientY,moved:p.moved||Math.abs(dx)>3||Math.abs(dy)>3};
     if(vCount()>=2 && vPinch && vPinch.d>6){
-      vz.z=clamp(vPinch.z*(vDist()/vPinch.d),1,12);
+      vz.z=clamp(vPinch.z*(vDist()/vPinch.d),Math.min(1,actualZoom()),12);
     } else if(vz.z>1.001){
       vz.tx+=dx; vz.ty+=dy;
     }
@@ -1639,20 +1802,20 @@ function injectPng(bytes, payload){
   });
   ['pointerup','pointercancel'].forEach(function(ev){
     viewport.addEventListener(ev,function(e){
+      if(cropMode) return;
       var p=vPtr[e.pointerId], single=vCount()===1;
       delete vPtr[e.pointerId];
       if(vCount()<2) vPinch=null;
       if(single && p && !p.moved){
         var now=Date.now();
-        if(now-vTapTime<320){ vz.z>1.001 ? zoomFit() : zoomActual(); vTapTime=0; }
+        if(now-vTapTime<320){ viewerIsFit() ? zoomActual() : zoomFit(); vTapTime=0; }
         else vTapTime=now;
       }
     });
   });
-  $('bzoomfit').addEventListener('click',zoomFit);
+  bZoomToggle.addEventListener('click',function(){ if(!cropMode) viewerIsFit()?zoomActual():zoomFit(); });
   $('brotate').addEventListener('click',function(){ setRotation(state.rot+90); });
   $('bfitpic').addEventListener('click',fitToPicture);
-  $('bzoomone').addEventListener('click',zoomActual);
 
   /* ========================= COMPARE ========================= */
 
@@ -1957,12 +2120,13 @@ function injectPng(bytes, payload){
     if(!W||!H||!r) return;
     var swap=(state.rot===90||state.rot===270);
     var srcA=r.w/r.h;
+    state.crop.free=true;
     state.crop.ratio = swap ? 1/srcA : srcA;
     var maxW=Math.min(W,H*srcA);
     state.crop.scale = clamp(maxW>0 ? r.w/maxW : 1, 0.05, 1);
     state.crop.cx = (r.sx + r.w/2)/W;
     state.crop.cy = (r.sy + r.h/2)/H;
-    buildStrip(); layoutCrop();
+    refreshCrop();
   }
 
   function fitToPicture(){
@@ -2000,7 +2164,12 @@ function injectPng(bytes, payload){
   }
 
   function setRotation(deg){
-    state.rot=((deg%360)+360)%360;
+    clearCropGesture(); cropView=null;
+    var next=((deg%360)+360)%360;
+    if(state.crop.free && state.crop.ratio>0 && (next%180)!==(state.rot%180)){
+      state.crop.ratio=1/state.crop.ratio;
+    }
+    state.rot=next;
     $('brotate').textContent = state.rot===0 ? 'Rotate' : 'Rotate '+state.rot+'\u00b0';
     // keep the chosen output ratio meaningful after turning
     buildStrip();
