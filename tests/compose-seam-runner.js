@@ -71,6 +71,28 @@ async function runSeamAudit(io) {
     }
     await io.yield();
   }
+  // Artboard dimensions are independent of the grid. Audit every shipped
+  // export shape at fractional pan/zoom, including decoded PNG boundaries.
+  report.artboardCases=0;report.artboardPNGRoundTrips=0;
+  for(var output of (io.outputs||[])){
+    var oc=io.canvas(output.w,output.h),og=oc.getContext('2d'),src=io.canvas(1001,667),sg=src.getContext('2d');
+    for(var alpha of [false,true]){
+      sg.clearRect(0,0,1001,667);sg.fillStyle=alpha?'rgba(255,255,255,0.5)':'#fff';sg.fillRect(0,0,1001,667);
+      var ref=io.canvas(1,1),rg=ref.getContext('2d');rg.fillStyle='#000';rg.fillRect(0,0,1,1);rg.drawImage(src,0,0,1,1);
+      var expected=rg.getImageData(0,0,1,1).data[0];
+      for(var layout of ['2','3','4'])for(var v of [views[0],views[2],views[3]]){
+        state.layout=layout;state.cells=Array.from({length:4},()=>({w:1001,h:667,el:src,ready:true,view:{s:v[0],cx:v[1],cy:v[2]}}));
+        drawInto(og,output.w,output.h);
+        var label='artboard '+output.id+' / '+layout+' / '+alpha+' / '+v.join(',');
+        inspect(og.getImageData(0,0,output.w,output.h).data,expected,label,false);report.artboardCases++;
+        if(v===views[0] && !alpha){
+          var decoded=await io.roundTrip(oc,'image/png'),dc=io.canvas(output.w,output.h),dg=dc.getContext('2d');dg.drawImage(decoded,0,0);
+          inspect(dg.getImageData(0,0,output.w,output.h).data,expected,label+' PNG',false);report.artboardPNGRoundTrips++;
+        }
+      }
+    }
+    await io.yield();
+  }
   report.pass=report.badPixels===0 && report.patternBadPixels===0;
   return report;
 }
