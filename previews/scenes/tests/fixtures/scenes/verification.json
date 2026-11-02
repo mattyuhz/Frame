@@ -1,0 +1,127 @@
+{
+  "fixtures" : [
+    {
+      "bytes" : 680063,
+      "decodedFrames" : 480,
+      "dimensions" : [
+        640,
+        360
+      ],
+      "durationSeconds" : 16,
+      "encodedFrames" : 480,
+      "file" : "01-hard-cuts.mp4",
+      "frameIntervalsIn600ths" : [
+        20
+      ],
+      "nonblackSampledFrames" : 480
+    },
+    {
+      "bytes" : 2712627,
+      "decodedFrames" : 2700,
+      "dimensions" : [
+        320,
+        180
+      ],
+      "durationSeconds" : 180,
+      "encodedFrames" : 2700,
+      "file" : "02-long-continuous.mp4",
+      "frameIntervalsIn600ths" : [
+        40
+      ],
+      "nonblackSampledFrames" : 2700
+    },
+    {
+      "bytes" : 890938,
+      "decodedFrames" : 540,
+      "dimensions" : [
+        640,
+        360
+      ],
+      "durationSeconds" : 18,
+      "encodedFrames" : 540,
+      "file" : "03-flashes-and-pan.mp4",
+      "frameIntervalsIn600ths" : [
+        20
+      ],
+      "nonblackSampledFrames" : 538
+    },
+    {
+      "bytes" : 683490,
+      "decodedFrames" : 540,
+      "dimensions" : [
+        640,
+        360
+      ],
+      "durationSeconds" : 18,
+      "encodedFrames" : 540,
+      "file" : "04-fades-black-similar-colors.mp4",
+      "frameIntervalsIn600ths" : [
+        20
+      ],
+      "nonblackSampledFrames" : 503
+    },
+    {
+      "bytes" : 235560,
+      "decodedFrames" : 180,
+      "dimensions" : [
+        640,
+        360
+      ],
+      "durationSeconds" : 6,
+      "encodedFrames" : 180,
+      "file" : "05-rapid-cuts.mp4",
+      "frameIntervalsIn600ths" : [
+        20
+      ],
+      "nonblackSampledFrames" : 180
+    },
+    {
+      "bytes" : 516315,
+      "decodedFrames" : 420,
+      "dimensions" : [
+        360,
+        640
+      ],
+      "durationSeconds" : 12,
+      "encodedFrames" : 420,
+      "file" : "06-portrait-variable-rate.mp4",
+      "frameIntervalsIn600ths" : [
+        10,
+        20,
+        40
+      ],
+      "nonblackSampledFrames" : 420
+    },
+    {
+      "bytes" : 17725,
+      "decodedFrames" : 12,
+      "dimensions" : [
+        640,
+        360
+      ],
+      "durationSeconds" : 0.40000000000000002,
+      "encodedFrames" : 12,
+      "file" : "07-subsecond.mp4",
+      "frameIntervalsIn600ths" : [
+        20
+      ],
+      "nonblackSampledFrames" : 12
+    },
+    {
+      "bytes" : 859737,
+      "decodedFrames" : 120,
+      "dimensions" : [
+        3840,
+        2160
+      ],
+      "durationSeconds" : 4,
+      "encodedFrames" : 120,
+      "file" : "08-4k-cuts.mp4",
+      "frameIntervalsIn600ths" : [
+        20
+      ],
+      "nonblackSampledFrames" : 120
+    }
+  ],
+  "generator" : "macOS AVFoundation; original synthetic graphics"
+}

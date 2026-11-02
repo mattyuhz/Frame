@@ -1,0 +1,76 @@
+{
+  "description": "Original synthetic test footage for Frame scene navigation. Exact edit ground truth, not a benchmark for real camera footage.",
+  "license": "CC0-1.0",
+  "audio": false,
+  "fixtures": [
+    {
+      "file": "01-hard-cuts.mp4",
+      "durationSeconds": 16,
+      "dimensions": [640, 360],
+      "fps": 30,
+      "cutsSeconds": [4, 8, 12],
+      "expected": "Four distinct shots. Check suggested boundaries near 4, 8, and 12 seconds; enter each section and inspect its first and last frames."
+    },
+    {
+      "file": "02-long-continuous.mp4",
+      "durationSeconds": 180,
+      "dimensions": [320, 180],
+      "fps": 15,
+      "cutsSeconds": [],
+      "expected": "One uninterrupted moving shot. Time-based sections must remain useful without inventing scene changes. The final section must reach the final source frame. Low resolution tests timeline duration, not 4K decoder stress."
+    },
+    {
+      "file": "03-flashes-and-pan.mp4",
+      "durationSeconds": 18,
+      "dimensions": [640, 360],
+      "fps": 30,
+      "cutsSeconds": [],
+      "flashIntervalsSeconds": [[5, 5.0333333333], [11, 11.0666666667]],
+      "expected": "One shot with a continuous pan, one white frame at 5 seconds, and two black frames at 11 seconds. These flashes should not create persistent scene suggestions."
+    },
+    {
+      "file": "04-fades-black-similar-colors.mp4",
+      "durationSeconds": 18,
+      "dimensions": [640, 360],
+      "fps": 30,
+      "cutsSeconds": [12],
+      "fadeOutSeconds": [4, 5],
+      "blackHoldSeconds": [5, 6],
+      "fadeInSeconds": [6, 7],
+      "expected": "A fade-through-black transition spans 4–7 seconds, then a same-palette composition cut at 12 seconds. A coarse hard-cut detector may miss these; time sections and manual scrubbing must remain available. Black is intentional content, not proof of decode failure."
+    },
+    {
+      "file": "05-rapid-cuts.mp4",
+      "durationSeconds": 6,
+      "dimensions": [640, 360],
+      "fps": 30,
+      "cutsSeconds": [0.5, 0.7666666667, 1, 1.2, 1.7, 2, 2.1, 2.5, 3],
+      "expected": "Ten shots, some only 0.1–0.3 seconds long. Coarse sampling can miss these; never create zero-length or overlapping sections or imply every cut was detected. A requested 0.75-second edit is quantized to the next 30 fps frame (0.7667 seconds)."
+    },
+    {
+      "file": "06-portrait-variable-rate.mp4",
+      "durationSeconds": 12,
+      "dimensions": [360, 640],
+      "fps": null,
+      "rateIntervals": [{"start": 0, "end": 4, "fps": 15}, {"start": 4, "end": 8, "fps": 30}, {"start": 8, "end": 12, "fps": 60}],
+      "cutsSeconds": [4, 8],
+      "expected": "Portrait source with real 15/30/60 fps timestamp intervals. Scene times remain source-relative. Frame numbers are approximate in Frame's current rate model; do not claim exact VFR frame stepping."
+    },
+    {
+      "file": "07-subsecond.mp4",
+      "durationSeconds": 0.4,
+      "dimensions": [640, 360],
+      "fps": 30,
+      "cutsSeconds": [],
+      "expected": "Twelve frames. Loading must finish, one usable section must cover the whole file, endpoint scrubbing must stay finite, and export must still work."
+    },
+    {
+      "file": "08-4k-cuts.mp4",
+      "durationSeconds": 4,
+      "dimensions": [3840, 2160],
+      "fps": 30,
+      "cutsSeconds": [2],
+      "expected": "A short full-resolution 4K source with one cut at 2 seconds. Exported uncropped stills should remain 3840×2160. Simple synthetic imagery and a short duration do not reproduce sustained phone-footage decoder load."
+    }
+  ]
+}
