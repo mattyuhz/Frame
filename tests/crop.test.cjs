@@ -535,6 +535,39 @@ test('blur, capture loss, and browser resize cancel active crop gestures', () =>
   }
 });
 
+test('orientation switch filters presets and flips a locked crop at every rotation', () => {
+  for (const rot of [0, 90, 180, 270]) {
+    const { api, ids } = boot();
+    api.setRotation(rot);
+    api.setCropMode(true);
+    ids.get('bcropportrait').click();
+    const labels = () => ids.get('cropstrip').children.map(b => b.textContent);
+    assert.deepEqual(labels(), ['Free','Original','1:1','4:5','2:3','9:16']);
+    ids.get('cropstrip').children.find(b => b.textContent === '4:5').click();
+    ids.get('bcroplandscape').click();
+    assert.deepEqual(labels(), ['Free','Original','1:1','5:4','3:2','16:9']);
+    const r=api.cropRect();
+    near(rot % 180 ? r.h/r.w : r.w/r.h, 1.25, 'landscape output ratio');
+    assert.equal(ids.get('bcroplandscape').getAttribute('aria-pressed'), 'true');
+    assertWithin(r,1920,1080);
+    ids.get('bcropportrait').click();
+    near(api.state.crop.ratio,0.8,'portrait counterpart restored');
+  }
+});
+
+test('rotation preserves its arrow and does not print a routine status message', () => {
+  const { api, ids } = boot();
+  const icon=ids.get('brotate').children[0];
+  assert.equal(icon.tagName,'SVG');
+  for (const rot of [90,180,270,0]) {
+    api.setRotation(rot);
+    assert.equal(ids.get('brotate').children[0],icon);
+    assert.equal(ids.has('status'),false,'no persistent status area below the actions');
+    assert.equal(ids.get('savetoasttext').textContent,'');
+    assert.ok(ids.get('brotate').getAttribute('aria-label').includes(String(rot)));
+  }
+});
+
 }
 
 module.exports = { boot, assertWithin, near };

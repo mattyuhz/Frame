@@ -4,7 +4,7 @@
    origin; the page itself remains blocked from all network contact by
    its Content-Security-Policy. */
 
-var CACHE = 'frame-v9';
+var CACHE = 'frame-v10';
 var SHELL = ['./', './index.html', './compose.html'];
 
 self.addEventListener('install', function(e){
