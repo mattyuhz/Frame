@@ -228,13 +228,13 @@ function boot(options = {}) {
   api.state.ready = true;
   api.state.metaCount = 0;
   api.layoutViewer();
-  function pointer(type, id, x, y, target = ids.get('cropwrap')) {
+  function pointer(type, id, x, y, target = ids.get('cropwrap'), pointerType = 'touch') {
     const recipient = type === 'pointerdown' ? target : captured.get(id) || target;
-    const event = dispatch(recipient, type, { pointerId: id, clientX: x, clientY: y });
+    const event = dispatch(recipient, type, { pointerId: id, clientX: x, clientY: y, pointerType });
     if (type === 'pointerup' || type === 'pointercancel') {
       const owner = captured.get(id);
       captured.delete(id);
-      if (owner) dispatch(owner, 'lostpointercapture', { pointerId: id, clientX: x, clientY: y });
+      if (owner) dispatch(owner, 'lostpointercapture', { pointerId: id, clientX: x, clientY: y, pointerType });
     }
     return event;
   }
@@ -311,8 +311,8 @@ test('crop drag is not stolen by viewer pointer capture', () => {
   const view = { ...api.view };
   const box = ids.get('cropbox').getBoundingClientRect();
   const x = box.left + box.width / 2, y = box.top + box.height / 2;
-  pointer('pointerdown', 1, x, y, ids.get('cropbox'));
-  pointer('pointermove', 1, x + 25, y + 10);
+  pointer('pointerdown', 1, x, y, ids.get('cropbox'), 'mouse');
+  pointer('pointermove', 1, x + 25, y + 10, ids.get('cropwrap'), 'mouse');
   pointer('pointerup', 1, x + 25, y + 10);
   assert.notEqual(api.cropRect().sx, before.sx, 'drag changes the selected source pixels');
   assert.deepEqual({ ...api.view }, view, 'crop gesture does not change normal viewer zoom');
@@ -349,7 +349,7 @@ test('image panning responds immediately when reversing at every rotated source 
   }
 });
 
-test('pinch keeps its source focal point, supports translation, and continues as one-finger pan', () => {
+test('pinch keeps its source focal point, supports translation, and stops panning when one finger remains', () => {
   for (const rot of [0, 90, 180, 270]) {
     const { api, pointer } = boot();
     api.state.rot = rot;
@@ -376,7 +376,7 @@ test('pinch keeps its source focal point, supports translation, and continues as
     pointer('pointermove', 1, x - 46, y + 5);
     const next = api.cropRect();
     near(next.w, prior.w, 'one-finger continuation keeps the crop scale');
-    assert.ok(next.sx !== prior.sx || next.sy !== prior.sy, 'remaining finger continues panning');
+    assert.deepEqual({ ...next }, prior, 'one remaining finger does not move the crop');
     pointer('pointerup', 1, x - 46, y + 5);
     assert.equal(Object.keys(api.cropPointers).length, 0);
     assert.deepEqual({ ...api.view }, view, 'pinch does not alter the normal viewer');
@@ -458,6 +458,30 @@ test('one zoom toggle switches between actual pixels and fit, and crop mode disa
   assert.equal(toggle.disabled, false, 'inspection zoom is available again');
 });
 
+test('fitted video allows scrolling and cancelled swipes do not trigger zoom', () => {
+  const { api, ids, pointer, dispatch } = boot();
+  const viewport = ids.get('viewport');
+  api.setCropMode(false);
+  assert.equal(viewport.style.touchAction, 'pan-y');
+  for (let id = 1; id <= 2; id++) {
+    assert.ok(!pointer('pointerdown', id, 200, 200, viewport).defaultPrevented);
+    assert.ok(!pointer('pointermove', id, 200, 198, viewport).defaultPrevented);
+    pointer('pointercancel', id, 200, 198, viewport);
+  }
+  assert.equal(api.view.z, 1);
+  assert.equal(Object.keys(api.viewerPointers).length, 0);
+  dispatch(ids.get('bzoomtoggle'), 'click');
+  assert.equal(viewport.style.touchAction, 'pan-y');
+  pointer('pointerdown', 3, 200, 200, viewport);
+  assert.ok(!pointer('pointermove', 3, 200, 220, viewport).defaultPrevented);
+  assert.equal(api.view.ty, 0);
+  pointer('pointerup', 3, 200, 220, viewport);
+  dispatch(ids.get('bzoomtoggle'), 'click');
+  assert.equal(viewport.style.touchAction, 'pan-y');
+  api.setCropMode(true);
+  assert.equal(viewport.style.touchAction, 'pan-y');
+});
+
 test('actual pixels can zoom out for a small source on a high-density display', () => {
   const { api, ids, video, window, dispatch } = boot();
   video.videoWidth = 960;
@@ -503,6 +527,31 @@ test('all resize handles preserve bounds and locked aspect ratios through rotati
   }
 });
 
+test('one-finger crop swipes allow page scrolling without changing the crop', () => {
+  const { api, ids, pointer } = boot();
+  api.setCropToRect({ sx: 480, sy: 270, w: 960, h: 540 });
+  api.setCropMode(true);
+  const before = { ...api.cropRect() };
+  assert.ok(!pointer('pointerdown', 1, 300, 220).defaultPrevented);
+  assert.ok(!pointer('pointermove', 1, 300, 160).defaultPrevented);
+  assert.deepEqual({ ...api.cropRect() }, before);
+  pointer('pointercancel', 1, 300, 160);
+  assert.equal(Object.keys(api.cropPointers).length, 0);
+  assert.equal(ids.get('viewport').style.touchAction, 'pan-y');
+});
+
+test('ordinary trackpad scrolling over the crop does not zoom or block the page', () => {
+  const { api, ids, dispatch } = boot();
+  api.setCropMode(true);
+  const before = { ...api.cropRect() };
+  const event = dispatch(ids.get('cropwrap'), 'wheel', {
+    clientX: 300, clientY: 200, deltaY: 80, deltaMode: 0, ctrlKey: false
+  });
+  assert.ok(!event.defaultPrevented);
+  assert.ok(!event.propagationStopped);
+  assert.deepEqual({ ...api.cropRect() }, before);
+});
+
 test('wheel zoom and keyboard panning use the crop while preserving viewer state', () => {
   const { api, ids, dispatch } = boot();
   api.view.z = 2;
@@ -513,7 +562,7 @@ test('wheel zoom and keyboard panning use the crop while preserving viewer state
   api.setCropMode(true);
   const b = api.cropView.box;
   const before = { ...api.cropRect() };
-  const event = dispatch(ids.get('cropwrap'), 'wheel', { clientX: 100 + b.x + b.w / 2, clientY: 80 + b.y + b.h / 2, deltaY: -50, deltaMode: 0 });
+  const event = dispatch(ids.get('cropwrap'), 'wheel', { clientX: 100 + b.x + b.w / 2, clientY: 80 + b.y + b.h / 2, deltaY: -50, deltaMode: 0, ctrlKey: true });
   assert.equal(event.defaultPrevented, true);
   assert.ok(api.cropRect().w < before.w, 'wheel zooms into selected source pixels');
   const zoomed = { ...api.cropRect() };
@@ -532,6 +581,33 @@ test('blur, capture loss, and browser resize cancel active crop gestures', () =>
     assert.equal(Object.keys(api.cropPointers).length, 0, event + ' clears pointers');
     assert.equal(api.cropDrag, null, event + ' clears resize state');
     assertWithin(api.cropRect(), 1920, 1080);
+  }
+});
+
+test('Original keeps source proportions and selection across orientation switches', () => {
+  for (const [width, height] of [[1080,1920],[1920,1080],[1000,1000],[1500,1000]]) {
+    for (const rotation of [0,90,180,270]) {
+      const { api, ids, video } = boot();
+      video.videoWidth=width; video.videoHeight=height;
+      api.setRotation(rotation);
+      api.setCropMode(true);
+      const chip = label => ids.get('cropstrip').children.find(b => b.textContent===label);
+      for (const orientation of ['portrait','landscape','portrait']) {
+        ids.get('bcrop'+orientation).click();
+        chip('Original').click();
+        const r=api.cropRect();
+        const outputRatio=rotation%180?r.h/r.w:r.w/r.h;
+        const wide=Math.max(width/height,height/width);
+        near(outputRatio,orientation==='portrait'?1/wide:wide);
+        assert.equal(chip('Original').getAttribute('aria-pressed'),'true');
+        assertWithin(r,width,height);
+      }
+      ids.get('bcroplandscape').click();
+      assert.equal(chip('Original').getAttribute('aria-pressed'),'true');
+      chip('1:1').click();
+      assert.equal(chip('Original').getAttribute('aria-pressed'),'false');
+      assert.equal(chip('1:1').getAttribute('aria-pressed'),'true');
+    }
   }
 });
 

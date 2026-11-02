@@ -65,7 +65,7 @@
     overflow:hidden;display:flex;align-items:center;justify-content:center;min-height:210px}
   .stage.dragging{border-color:var(--phos)}
   .viewport{position:relative;overflow:hidden;width:100%;display:none;
-    align-items:center;justify-content:center;touch-action:none}
+    align-items:center;justify-content:center;touch-action:pan-y}
   .viewport.live{display:flex}
   .vframe{position:relative;flex:none;line-height:0;transform-origin:center center;will-change:transform}
   video{display:block;max-width:100%;max-height:46vh;width:auto;height:auto;background:#000}
@@ -152,10 +152,10 @@
   .cmpab > *{width:100%;max-width:760px;align-self:center}
 
   /* crop */
-  .cropwrap{position:absolute;inset:0;display:none;pointer-events:none;touch-action:none;overflow:hidden}
+  .cropwrap{position:absolute;inset:0;display:none;pointer-events:none;touch-action:pan-y;overflow:hidden}
   .cropwrap.editing{pointer-events:auto;cursor:grab}
   .cropwrap.editing:active{cursor:grabbing}
-  .cropwrap.editing .cropbox{touch-action:none}
+  .cropwrap.editing .cropbox{touch-action:pan-y}
   .crophandle{display:none;position:absolute;width:44px;height:44px;padding:0;border:0;
     border-radius:0;background:transparent;color:#fff;touch-action:none;z-index:2;transform:translate(-50%,-50%)}
   .editing .crophandle{display:block}
@@ -1629,12 +1629,17 @@ function injectPng(bytes, payload){
     RATIOS.forEach(function(R){
       if(R.v>0 && R.v!==1 && ((R.v<1)!==(cropOrientation==='portrait'))) return;
       var b=document.createElement('button');
-      var selected=R.v===-1?state.crop.free:(!state.crop.free && state.crop.ratio===R.v);
+      var selected=R.v===-1?state.crop.free:(!state.crop.free && (R.v===0?state.crop.original:(!state.crop.original && state.crop.ratio===R.v)));
       b.className='ratio'+(selected?' on':''); b.type='button'; b.textContent=R.label;
       b.setAttribute('aria-pressed',String(selected));
       b.addEventListener('click',function(){
         state.crop.free=R.v===-1;
-        if(!state.crop.free) state.crop.ratio=R.v;
+        state.crop.original=R.v===0;
+        if(state.crop.original){
+          var sourceRatio=video.videoWidth/video.videoHeight;
+          var landscapeRatio=Math.max(sourceRatio,1/sourceRatio);
+          state.crop.ratio=cropOrientation==='portrait'?1/landscapeRatio:landscapeRatio;
+        } else if(!state.crop.free) state.crop.ratio=R.v;
         refreshCrop();
       });
       cropStrip.appendChild(b);
@@ -1755,17 +1760,22 @@ function injectPng(bytes, payload){
   }
   cropWrap.addEventListener('pointerdown',function(e){
     if(!cropMode || !state.ready || (e.button!==undefined && e.button!==0)) return;
-    e.preventDefault(); e.stopPropagation();
+    e.stopPropagation();
     cPtr[e.pointerId]=cropEventPoint(e);
     cropDrag=Object.keys(cPtr).length===1?e.target.getAttribute('data-handle'):null;
-    try{ cropWrap.setPointerCapture(e.pointerId); }catch(_){}
+    if(e.pointerType!=='touch' || cropDrag){
+      e.preventDefault();
+      try{ cropWrap.setPointerCapture(e.pointerId); }catch(_){}
+    }
   });
   document.addEventListener('pointermove',function(e){
     if(!cropMode || !cPtr[e.pointerId]) return;
-    e.preventDefault();
     var prev=cPtr[e.pointerId], pair=cropPair(), p=cropEventPoint(e);
     cPtr[e.pointerId]=p;
     var next=cropPair();
+    // One finger scrolls; two fingers manipulate the crop. Handles keep direct dragging.
+    if(e.pointerType==='touch' && !pair && !cropDrag) return;
+    e.preventDefault();
     if(pair && next){
       if(pair.d>6 && next.d>6) zoomCrop(pair.d/next.d,pair,next);
     } else if(cropDrag){ resizeCrop(cropDrag,p.x-prev.x,p.y-prev.y); }
@@ -1780,7 +1790,8 @@ function injectPng(bytes, payload){
   ['pointerup','pointercancel'].forEach(function(ev){ document.addEventListener(ev,finishCropPointer); });
   cropWrap.addEventListener('lostpointercapture',finishCropPointer);
   cropWrap.addEventListener('wheel',function(e){
-    if(!cropMode) return;
+    // Trackpad swipes scroll the page; pinch gestures arrive as Ctrl-wheel.
+    if(!cropMode || !e.ctrlKey) return;
     e.preventDefault(); e.stopPropagation();
     var p=cropEventPoint(e), unit=e.deltaMode===1?16:e.deltaMode===2?viewport.clientHeight:1;
     zoomCrop(Math.exp(clamp(e.deltaY*unit,-200,200)*0.002),p,p);
@@ -1814,6 +1825,7 @@ function injectPng(bytes, payload){
   }
 
   function applyZoom(){
+    viewport.style.touchAction='pan-y';
     if(cropMode){ vframe.style.clipPath='none'; layoutCrop(); return; }
     var r=cropRect(), offset={x:0,y:0};
     if(r){
@@ -1841,6 +1853,10 @@ function injectPng(bytes, payload){
     vz.tx=0; vz.ty=0; applyZoom();
   }
 
+  // Keep two-finger image gestures from turning into native page scrolling on iOS.
+  viewport.addEventListener('touchmove',function(e){
+    if(state.ready && e.touches.length>1) e.preventDefault();
+  },{passive:false});
   var vPtr={}, vPinch=null, vTapTime=0;
   function vCount(){ return Object.keys(vPtr).length; }
   function vDist(){
@@ -1850,30 +1866,36 @@ function injectPng(bytes, payload){
   }
   viewport.addEventListener('pointerdown',function(e){
     if(!state.ready || cropMode) return;
-    e.preventDefault();
-    if(viewport.setPointerCapture){ try{ viewport.setPointerCapture(e.pointerId); }catch(_){} }
-    vPtr[e.pointerId]={x:e.clientX,y:e.clientY,moved:false};
-    if(vCount()===2) vPinch={d:vDist(),z:vz.z};
+    if(e.pointerType!=='touch') e.preventDefault();
+    if(e.pointerType!=='touch' && viewport.setPointerCapture){ try{ viewport.setPointerCapture(e.pointerId); }catch(_){} }
+    vPtr[e.pointerId]={x:e.clientX,y:e.clientY,startX:e.clientX,startY:e.clientY,moved:false};
+    if(vCount()===2){
+      vPinch={d:vDist(),z:vz.z}; vTapTime=0;
+      Object.keys(vPtr).forEach(function(id){ vPtr[id].moved=true; });
+    }
   });
   viewport.addEventListener('pointermove',function(e){
     var p=vPtr[e.pointerId]; if(cropMode || !p) return;
-    e.preventDefault();
+    if(e.pointerType!=='touch' || vCount()>1) e.preventDefault();
     var dx=e.clientX-p.x, dy=e.clientY-p.y;
-    vPtr[e.pointerId]={x:e.clientX,y:e.clientY,moved:p.moved||Math.abs(dx)>3||Math.abs(dy)>3};
+    p.x=e.clientX; p.y=e.clientY;
+    p.moved=p.moved||Math.abs(p.x-p.startX)>3||Math.abs(p.y-p.startY)>3;
     if(vCount()>=2 && vPinch && vPinch.d>6){
+      vz.tx+=dx/2; vz.ty+=dy/2;
       vz.z=clamp(vPinch.z*(vDist()/vPinch.d),Math.min(1,actualZoom()),12);
-    } else if(vz.z>1.001){
+    } else if(vz.z>1.001 && e.pointerType!=='touch'){
       vz.tx+=dx; vz.ty+=dy;
     }
     clampZoom(); applyZoom();
   });
-  ['pointerup','pointercancel'].forEach(function(ev){
+  ['pointerup','pointercancel','lostpointercapture'].forEach(function(ev){
     viewport.addEventListener(ev,function(e){
       if(cropMode) return;
       var p=vPtr[e.pointerId], single=vCount()===1;
       delete vPtr[e.pointerId];
       if(vCount()<2) vPinch=null;
-      if(single && p && !p.moved){
+      if(p && (ev!=='pointerup' || p.moved)) vTapTime=0;
+      if(ev==='pointerup' && single && p && !p.moved){
         var now=Date.now();
         if(now-vTapTime<320){ viewerIsFit() ? zoomActual() : zoomFit(); vTapTime=0; }
         else vTapTime=now;
@@ -2188,6 +2210,7 @@ function injectPng(bytes, payload){
     var swap=(state.rot===90||state.rot===270);
     var srcA=r.w/r.h;
     state.crop.free=true;
+    state.crop.original=false;
     state.crop.ratio = swap ? 1/srcA : srcA;
     var maxW=Math.min(W,H*srcA);
     state.crop.scale = clamp(maxW>0 ? r.w/maxW : 1, 0.05, 1);
