@@ -109,9 +109,12 @@
   .scrubwrap{position:relative}
   .scenes{margin:0 0 16px;border-top:1px solid var(--rule);padding-top:12px}
   .scenes[hidden]{display:none}
+  .scenes [hidden]{display:none!important}
   .scenehead,.scenefocus{display:flex;align-items:center;justify-content:space-between;gap:8px}
   .scenehead strong{font-size:14px;font-weight:500}
-  .scenehead button,.scenefocus button{font:inherit;color:var(--read);background:var(--raise);border:0;border-radius:16px;min-height:44px;padding:8px 12px;cursor:pointer}
+  .scenehead button,.scenefocus button,.boundaryreview button{font:inherit;color:var(--read);background:var(--raise);border:0;border-radius:16px;min-height:44px;padding:8px 12px;cursor:pointer}
+  .scenehead .sectionswitch[aria-checked="true"]{background:white;color:black}
+  .sceneoptions{margin-top:8px}
   .scenes button:disabled{opacity:.32;cursor:default}
   .scenes button:focus-visible{outline:2px solid white;outline-offset:2px}
   .scenestatus{color:#aaa;font-size:12px;line-height:1.5;margin:6px 0 10px;min-height:18px}
@@ -123,7 +126,17 @@
   .scenecard span:last-child{display:block;font-size:11px;color:#bbb;margin-top:3px;font-variant-numeric:tabular-nums}
   .scenecard b{display:block;font-size:12px;font-weight:500;margin-top:6px}
   .scenefocus{font-size:12px;color:#bbb;flex-wrap:wrap;margin-top:2px}
-  .scenefocus nav{display:flex;gap:6px}
+  .scenefocus nav{display:flex;gap:6px;flex-wrap:wrap}
+  .boundaryreview{margin-top:12px;padding:12px;border:1px solid var(--rule);border-radius:16px}
+  .boundaryreview:focus{outline:1px solid var(--mid);outline-offset:3px}
+  .boundaryreview h3{font-size:14px;font-weight:500;margin-bottom:6px}
+  .boundarypair{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
+  .boundarypair canvas{display:block;width:100%;aspect-ratio:16/9;background:#111;border-radius:8px}
+  .boundarypair figcaption{font-size:12px;color:#bbb;margin:5px 0}
+  .boundaryreview[aria-busy="true"] canvas{opacity:.35}
+  .boundaryreview .boundarybuttons{display:flex;gap:6px;margin-top:8px}
+  .boundarybuttons button{flex:1;min-width:0;padding:8px 4px}
+  .boundaryreview .applyboundary{background:white;color:black}
   .fine{position:absolute;left:50%;transform:translateX(-50%);top:-20px;
     font-family:var(--sans);font-size:13px;
     color:var(--read);opacity:0;pointer-events:none;white-space:nowrap}
@@ -373,14 +386,35 @@
   </div>
 
   <section class="scenes" id="scenes" aria-label="Video sections" hidden>
-    <div class="scenehead"><strong id="scenetitle">Explore the video</strong><button type="button" id="bscanscenes">Find scenes</button></div>
+    <div class="scenehead"><strong>Sections</strong><button type="button" class="sectionswitch" id="bsections" role="switch" aria-checked="false" aria-controls="scenebody" aria-label="Sections">Off</button></div>
+    <div id="scenebody" hidden>
+    <div class="scenehead sceneoptions"><strong id="scenetitle">Explore the video</strong><button type="button" id="bscanscenes">Find scenes</button></div>
     <p class="scenestatus" id="scenestatus" role="status" aria-live="polite">Choose a section to scrub in detail.</p>
     <div class="scenelist" id="scenelist" aria-label="Sections"></div>
     <div class="scenefocus"><span id="scenerange">Whole video</span><nav aria-label="Section navigation">
       <button type="button" id="bsceneprev" aria-label="Previous section" disabled>&larr;</button>
       <button type="button" id="bscenenext" aria-label="Next section" disabled>&rarr;</button>
       <button type="button" id="bscenewhole" disabled>Whole video</button>
+      <button type="button" id="breviewstart" hidden>Review start</button>
     </nav></div>
+    <div class="boundaryreview" id="boundaryreview" role="group" aria-labelledby="boundarytitle" aria-busy="false" tabindex="-1" hidden>
+      <h3 id="boundarytitle">Review section start</h3>
+      <p id="boundaryposition" class="scenestatus"></p>
+      <div class="boundarypair" id="boundarypair">
+        <figure><canvas id="boundarybefore" width="320" height="180" role="img" aria-label="Frame before the boundary"></canvas><figcaption>Before · previous section</figcaption></figure>
+        <figure><canvas id="boundaryafter" width="320" height="180" role="img" aria-label="Frame after the boundary"></canvas><figcaption>After · selected section</figcaption></figure>
+      </div>
+      <p id="boundarystatus" class="scenestatus" role="status" aria-live="polite"></p>
+      <div class="boundarybuttons" role="group" aria-label="Move boundary by approximate frames">
+        <button type="button" id="bboundaryback10" aria-label="Move boundary 10 frames earlier">&minus;10</button>
+        <button type="button" id="bboundaryback" aria-label="Move boundary 1 frame earlier">&minus;1</button>
+        <button type="button" id="bboundaryforward" aria-label="Move boundary 1 frame later">+1</button>
+        <button type="button" id="bboundaryforward10" aria-label="Move boundary 10 frames later">+10</button>
+      </div>
+      <div class="boundarybuttons"><button type="button" id="bboundarycancel">Cancel</button><button type="button" class="applyboundary" id="bboundaryapply" disabled>Apply boundary</button></div>
+      <p class="scenestatus">Frame steps use the estimated frame rate. Variable-rate footage may skip a source frame. All footage stays included.</p>
+    </div>
+    </div>
   </section>
 
   <div class="scrubwrap" id="scrubwrap"><div class="scrub" id="scrub" role="slider" tabindex="0" aria-disabled="true"
@@ -962,6 +996,7 @@ function injectPng(bytes, payload){
     var ab=document.getElementById('cmpab'); if(ab) ab.className='cmpab';
   }
   function showSheet(id){
+    closeBoundaryReview(true);
     cancelSceneScan(true);
     closeAllSheets();
     var s=document.getElementById(id); if(s) s.className='sheet on';
@@ -983,8 +1018,9 @@ function injectPng(bytes, payload){
   /* Sections are views into the original source, never new media files.
      A bounded, sampled pass borrows the visible decoder. Every interaction
      returns it to the editor; hidden iOS decoders are deliberately avoided. */
-  var sceneNav={items:[],active:-1,cuts:[],samples:[],scan:null,timer:null,
-                serial:0,interval:0.5,next:0,done:false,duration:0,thumbs:[]};
+  var sceneNav={enabled:false,items:[],active:-1,cuts:[],samples:[],scan:null,timer:null,
+                serial:0,interval:0.5,next:0,done:false,duration:0,thumbs:[],review:null,edited:false};
+  var boundarySerial=0;
   var fileSerial=0;
 
   function sceneTime(t){
@@ -1006,7 +1042,7 @@ function injectPng(bytes, payload){
     return items;
   }
   function sceneBounds(){
-    var item=sceneNav.items[sceneNav.active];
+    var item=sceneNav.enabled&&sceneNav.items[sceneNav.active];
     return item?{start:clampFrame(Math.ceil(item.start*state.fps-1e-7)),
       end:clampFrame(Math.ceil(item.end*state.fps-1e-7)-1)}:{start:0,end:Math.max(0,state.total-1)};
   }
@@ -1014,7 +1050,10 @@ function injectPng(bytes, payload){
     var r=sceneBounds(); return Math.max(r.start,Math.min(r.end,Math.round(n)));
   }
   function paintSceneFocus(){
-    var r=sceneBounds(), item=sceneNav.items[sceneNav.active];
+    var r=sceneBounds(), item=sceneNav.enabled&&sceneNav.items[sceneNav.active];
+    $('bsections').setAttribute('aria-checked',String(sceneNav.enabled));
+    $('bsections').textContent=sceneNav.enabled?'On':'Off';
+    $('scenebody').hidden=!sceneNav.enabled;
     scrubEl.setAttribute('aria-valuemin',String(r.start));
     scrubEl.setAttribute('aria-valuemax',String(r.end));
     scrubEl.setAttribute('aria-label',item?'Position in selected '+item.kind.toLowerCase():'Position in the video');
@@ -1022,6 +1061,7 @@ function injectPng(bytes, payload){
     $('bscenewhole').disabled=!item;
     $('bsceneprev').disabled=!item||sceneNav.active===0;
     $('bscenenext').disabled=sceneNav.items.length<2||sceneNav.active>=sceneNav.items.length-1;
+    $('breviewstart').hidden=!item||sceneNav.active<1;
     var children=$('scenelist').children;
     for(var i=0;i<children.length;i++) children[i].setAttribute('aria-pressed',String(i===sceneNav.active));
   }
@@ -1046,16 +1086,25 @@ function injectPng(bytes, payload){
     list.scrollLeft=scroll; paintSceneFocus();
   }
   function selectScene(index){
-    if(!state.ready||saving) return;
+    if(!state.ready||saving||!sceneNav.enabled) return;
+    closeBoundaryReview(false);
     cancelSceneScan(false); video.pause();
     sceneNav.active=index>=0&&index<sceneNav.items.length?index:-1;
     paintSceneFocus();
     goToFrame(sceneNav.active<0?state.frame:sceneBounds().start);
   }
   function resetScenes(){
-    cancelSceneScan(false); sceneNav.serial++; sceneNav.items=[];sceneNav.active=-1;
+    closeBoundaryReview(false);cancelSceneScan(false); sceneNav.serial++; sceneNav.items=[];sceneNav.active=-1;sceneNav.enabled=false;sceneNav.edited=false;
     sceneNav.cuts=[];sceneNav.samples=[];sceneNav.thumbs=[];sceneNav.next=0;sceneNav.done=false;sceneNav.duration=0;
     $('scenes').hidden=true; $('scenelist').textContent='';
+    paintSceneFocus();
+  }
+  function setSections(on){
+    if(!state.ready||saving)return;
+    var reviewing=closeBoundaryReview(false);
+    var interrupted=cancelSceneScan(false);
+    sceneNav.enabled=!!on;sceneNav.active=-1;paintSceneFocus();setFrameUI(state.frame);
+    if(interrupted||reviewing||video.seeking)goToFrame(state.frame);
   }
   function prepareScenes(){
     sceneNav.duration=video.duration;
@@ -1066,8 +1115,115 @@ function injectPng(bytes, payload){
     $('scenestatus').textContent='Choose a section to scrub in detail. Scene suggestions are approximate.';
     $('bscanscenes').textContent='Find scenes'; $('bscanscenes').disabled=false;
     paintSceneCards();
-    var serial=sceneNav.serial;
-    sceneNav.timer=setTimeout(function(){sceneNav.timer=null;if(serial===sceneNav.serial)startSceneScan();},500);
+  }
+  function boundaryLimits(index){
+    if(index<1||index>=sceneNav.items.length)return null;
+    var previous=sceneNav.items[index-1],current=sceneNav.items[index];
+    var min=clampFrame(Math.ceil(previous.start*state.fps-1e-7))+1;
+    var max=clampFrame(Math.ceil(current.end*state.fps-1e-7)-1);
+    return min<=max?{min:min,max:max}:null;
+  }
+  function boundaryTime(frame){
+    var millis=Math.round(frame/state.fps*1000),seconds=Math.floor(millis/1000);
+    return (seconds>=3600?pad(Math.floor(seconds/3600))+':':'')+pad(Math.floor(seconds/60)%60)+':'+pad(seconds%60)+'.'+String(millis%1000).padStart(3,'0');
+  }
+  function paintBoundaryReview(){
+    var review=sceneNav.review;
+    $('boundaryreview').hidden=!review;
+    if(!review)return;
+    var limits=boundaryLimits(review.index);
+    $('boundarytitle').textContent='Review start · '+sceneNav.items[review.index].kind+' '+(review.index+1);
+    $('boundaryposition').textContent=boundaryTime(review.frame)+' · approximate source frame '+review.frame;
+    $('boundaryreview').setAttribute('aria-busy',String(review.busy));
+    $('boundarypair').style.visibility=review.ready?'visible':'hidden';
+    $('bboundaryapply').disabled=review.busy||!review.ready;
+    ['bboundaryback10','bboundaryback'].forEach(function(id){$(id).disabled=review.busy||!limits||review.frame<=limits.min;});
+    ['bboundaryforward','bboundaryforward10'].forEach(function(id){$(id).disabled=review.busy||!limits||review.frame>=limits.max;});
+  }
+  function closeBoundaryReview(restore){
+    var review=sceneNav.review;
+    if(!review)return false;
+    sceneNav.review=null;boundarySerial++;
+    if(review.busy){seekToken++;pending=null;state.seeking=false;}
+    working(false);paintBoundaryReview();
+    if(restore&&state.ready&&state.url===review.source)goToFrame(review.returnFrame);
+    return true;
+  }
+  function renderBoundaryReview(){
+    var review=sceneNav.review;
+    if(!review)return Promise.resolve(false);
+    var serial=++boundarySerial,frame=review.frame;
+    review.busy=true;review.ready=false;paintBoundaryReview();
+    $('boundarystatus').textContent='Preparing before and after frames…';
+    working(true,'Preparing boundary preview');
+    function alive(){return sceneNav.review===review&&serial===boundarySerial&&state.url===review.source&&sceneNav.enabled;}
+    function draw(id,at){
+      if(video.readyState<2||video.seeking)throw new Error('The boundary frame is not ready. Try again.');
+      var canvas=$(id),ctx=canvas.getContext('2d'),scale=Math.min(canvas.width/video.videoWidth,canvas.height/video.videoHeight);
+      if(!ctx||!isFinite(scale)||scale<=0)throw new Error('Could not prepare the boundary preview.');
+      ctx.fillStyle='#111';ctx.fillRect(0,0,canvas.width,canvas.height);
+      ctx.drawImage(video,(canvas.width-video.videoWidth*scale)/2,(canvas.height-video.videoHeight*scale)/2,video.videoWidth*scale,video.videoHeight*scale);
+      canvas.setAttribute('aria-label',(id==='boundarybefore'?'Before':'After')+' boundary, '+boundaryTime(at)+', source frame '+at);
+    }
+    return runSeek(frame-1).then(function(how){
+      if(!alive())return false;
+      if(how!=='seeked'&&how!=='frame')throw new Error('Could not decode the previous frame. Try again.');
+      draw('boundarybefore',frame-1);
+      return runSeek(frame).then(function(next){
+        if(!alive())return false;
+        if(next!=='seeked'&&next!=='frame')throw new Error('Could not decode the next frame. Try again.');
+        draw('boundaryafter',frame);review.busy=false;review.ready=true;paintBoundaryReview();
+        $('boundarystatus').textContent='Compare the two frames, then apply or adjust this boundary.';
+        working(true,'Boundary review below');
+        return true;
+      });
+    }).catch(function(error){
+      if(!alive())return false;
+      review.busy=false;review.ready=false;paintBoundaryReview();working(true,'Boundary review below');
+      $('boundarystatus').textContent=error.message||'Could not prepare the boundary preview. Cancel and try again.';
+      return false;
+    });
+  }
+  function openBoundaryReview(){
+    var index=sceneNav.active,limits=boundaryLimits(index);
+    if(!state.ready||!sceneNav.enabled||saving||!limits)return Promise.resolve(false);
+    closeBoundaryReview(false);cancelSceneScan(false);video.pause();
+    // The review owns both seeks until completed or explicitly interrupted.
+    seekToken++;pending=null;state.seeking=false;
+    sceneNav.review={index:index,frame:clamp(Math.ceil(sceneNav.items[index].start*state.fps-1e-7),limits.min,limits.max),
+      returnFrame:state.frame,source:state.url,busy:false,ready:false};
+    var result=renderBoundaryReview();
+    $('boundaryreview').focus({preventScroll:true});
+    return result;
+  }
+  function adjustBoundary(delta){
+    var review=sceneNav.review;
+    if(!review||review.busy)return Promise.resolve(false);
+    var limits=boundaryLimits(review.index),next=clamp(review.frame+delta,limits.min,limits.max);
+    if(next===review.frame)return Promise.resolve(false);
+    review.frame=next;return renderBoundaryReview();
+  }
+  function applyBoundary(){
+    var review=sceneNav.review;
+    if(!review||review.busy||!review.ready||review.source!==state.url)return false;
+    var index=review.index,time=review.frame/state.fps,frame=review.frame,oldTime=sceneNav.items[index].start;
+    // Both neighbors share one value, so moving a boundary cannot drop footage.
+    sceneNav.items[index-1].end=time;sceneNav.items[index].start=time;
+    sceneNav.cuts=sceneNav.cuts.map(function(cut){return Math.abs(cut-oldTime)<1e-7?time:cut;});
+    [[index-1,frame-1,'boundarybefore'],[index,frame,'boundaryafter']].forEach(function(entry){
+      // Reuse the confirmed review pictures, keeping thumbnail memory bounded.
+      try{
+        var item=sceneNav.items[entry[0]],url=$(entry[2]).toDataURL('image/jpeg',0.65);
+        sceneNav.thumbs=sceneNav.thumbs.filter(function(thumb){return thumb.time<item.start||thumb.time>=item.end;});
+        sceneNav.thumbs.push({time:frameToTime(entry[1]),url:url});
+      }catch(_){}
+    });
+    sceneNav.edited=true;
+    closeBoundaryReview(false);paintSceneCards();goToFrame(frame);
+    $('bscanscenes').disabled=true;$('bscanscenes').textContent='Manual boundaries';
+    $('scenestatus').textContent='Boundary adjusted · all footage stays included. Reopen the video to reset sections.';
+    $('breviewstart').focus();
+    return true;
   }
   function sceneSignature(pixels){
     var hist=new Array(48).fill(0), small=[], count=pixels.length/4;
@@ -1110,7 +1266,8 @@ function injectPng(bytes, payload){
     return true;
   }
   function startSceneScan(){
-    if(!state.ready||saving||sceneNav.scan||sceneNav.done||document.hidden||!sceneNav.items.length)return;
+    if(!state.ready||!sceneNav.enabled||saving||sceneNav.scan||sceneNav.done||sceneNav.edited||document.hidden||!sceneNav.items.length)return;
+    closeBoundaryReview(true);
     if(sceneNav.timer!==null){clearTimeout(sceneNav.timer);sceneNav.timer=null;}
     video.pause();
     // An edit seek must settle before analysis borrows the decoder.
@@ -1199,18 +1356,32 @@ function injectPng(bytes, payload){
     }
     next();
   }
+  $('bsections').addEventListener('click',function(){setSections(!sceneNav.enabled);});
+  $('breviewstart').addEventListener('click',openBoundaryReview);
+  $('bboundaryback10').addEventListener('click',function(){adjustBoundary(-10);});
+  $('bboundaryback').addEventListener('click',function(){adjustBoundary(-1);});
+  $('bboundaryforward').addEventListener('click',function(){adjustBoundary(1);});
+  $('bboundaryforward10').addEventListener('click',function(){adjustBoundary(10);});
+  $('bboundaryapply').addEventListener('click',applyBoundary);
+  $('bboundarycancel').addEventListener('click',function(){closeBoundaryReview(true);$('breviewstart').focus();});
+  $('boundaryreview').addEventListener('keydown',function(e){
+    if(e.key==='Escape'){e.preventDefault();closeBoundaryReview(true);$('breviewstart').focus();}
+    if(e.key==='ArrowLeft'||e.key==='ArrowRight'){e.preventDefault();adjustBoundary((e.key==='ArrowLeft'?-1:1)*(e.shiftKey?10:1));}
+    e.stopPropagation();
+  });
   $('bscanscenes').addEventListener('click',function(){if(sceneNav.scan)cancelSceneScan(true);else startSceneScan();});
   $('bsceneprev').addEventListener('click',function(){selectScene(sceneNav.active-1);});
   $('bscenenext').addEventListener('click',function(){selectScene(sceneNav.active+1);});
   $('bscenewhole').addEventListener('click',function(){selectScene(-1);});
   function interruptSceneScan(e){
+    if(sceneNav.review&&!(e.target&&e.target.closest&&e.target.closest('#boundaryreview'))&&e.target!==$('breviewstart'))closeBoundaryReview(true);
     if(e.target===$('bscanscenes'))return;
     cancelSceneScan(true);
   }
   document.addEventListener('pointerdown',interruptSceneScan,true);
   document.addEventListener('click',interruptSceneScan,true);
   document.addEventListener('keydown',interruptSceneScan,true);
-  document.addEventListener('visibilitychange',function(){if(document.hidden)cancelSceneScan(true);});
+  document.addEventListener('visibilitychange',function(){if(document.hidden){closeBoundaryReview(true);cancelSceneScan(true);}});
 
   function nextPresented(ms){
     return new Promise(function(res){
@@ -1290,6 +1461,7 @@ function injectPng(bytes, payload){
     var failed=false;
     video.onerror=function(){
       if(serial!==fileSerial)return;
+      closeBoundaryReview(false);
       cancelSceneScan(false);
       failed=true; lastError=video.error||{code:0,message:''};
       working(false); setEnabled(false);
@@ -1385,7 +1557,7 @@ function injectPng(bytes, payload){
     return nextPresented().then(function(how){
       if(mine !== seekToken) return 'superseded'; // a newer seek has taken over
       state.seeking = false;
-      if(how === 'timeout'){ if(++stalls >= 2&&!sceneNav.scan) recoverVideo(); }
+      if(how === 'timeout'){ if(++stalls >= 2&&!sceneNav.scan&&!sceneNav.review) recoverVideo(); }
       else stalls = 0;
       if(pending !== null){
         var p = pending; pending = null;
@@ -1414,7 +1586,7 @@ function injectPng(bytes, payload){
 
   function requestFrame(n){
     if(!state.ready) return;
-    var interrupted=cancelSceneScan(false);
+    var reviewing=closeBoundaryReview(false),interrupted=cancelSceneScan(false)||reviewing;
     n = clampFrame(n);
     // A seek still "in progress" after 3s is dead. Take the flag back.
     if(state.seeking && Date.now() - (state.seekAt||0) > 3000){
@@ -1427,6 +1599,7 @@ function injectPng(bytes, payload){
   }
 
   function goToFrame(n){
+    closeBoundaryReview(false);
     cancelSceneScan(false);
     n = clampFrame(n);
     setFrameUI(n);
@@ -1595,6 +1768,7 @@ function injectPng(bytes, payload){
   }
   function saveCurrent(){
     if(!state.ready || saving) return Promise.resolve();
+    closeBoundaryReview(true);
     cancelSceneScan(true);
     var cr=cropRect(); if(!cr) return Promise.resolve();
     var wasPlaying=!video.paused, frame=wasPlaying?timeToFrame(video.currentTime):state.frame;
@@ -1637,6 +1811,7 @@ function injectPng(bytes, payload){
 
   function saveAllMarks(){
     if(saving || !state.marks.length) return;
+    closeBoundaryReview(false);
     cancelSceneScan(false);
     var list=state.marks.slice().sort(function(a,b){return a-b;}), i=0;
     working(true,'Saving');
@@ -1670,6 +1845,7 @@ function injectPng(bytes, payload){
   }
   function toggleMark(){
     if(!state.ready) return;
+    closeBoundaryReview(true);
     cancelSceneScan(true);
     var i=state.marks.indexOf(state.frame);
     if(i>=0) state.marks.splice(i,1); else state.marks.push(state.frame);
@@ -1770,6 +1946,7 @@ function injectPng(bytes, payload){
 
   function togglePlayback(){
     if(!state.ready)return;
+    closeBoundaryReview(true);
     cancelSceneScan(true);
     if(!video.paused){video.pause();return;}
     var r=sceneBounds(), source=state.url;
@@ -1794,7 +1971,7 @@ function injectPng(bytes, payload){
   });
   video.addEventListener('pause',function(){
     btns.bplay.textContent='\u25B6';
-    if(!state.ready||state.seeking||!state.total||sceneNav.scan) return;
+    if(!state.ready||state.seeking||!state.total||sceneNav.scan||sceneNav.review) return;
     var actual=timeToFrame(video.currentTime), target=clampSceneFrame(actual);
     if(actual!==target)goToFrame(target);else requestFrame(target);
   });

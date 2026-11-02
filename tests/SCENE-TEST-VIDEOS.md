@@ -18,7 +18,17 @@ python3 -m http.server 8876 --bind 127.0.0.1
 
 Open [Frame](http://127.0.0.1:8876/) and the [test video library](http://127.0.0.1:8876/tests/scene-preview.html). The library has previews and download links: download a clip, then choose it in Frame. Frame reads the chosen local file; it does not upload it. This loopback address is accessible only on the computer running the server, not on your iPhone.
 
-Choose a section to give it the full scrubber width. **Whole video** returns to the full source timeline. Playback stops at the active section's end; the previous/next section buttons move between sections. Editing pauses the scene scan, and **Continue scan** resumes it. Scene suggestions remain approximate; time-based sections also cover long uninterrupted shots.
+Every newly opened file starts with **Sections off** and the full source timeline. Turn **Sections on** to show time-based sections immediately; enabling Sections does not start scene analysis. Choose a section to give it the full scrubber width. Playback stops at the active section's end, and the previous/next buttons move between sections. **Whole video** restores the full timeline while keeping the section list available.
+
+Choose **Find scenes** when you want automatic suggestions. Editing pauses the scan, and **Continue scan** resumes it. Turning **Sections off** stops scanning and returns to the full timeline. Turning it on again retains section results already prepared for this file without automatically resuming analysis. Opening another file resets Sections to off. Suggestions remain approximate; short shots, fades, and similar-color cuts can be missed, so time-based sections remain useful for uninterrupted footage too.
+
+### Review and adjust a boundary
+
+Select the second or any later section, then choose **Review start**. The panel shows **Before · previous section** and **After · selected section** so you can inspect both sides of the proposed start. For the hard-cut fixture, run Find scenes first to get multiple sections; the long continuous fixture already has several time sections when you enable Sections.
+
+Use **−10 / −1 / +1 / +10** to move the boundary at the current estimated frame rate. With the review panel focused, Left/Right arrow keys move one approximate frame, and Shift-Left/Right moves ten. The boundary stays between its neighbors: applying it keeps both adjacent sections contiguous and retains all source footage. Choose **Apply boundary** to keep the adjustment, or **Cancel** / Escape to leave the boundary unchanged. The first section starts at the beginning of the source and has no start boundary to review.
+
+After Apply boundary, the status says **Boundary adjusted** and the scan button becomes **Manual boundaries**. Further scene scanning is disabled for that file so it cannot overwrite your edits. Turning Sections off and on preserves these edits; **reopening the file resets them and allows a fresh scan**. Changes affect navigation ranges only—the video file and its pixels are unchanged. Frame steps remain approximate for variable-rate footage, and before/after review does not guarantee an exact cut or a meaningful scene boundary.
 
 ### Browser QA
 
@@ -53,18 +63,35 @@ node tests/scenes-browser.cjs
 
 ## Cross-video checks
 
-### Observed prototype behavior
+### Verified prototype behavior
 
-Desktop Chrome verification on November 2, 2026 found all expected cuts in the hard-cut, portrait, and 4K fixtures, and no false cuts in the continuous, flash/pan, or tiny fixtures. The long continuous clip produced six usable sections. The rapid-edit clip produced three of its nine cuts; the similar-color cut at 12 seconds was missed, while the fade-through-black produced two suggestions. These are known sampling/detector limits, not a claim of complete scene understanding. The 4K still exported and re-decoded at 3840×2160. Scan interruption, file replacement, and source endpoint checks passed. The unit regression suite has 120 passing tests.
+Desktop Chrome checks on November 2, 2026 passed for Sections defaulting off, explicit scanning, cancellation, source replacement, and keeping manual boundaries across mode toggles. The boundary review decoded distinct blue/burgundy pictures at the hard-cut fixture's frames 119/120; keyboard adjustment, Cancel restoring the selected source frame, and Apply updating the shared edge also passed. The full unit regression suite has **135 passing tests**.
+
+All eight synthetic fixtures were exercised. The detector found all expected cuts in the hard-cut, portrait, and 4K fixtures, with no false cuts in the continuous, flash/pan, or tiny fixtures. The long clip produced six time sections. The rapid-edit clip produced three of nine cuts; the similar-color cut at 12 seconds was missed, while the fade-through-black produced two suggestions. The uncropped 4K still exported and re-decoded at 3840×2160. Browser checks found no page errors, external requests, or horizontal overflow at mobile width.
+
+These checks cover the synthetic dataset and desktop Chrome, not real-footage detection accuracy or physical iPhone performance. Boundary review lets you inspect and adjust a suggestion; it cannot guarantee a meaningful scene boundary or exact VFR frame access.
 
 ### Manual checks
 
-1. Start analysis, then scrub or select a section immediately. User navigation must take priority without jumping back to a scan position.
-2. Replace the source while analysis is active. Results and thumbnails from the old file must not appear in the new file.
-3. Hide the tab or lock the device during analysis, then return. Navigation must recover without an endless spinner.
-4. Mark frames in different sections, return to Whole video, compare them, and save a marked frame. Source timestamps and exported pixels must not change when the timeline focus changes.
-5. Select a section and play to its end. Playback should stop at that section's end. Move to adjacent sections, then use **Whole video** to restore the full timeline.
-6. Reload after the app has been cached, enable Airplane Mode, and open a local fixture. No video upload or external service should be required.
+1. Open a file. Confirm **Sections is off**, the whole-video scrubber is available, and no scene scan starts. Turn Sections on: time sections should appear immediately without moving the viewer through a scan.
+2. Select a time section, scrub both ends, and play to its end. Playback should stop there. Move to adjacent sections, then choose **Whole video**; the full timeline should return while the list remains available.
+3. Choose **Find scenes**, then scrub or select a section immediately. User navigation must pause analysis without a later jump back to the scan position. Choose **Continue scan** to resume it deliberately.
+4. Turn Sections off during a scan. Scanning must stop and the full timeline must return. Turn it on again: existing results for this file should remain, and scanning must not restart by itself.
+5. Finish a scan, turn Sections off, then on. Confirm the same file's prepared sections remain available without another scan. Open another file: Sections must reset to off, with no old results or thumbnails carried over.
+6. Hide the tab or lock the device during analysis, then return. Navigation must recover without an endless spinner or unwanted scan restart.
+7. Mark frames in different sections, return to Whole video, compare them, and save a marked frame. Source timestamps and exported pixels must not change when the timeline focus changes.
+8. Reload after the app has been cached, enable Airplane Mode, and open a local fixture. Sections and manual frame editing should work without uploading the video or contacting an external service.
+
+### Boundary-review checks
+
+1. Open **Hard cuts**, enable Sections, and run **Find scenes**. Select the second section and choose **Review start**. Confirm Before shows the previous section's last approximate frame and After shows the selected section's first approximate frame. The expected source cut is at 4 seconds.
+2. Move the boundary with −1/+1 and −10/+10, then use Left/Right and Shift-Left/Right with the panel focused. Both previews and the time readout should update; the adjustment must stay within its neighboring sections.
+3. Choose **Cancel**, then reopen Review start. The original boundary must be intact. Repeat an adjustment and press Escape to check the same cancellation behavior.
+4. Adjust and choose **Apply boundary**. Confirm **Boundary adjusted** and the disabled **Manual boundaries** scan button. The previous section's end and selected section's start must meet, with no missing, duplicated, or empty navigation range. Step through both sides and verify the source pictures remain unchanged.
+5. Turn Sections off and on. The edited boundary should remain. Reopen the same file: Sections should default to off, the edit should be reset, and enabling Sections should make a fresh Find scenes pass available.
+6. Select the first section and the one-section subsecond clip. Neither should offer a start boundary that can be moved before the source begins. Try adjusting boundaries next to short sections in **Rapid cuts**; neither neighbor should collapse to an empty range.
+7. Repeat review on **Portrait variable frame rate**. Check portrait images remain readable and source times are preserved. Judge the actual pictures; approximate frame steps are not proof that every VFR source frame has been visited.
+8. While previews are being prepared, switch Sections off, replace the file, or hide the tab. Old previews must not reappear or apply to a new source. Confirm the main scrubber is still usable after cancellation.
 
 ## Real-camera checks still needed
 

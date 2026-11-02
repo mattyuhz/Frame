@@ -9,25 +9,30 @@ const { boot, near } = require('./crop.test.cjs');
 const exposure = `
   window.__sceneTest = {
     sceneNav, buildSceneRanges, sceneBounds, clampSceneFrame, selectScene,
-    prepareScenes, resetScenes, cancelSceneScan, startSceneScan,
+    prepareScenes, resetScenes, setSections, cancelSceneScan, startSceneScan,
     sceneSignature, sceneDifference, detectSceneCuts, framesPerPx,
     scrubAbsolute, step, requestFrame, setFrameUI, tickScenePlayback,
     paintSceneCards, paintSceneFocus, toggleMark, paintMarks, nameFor,
+    boundaryLimits, openBoundaryReview, adjustBoundary, applyBoundary, closeBoundaryReview,
     setSeek(fn){ runSeek=fn; },
     setSaving(value){ saving=value; }
   };
 `;
 
-function setup(duration = 120, fps = 30) {
+function setup(duration = 120, fps = 30, enabled = true) {
   const f = boot({ exposure });
   f.scene = f.window.__sceneTest;
   f.video.duration = duration;
   Object.assign(f.api.state, { fps, total: Math.max(1, Math.round(duration * fps)), frame: 0, url: 'blob:scene-source', base: 'source' });
   f.scene.sceneNav.duration = duration;
+  f.scene.sceneNav.enabled = enabled;
   f.scene.sceneNav.items = f.scene.buildSceneRanges(duration, []);
   f.scene.paintSceneCards();
   f.seeks = [];
   f.scene.setSeek(n => { f.seeks.push(n); f.video.currentTime = (n + 0.5) / fps; return Promise.resolve('seeked'); });
+  for (const id of ['boundarybefore', 'boundaryafter']) {
+    const canvas = f.ids.get(id); canvas.width = 320; canvas.height = 180;
+  }
   return f;
 }
 
@@ -233,17 +238,207 @@ test('the spatial comparison can distinguish changed pictures with the same colo
   assert.deepEqual([...f.scene.detectSceneCuts(signal(f, [a, a, a, b, b, b]))], [1.25]);
 });
 
-test('sections are usable immediately and touching the editor cancels the queued automatic scan', () => {
-  const f = setup(180);
+test('Sections starts off and preparing a video does not opt in or queue analysis', () => {
+  const fresh = boot({ exposure });
+  assert.equal(fresh.window.__sceneTest.sceneNav.enabled, false);
+  const f = setup(180, 30, false);
   f.scene.prepareScenes();
   assert.equal(f.scene.sceneNav.items.length, 6);
+  assert.equal(f.scene.sceneNav.enabled, false);
   assert.equal(f.scene.sceneNav.scan, null);
-  const timer = f.scene.sceneNav.timer;
-  assert.ok(f.timers.has(timer));
-  f.scene.selectScene(3);
   assert.equal(f.scene.sceneNav.timer, null);
-  assert.equal(f.timers.has(timer), false);
+  assert.equal(f.ids.get('scenebody').hidden, true);
+  assert.equal(f.ids.get('bsections').getAttribute('aria-checked'), 'false');
+  f.scene.startSceneScan();
+  assert.equal(f.scene.sceneNav.scan, null, 'the scan API also rejects use before opt-in');
+  assert.equal(f.seeks.length, 0);
+});
+
+test('enabling Sections reveals immediately usable ranges but analysis requires Find scenes', async () => {
+  const f = setup(180, 30, false);
+  providePixels(f, () => solid(40, 80, 120));
+  f.scene.prepareScenes();
+  f.scene.setSections(true);
+  assert.equal(f.scene.sceneNav.enabled, true);
+  assert.equal(f.ids.get('bsections').getAttribute('aria-checked'), 'true');
+  assert.equal(f.ids.get('scenebody').hidden, false);
+  assert.equal(f.scene.sceneNav.scan, null);
+  assert.equal(f.scene.sceneNav.timer, null);
+  assert.equal(f.scene.sceneNav.samples.length, 0);
+  f.scene.selectScene(3);
   assert.equal(f.api.state.frame, 2700);
+  assert.equal(f.scene.sceneNav.scan, null);
+  f.ids.get('bscanscenes').click(); await flush();
+  assert.ok(f.scene.sceneNav.scan, 'Find scenes explicitly starts analysis');
+  assert.equal(f.scene.sceneNav.samples.length, 1);
+  f.scene.cancelSceneScan(false);
+});
+
+test('turning Sections off cancels analysis and returns to the whole video at the selected moment', async () => {
+  const f = setup(180), first = deferred();
+  f.scene.setSections(true); f.scene.selectScene(3); f.scene.setFrameUI(2800);
+  f.scene.setSeek(() => first.promise); f.scene.startSceneScan();
+  assert.ok(f.scene.sceneNav.scan);
+  f.scene.setSections(false);
+  assert.equal(f.scene.sceneNav.enabled, false);
+  assert.equal(f.scene.sceneNav.active, -1);
+  assert.equal(f.scene.sceneNav.scan, null);
+  assert.equal(f.scene.sceneNav.timer, null);
+  assert.equal(f.ids.get('scenebody').hidden, true);
+  assert.equal(f.ids.get('bsections').getAttribute('aria-checked'), 'false');
+  assert.deepEqual(plain(f.scene.sceneBounds()), { start: 0, end: 5399 });
+  assert.equal(f.api.state.frame, 2800);
+  first.resolve('seeked'); await flush();
+  assert.equal(f.scene.sceneNav.samples.length, 0, 'late scanner completion cannot repopulate disabled mode');
+  assert.equal(f.api.state.frame, 2800);
+});
+
+test('boundary review shows the adjacent decoded frames without changing the selected moment or ranges', async () => {
+  const f = setup();
+  f.scene.selectScene(0);
+  assert.equal(f.ids.get('breviewstart').hidden, true);
+  assert.equal(await f.scene.openBoundaryReview(), false, 'the first section has no preceding boundary');
+  f.scene.selectScene(1); f.scene.setFrameUI(1000);
+  const original = plain(f.scene.sceneNav.items), drawn = [];
+  for (const id of ['boundarybefore', 'boundaryafter']) {
+    const ctx = f.ids.get(id).getContext(), draw = ctx.drawImage;
+    ctx.drawImage = (...args) => { drawn.push({ id, time: f.video.currentTime, source: args[0] }); draw(...args); };
+  }
+  assert.equal(f.ids.get('breviewstart').hidden, false);
+  assert.equal(await f.scene.openBoundaryReview(), true);
+  assert.equal(f.scene.sceneNav.review.ready, true);
+  assert.equal(f.ids.get('bboundaryapply').disabled, false);
+  assert.deepEqual(drawn.map(d => d.id), ['boundarybefore', 'boundaryafter']);
+  near(drawn[0].time, 899.5 / 30, 'before canvas captures preceding frame');
+  near(drawn[1].time, 900.5 / 30, 'after canvas captures first frame');
+  assert.ok(drawn.every(d => d.source === f.video));
+  assert.equal(f.api.state.frame, 1000);
+  assert.deepEqual(plain(f.scene.sceneNav.items), original);
+  assert.match(f.ids.get('boundarybefore').getAttribute('aria-label'), /source frame 899/);
+  assert.match(f.ids.get('boundaryafter').getAttribute('aria-label'), /source frame 900/);
+});
+
+test('boundary adjustments clamp to neighboring ranges and Cancel leaves all footage and the source moment unchanged', async () => {
+  const f = setup(); f.scene.selectScene(1); f.scene.setFrameUI(1000);
+  const original = plain(f.scene.sceneNav.items);
+  assert.deepEqual(plain(f.scene.boundaryLimits(1)), { min: 1, max: 1799 });
+  assert.equal(f.scene.boundaryLimits(0), null);
+  await f.scene.openBoundaryReview();
+  await f.scene.adjustBoundary(-10000);
+  assert.equal(f.scene.sceneNav.review.frame, 1);
+  assert.equal(f.ids.get('bboundaryback').disabled, true);
+  await f.scene.adjustBoundary(10000);
+  assert.equal(f.scene.sceneNav.review.frame, 1799);
+  assert.equal(f.ids.get('bboundaryforward').disabled, true);
+  assert.deepEqual(plain(f.scene.sceneNav.items), original, 'adjusting the preview is not an edit until Apply');
+  assert.equal(f.scene.closeBoundaryReview(true), true); await flush();
+  assert.equal(f.scene.sceneNav.review, null);
+  assert.equal(f.ids.get('boundaryreview').hidden, true);
+  assert.deepEqual(plain(f.scene.sceneNav.items), original);
+  assert.equal(f.api.state.frame, 1000);
+  near(f.video.currentTime, 1000.5 / 30, 'Cancel restores the selected picture');
+});
+
+test('applying a boundary shares one exact timestamp across neighbors at fractional frame rates', async () => {
+  for (const fps of [30, 29.97, 23.976]) {
+    const f = setup(20, fps), originalCut = 125;
+    f.scene.sceneNav.items = f.scene.buildSceneRanges(20, [originalCut / fps]);
+    f.scene.selectScene(1); await f.scene.openBoundaryReview();
+    await f.scene.adjustBoundary(1);
+    assert.equal(f.scene.applyBoundary(), true);
+    const items = f.scene.sceneNav.items;
+    assert.equal(items[0].start, 0); assert.equal(items[1].end, 20);
+    assert.equal(items[0].end, items[1].start, 'one shared value prevents gaps and overlap');
+    near(items[1].start, 126 / fps, 'manual boundary keeps source frame precision');
+    assert.equal(f.api.state.frame, 126);
+    f.scene.selectScene(0); assert.equal(f.scene.sceneBounds().end, 125);
+    f.scene.selectScene(1); assert.equal(f.scene.sceneBounds().start, 126);
+    assert.ok(items.every(item => item.end > item.start));
+    assert.equal(f.scene.sceneNav.edited, true);
+    assert.equal(f.ids.get('bscanscenes').disabled, true);
+    f.scene.startSceneScan(); assert.equal(f.scene.sceneNav.scan, null, 'scanning cannot overwrite applied boundaries');
+    f.scene.setSections(false); f.scene.setSections(true);
+    assert.equal(f.scene.sceneNav.items[1].start, 126 / fps, 'same-file mode toggles retain manual edits');
+    assert.equal(f.scene.sceneNav.scan, null);
+  }
+});
+
+test('boundary Apply stays disabled while decoding and failed previews cannot be applied', async () => {
+  const f = setup(), seek = deferred(); f.scene.selectScene(1);
+  f.scene.setSeek(() => seek.promise);
+  const pending = f.scene.openBoundaryReview();
+  assert.equal(f.scene.sceneNav.review.busy, true);
+  assert.equal(f.ids.get('bboundaryapply').disabled, true);
+  assert.equal(f.scene.applyBoundary(), false);
+  assert.equal(await f.scene.adjustBoundary(10), false, 'adjustments cannot race a preview seek');
+  seek.resolve('timeout');
+  assert.equal(await pending, false);
+  assert.equal(f.scene.sceneNav.review.ready, false);
+  assert.equal(f.ids.get('bboundaryapply').disabled, true);
+  assert.equal(f.scene.applyBoundary(), false);
+  assert.match(f.ids.get('boundarystatus').textContent, /Could not decode/);
+});
+
+test('turning Sections off restores the selected picture after a completed boundary preview', async () => {
+  const f = setup(); f.scene.selectScene(1); f.scene.setFrameUI(1000);
+  await f.scene.openBoundaryReview();
+  near(f.video.currentTime, 900.5 / 30, 'review temporarily borrows the decoder');
+  f.scene.setSections(false); await flush();
+  assert.equal(f.scene.sceneNav.review, null);
+  assert.equal(f.api.state.frame, 1000);
+  near(f.video.currentTime, 1000.5 / 30, 'Off restores the selected source picture');
+});
+
+test('late boundary callbacks cannot draw or apply after mode exit or source replacement', async () => {
+  for (const replace of [false, true]) {
+    const f = setup(), seek = deferred(); f.scene.selectScene(1); f.scene.setFrameUI(1000);
+    const original = plain(f.scene.sceneNav.items);
+    f.scene.setSeek(() => seek.promise);
+    const pending = f.scene.openBoundaryReview();
+    if (replace) { f.scene.resetScenes(); f.api.state.url = 'blob:new-source'; }
+    else f.scene.setSections(false);
+    seek.resolve('seeked'); assert.equal(await pending, false); await flush();
+    assert.equal(f.scene.sceneNav.review, null);
+    assert.equal(f.scene.applyBoundary(), false);
+    assert.equal(f.ids.get('boundarybefore').getContext().calls.filter(c => c.name === 'drawImage').length, 0);
+    assert.equal(f.ids.get('boundaryafter').getContext().calls.filter(c => c.name === 'drawImage').length, 0);
+    if (!replace) assert.deepEqual(plain(f.scene.sceneNav.items), original);
+    else assert.equal(f.scene.sceneNav.items.length, 0);
+  }
+});
+
+test('saving from boundary review captures the original selection after its restore seek finishes', async () => {
+  const f = setup(); f.scene.selectScene(1); f.scene.setFrameUI(1000);
+  await f.scene.openBoundaryReview();
+  const presented = [], captured = [], downloads = [];
+  f.video.requestVideoFrameCallback = callback => { presented.push(callback); };
+  f.scene.setSeek(f.api.runSeek);
+  f.api.stubExport({
+    currentBlob: () => { captured.push(f.video.currentTime); return Promise.resolve(new Blob(['pixels'], { type: 'image/png' })); },
+    verifyImage: () => Promise.resolve({ w: 1920, h: 1080 }),
+    downloadBlob: (blob, name) => downloads.push(name)
+  });
+  const saving = f.api.saveCurrent();
+  await flush(); assert.equal(captured.length, 0, 'review pixels cannot be exported before the selected frame returns');
+  for (const callback of presented) callback();
+  await saving;
+  assert.equal(f.scene.sceneNav.review, null);
+  assert.equal(captured.length, 1);
+  near(captured[0], 1000.5 / 30, 'export captures the restored selection');
+  assert.deepEqual(downloads, ['source_00-00-33-10.png']);
+});
+
+test('boundary keyboard controls adjust their draft and Escape restores the prior selection', async () => {
+  const f = setup(); f.scene.selectScene(1); f.scene.setFrameUI(1000);
+  await f.scene.openBoundaryReview();
+  f.dispatch(f.ids.get('bboundaryforward'), 'keydown', { key: 'ArrowRight', shiftKey: true });
+  await flush(); assert.equal(f.scene.sceneNav.review.frame, 910);
+  f.dispatch(f.ids.get('bboundaryback'), 'keydown', { key: 'ArrowLeft', shiftKey: false });
+  await flush(); assert.equal(f.scene.sceneNav.review.frame, 909);
+  f.dispatch(f.ids.get('bboundarycancel'), 'keydown', { key: 'Escape' }); await flush();
+  assert.equal(f.scene.sceneNav.review, null);
+  assert.equal(f.api.state.frame, 1000);
+  near(f.video.currentTime, 1000.5 / 30, 'Escape restores source position');
 });
 
 test('interrupted analysis cannot collect stale pixels or restore over a newer user seek', async () => {

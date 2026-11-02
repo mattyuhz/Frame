@@ -5,7 +5,7 @@
    its Content-Security-Policy. */
 
 var CACHE_PREFIX = 'frame:' + self.registration.scope + ':';
-var CACHE = CACHE_PREFIX + 'v16-scenes';
+var CACHE = CACHE_PREFIX + 'v17-sections-review';
 var SHELL = ['./', './index.html', './compose.html'];
 
 self.addEventListener('install', function(e){

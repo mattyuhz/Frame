@@ -9,7 +9,9 @@ const vm = require('node:vm');
 const script = fs.readFileSync(path.join(__dirname, '..', 'sw.js'), 'utf8');
 const scope = 'https://mattyuhz.github.io/Frame/previews/scenes/';
 const prefix = 'frame:' + scope + ':';
-const current = prefix + 'v16-scenes';
+const version = script.match(/var CACHE = CACHE_PREFIX \+ '([^']+)'/);
+assert.ok(version, 'the worker must version its scope-specific cache');
+const current = prefix + version[1];
 
 function boot(options = {}) {
   const listeners = new Map(), opened = [], deleted = [], matches = [], puts = [], added = [], fetched = [];
