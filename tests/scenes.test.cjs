@@ -12,7 +12,7 @@ const exposure = `
     prepareScenes, resetScenes, setSections, cancelSceneScan, startSceneScan,
     sceneSignature, sceneDifference, detectSceneCuts, framesPerPx,
     scrubAbsolute, step, requestFrame, setFrameUI, tickScenePlayback,
-    paintSceneCards, paintSceneFocus, toggleMark, paintMarks, nameFor,
+    paintSceneCards, paintSceneFocus, toggleMark, paintMarks, nameFor, loadFile, setVideoInfo,
     boundaryLimits, openBoundaryReview, adjustBoundary, applyBoundary, closeBoundaryReview,
     setSeek(fn){ runSeek=fn; },
     setSaving(value){ saving=value; }
@@ -22,6 +22,9 @@ const exposure = `
 function setup(duration = 120, fps = 30, enabled = true) {
   const f = boot({ exposure });
   f.scene = f.window.__sceneTest;
+  // The lightweight DOM harness does not reflect the markup's boolean hidden
+  // attribute. Establish its actual browser default through the shipped setter.
+  f.scene.setVideoInfo(false);
   f.video.duration = duration;
   Object.assign(f.api.state, { fps, total: Math.max(1, Math.round(duration * fps)), frame: 0, url: 'blob:scene-source', base: 'source' });
   f.scene.sceneNav.duration = duration;
@@ -107,6 +110,44 @@ test('scene suggestions sanitize cuts and keep long stretches usable as sections
   assert.equal(ranges.at(-1).end, 100);
 });
 
+test('the primary readout uses elapsed milliseconds while frame metadata lives in Video information', () => {
+  const f = setup(500000);
+  for (const [frame, elapsed] of [[0, '00:00.000'], [1, '00:00.033'], [1799, '00:59.967'],
+    [1800, '01:00.000'], [108000, '1:00:00.000'], [111690, '1:02:03.000']]) {
+    f.scene.setFrameUI(frame);
+    assert.equal(f.ids.get('tc').textContent, elapsed);
+    assert.equal(f.ids.get('mFrame').textContent, String(frame));
+  }
+  for (const id of ['cropdims', 'mFps', 'mFrame', 'mTotal']) {
+    assert.equal(f.ids.get(id).closest('#videoinfo'), f.ids.get('videoinfo'), id + ' belongs in the info panel');
+  }
+  assert.equal(f.ids.get('videoinfo').getAttribute('role'), 'region');
+  assert.equal(f.ids.get('videoinfo').getAttribute('aria-label'), 'Video information');
+  assert.equal(f.ids.get('bvideoinfo').getAttribute('aria-expanded'), 'false');
+});
+
+test('Info toggles metadata and dismisses on Escape, outside interaction, and a replacement file', async () => {
+  const f = setup(); f.scene.setFrameUI(123);
+  const button = f.ids.get('bvideoinfo'), panel = f.ids.get('videoinfo');
+  button.click();
+  assert.equal(panel.hidden, false);assert.equal(button.getAttribute('aria-expanded'), 'true');
+  f.dispatch(panel, 'click');assert.equal(panel.hidden, false, 'interaction inside metadata keeps it open');
+  button.click();
+  assert.equal(panel.hidden, true);assert.equal(button.getAttribute('aria-expanded'), 'false');
+  button.click();f.dispatch(button, 'keydown', { key: 'Escape' });
+  assert.equal(panel.hidden, true);assert.equal(button.getAttribute('aria-expanded'), 'false');
+  assert.equal(f.api.state.frame, 123);
+  button.click();
+  f.dispatch(f.ids.get('tc'), 'pointerdown');f.dispatch(f.ids.get('tc'), 'click');
+  assert.equal(panel.hidden, true);assert.equal(button.getAttribute('aria-expanded'), 'false');
+  button.click();f.dispatch(f.ids.get('scrub'), 'focusin');
+  assert.equal(panel.hidden, true, 'moving keyboard focus outside dismisses the panel');
+  button.click();
+  f.scene.loadFile(new f.globals.File(['test'], 'replacement.mp4', { type: 'video/mp4' }));
+  await flush();
+  assert.equal(panel.hidden, true);assert.equal(button.getAttribute('aria-expanded'), 'false');
+});
+
 test('focused scrubbing expands its range with absolute timestamps and accessible endpoints', async () => {
   const f = setup(1200);
   const fullScale = f.scene.framesPerPx();
@@ -121,7 +162,7 @@ test('focused scrubbing expands its range with absolute timestamps and accessibl
   f.scene.scrubAbsolute(rect.left - 50); assert.equal(f.api.state.frame, 1800);
   f.scene.scrubAbsolute(rect.right + 50); assert.equal(f.api.state.frame, 2699);
   f.scene.scrubAbsolute(rect.left + rect.width / 2); assert.equal(f.api.state.frame, 2250);
-  assert.equal(f.ids.get('tc').textContent, '00:01:15:00', 'timecode remains source absolute');
+  assert.equal(f.ids.get('tc').textContent, '01:15.000', 'elapsed time remains source absolute');
   assert.equal(f.scene.sceneNav.active, 2);
   f.scene.selectScene(-1);
   assert.equal(f.api.state.frame, 2250, 'Whole video preserves the selected moment');
@@ -262,7 +303,10 @@ test('Sections starts off and preparing a video does not opt in or queue analysi
   assert.equal(f.scene.sceneNav.scan, null);
   assert.equal(f.scene.sceneNav.timer, null);
   assert.equal(f.ids.get('scenebody').hidden, true);
+  assert.equal(f.ids.get('scenes').hidden, true);
   assert.equal(f.ids.get('bsections').getAttribute('aria-checked'), 'false');
+  assert.equal(f.ids.get('bsections').getAttribute('aria-expanded'), 'false');
+  assert.equal(f.ids.get('bsections').closest('#readout'), f.ids.get('readout'));
   f.scene.startSceneScan();
   assert.equal(f.scene.sceneNav.scan, null, 'the scan API also rejects use before opt-in');
   assert.equal(f.seeks.length, 0);
@@ -275,6 +319,8 @@ test('enabling Sections reveals immediately usable ranges but analysis requires 
   f.scene.setSections(true);
   assert.equal(f.scene.sceneNav.enabled, true);
   assert.equal(f.ids.get('bsections').getAttribute('aria-checked'), 'true');
+  assert.equal(f.ids.get('bsections').getAttribute('aria-expanded'), 'true');
+  assert.equal(f.ids.get('scenes').hidden, false);
   assert.equal(f.ids.get('scenebody').hidden, false);
   assert.equal(f.scene.sceneNav.scan, null);
   assert.equal(f.scene.sceneNav.timer, null);
@@ -299,7 +345,9 @@ test('turning Sections off cancels analysis and returns to the whole video at th
   assert.equal(f.scene.sceneNav.scan, null);
   assert.equal(f.scene.sceneNav.timer, null);
   assert.equal(f.ids.get('scenebody').hidden, true);
+  assert.equal(f.ids.get('scenes').hidden, true);
   assert.equal(f.ids.get('bsections').getAttribute('aria-checked'), 'false');
+  assert.equal(f.ids.get('bsections').getAttribute('aria-expanded'), 'false');
   assert.deepEqual(plain(f.scene.sceneBounds()), { start: 0, end: 5399 });
   assert.equal(f.api.state.frame, 2800);
   first.resolve('seeked'); await flush();
@@ -316,7 +364,7 @@ test('short uncut clips show Find scenes before scanning and only a brief result
     assert.equal(f.ids.get('scenelist').children.length, 0, 'a single whole-video range has no redundant card');
     assert.equal(f.ids.get('scenelist').hidden, true);
     assert.equal(f.ids.get('scenefocus').hidden, true);
-    assert.equal(f.ids.get('scenetitle').hidden, true);
+    assert.equal(f.ids.has('scenetitle'), false, 'no redundant explorer heading');
     assert.equal(f.ids.get('sceneoptions').hidden, false);
     assert.equal(f.ids.get('bscanscenes').disabled, false);
     assert.equal(f.ids.get('bscanscenes').textContent, 'Find scenes');
@@ -326,7 +374,7 @@ test('short uncut clips show Find scenes before scanning and only a brief result
     assert.equal(f.ids.get('scenelist').children.length, 0);
     assert.equal(f.ids.get('scenefocus').hidden, true);
     assert.equal(f.ids.get('sceneoptions').hidden, true, 'no disabled Scan complete action occupies the panel');
-    assert.equal(f.ids.get('scenetitle').hidden, true);
+    assert.equal(f.ids.has('scenetitle'), false);
     assert.equal(f.ids.get('scenestatus').textContent, 'No scene changes found.');
     f.scene.setSections(false); f.scene.setSections(true);
     assert.equal(f.ids.get('sceneoptions').hidden, true, 'mode toggles retain the completed compact state');
@@ -345,7 +393,7 @@ test('long uncut videos retain useful multiple sections after analysis', async (
   assert.equal(f.ids.get('scenelist').children.length, 6);
   assert.equal(f.ids.get('scenelist').hidden, false);
   assert.equal(f.ids.get('scenefocus').hidden, false);
-  assert.equal(f.ids.get('scenetitle').hidden, false);
+  assert.equal(f.ids.has('scenetitle'), false);
   await finishScan(f);
   assert.equal(f.scene.sceneNav.items.length, 6);
   assert.equal(f.ids.get('scenelist').children.length, 6);

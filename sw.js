@@ -5,7 +5,7 @@
    its Content-Security-Policy. */
 
 var CACHE_PREFIX = 'frame:' + self.registration.scope + ':';
-var CACHE = CACHE_PREFIX + 'v18-compact-sections';
+var CACHE = CACHE_PREFIX + 'v19-compact-timeline';
 var SHELL = ['./', './index.html', './compose.html'];
 
 self.addEventListener('install', function(e){

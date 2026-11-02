@@ -83,16 +83,28 @@
   .busy.on{display:flex}
   .busy span{font-family:var(--sans);font-size:14px;color:var(--read)}
 
-  .readout{display:flex;align-items:center;justify-content:space-between;gap:14px;
-    flex-wrap:wrap;padding:16px 0}
-  .tc{font-family:var(--sans);font-variant-numeric:tabular-nums;font-size:clamp(32px,8.6vw,44px);
-    font-weight:300;line-height:1;letter-spacing:-.02em;color:var(--read)}
-  .tc .sep{opacity:.28}
-  .tc .ff{color:var(--read)}
-  .meta{line-height:1.35;text-align:right;flex:1;min-width:130px}
-  .meta div + div{margin-top:4px}
-  .meta div{font-family:var(--sans);font-size:13px;color:var(--dim)}
-  .meta b{color:var(--mid);font-weight:400}
+  .readout{position:relative;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 0}
+  .tc{font-family:var(--sans);font-variant-numeric:tabular-nums;font-size:clamp(18px,5.4vw,28px);
+    font-weight:300;line-height:1;letter-spacing:-.02em;color:var(--read);white-space:nowrap}
+  .tc .fraction{color:var(--mid)}
+  .readouttools{display:flex;align-items:center;gap:4px;flex-shrink:0}
+  .readouttools button{font:inherit;font-size:13px;color:var(--mid);background:var(--raise);border:0;
+    border-radius:16px;min-height:44px;padding:8px 12px;cursor:pointer}
+  .readouttools .sectionswitch[aria-checked="true"]{background:var(--read);color:var(--void)}
+  .readouttools .infotoggle{display:flex;align-items:center;justify-content:center;width:44px;padding:0;background:transparent}
+  .infotoggle svg{width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:1.5}
+  .readouttools .infotoggle[aria-expanded="true"]{background:var(--raise);color:var(--read)}
+  .readouttools button:disabled{opacity:.32;cursor:default}
+  .readouttools button:focus-visible{outline:2px solid var(--read);outline-offset:2px}
+  .videoinfo{position:absolute;z-index:12;right:0;top:calc(100% - 4px);width:320px;max-width:100%;
+    padding:16px;background:#141414;border:1px solid var(--rule);border-radius:16px;box-shadow:0 12px 32px #0009}
+  .videoinfo[hidden]{display:none}
+  .videoinfo h3{font-size:14px;font-weight:500;margin-bottom:6px}
+  .videoinfo p{font-size:12px;color:#aaa;line-height:1.4;overflow-wrap:anywhere;margin-bottom:14px}
+  .videoinfo dl{display:grid;grid-template-columns:auto 1fr;gap:10px 12px;font-size:12px;line-height:1.4}
+  .videoinfo dt{color:#aaa}
+  .videoinfo dd{text-align:right;color:var(--mid);margin:0;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+  .videoinfo b{font-weight:400}
 
   .scrub{position:relative;height:48px;margin-top:2px;touch-action:none;cursor:ew-resize}
   .scrub[aria-disabled="true"]{opacity:.32;pointer-events:none}
@@ -107,14 +119,14 @@
 
 
   .scrubwrap{position:relative}
-  .scenes{margin:0 0 16px;border-top:1px solid var(--rule);padding-top:12px}
+  .scenes{margin:0 0 10px}
   .scenes[hidden]{display:none}
   .scenes [hidden]{display:none!important}
   .scenehead,.scenefocus{display:flex;align-items:center;justify-content:space-between;gap:8px}
-  .scenehead strong{font-size:14px;font-weight:500}
   .scenehead button,.scenefocus button,.boundaryreview button{font:inherit;color:var(--read);background:var(--raise);border:0;border-radius:16px;min-height:44px;padding:8px 12px;cursor:pointer}
-  .scenehead .sectionswitch[aria-checked="true"]{background:white;color:black}
-  .sceneoptions{margin-top:8px}
+  .sceneoptions{justify-content:flex-end;flex-shrink:0}
+  .sceneintro{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:8px}
+  .sceneintro .scenestatus{margin:0;flex:1}
   .scenes button:disabled{opacity:.32;cursor:default}
   .scenes button:focus-visible{outline:2px solid white;outline-offset:2px}
   .scenestatus{color:#aaa;font-size:12px;line-height:1.5;margin:6px 0 10px;min-height:18px}
@@ -379,18 +391,29 @@
   </div>
 
   <div class="readout" id="readout">
-    <div class="tc" id="tc">00<span class="sep">:</span>00<span class="sep">:</span>00<span class="sep">:</span><span class="ff">00</span></div>
-    <div class="meta">
-      <div><b id="cropdims" aria-label="Output image size">&mdash;</b> &middot; <b id="mFps">&mdash;</b></div>
-      <div>frame <b id="mFrame">&mdash;</b> of <b id="mTotal">&mdash;</b></div>
+    <div class="tc" id="tc" aria-label="Video position">00:00<span class="fraction">.000</span></div>
+    <div class="readouttools">
+      <button type="button" class="sectionswitch" id="bsections" role="switch" aria-checked="false" aria-expanded="false" aria-controls="scenebody" aria-label="Sections" disabled>Sections</button>
+      <button type="button" class="infotoggle" id="bvideoinfo" aria-label="Video information" title="Video information" aria-expanded="false" aria-controls="videoinfo" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v6m0-10v1"/></svg></button>
+    </div>
+    <div class="videoinfo" id="videoinfo" role="region" aria-label="Video information" hidden>
+      <h3>Video information</h3>
+      <p id="mFilename"></p>
+      <dl>
+        <dt>Output size</dt><dd><b id="cropdims" aria-label="Output image size">&mdash;</b></dd>
+        <dt>Estimated frame rate</dt><dd id="mFps">&mdash;</dd>
+        <dt>Estimated frame</dt><dd><b id="mFrame">&mdash;</b> of <b id="mTotal">&mdash;</b></dd>
+        <dt>Frame timecode</dt><dd id="mTimecode">00:00:00:00</dd>
+      </dl>
     </div>
   </div>
 
   <section class="scenes" id="scenes" aria-label="Video sections" hidden>
-    <div class="scenehead"><strong>Sections</strong><button type="button" class="sectionswitch" id="bsections" role="switch" aria-checked="false" aria-controls="scenebody" aria-label="Sections">Off</button></div>
     <div id="scenebody" hidden>
-    <div class="scenehead sceneoptions" id="sceneoptions"><strong id="scenetitle">Explore the video</strong><button type="button" id="bscanscenes">Find scenes</button></div>
+    <div class="sceneintro">
     <p class="scenestatus" id="scenestatus" role="status" aria-live="polite">Choose a section to scrub in detail.</p>
+    <div class="scenehead sceneoptions" id="sceneoptions"><button type="button" id="bscanscenes">Find scenes</button></div>
+    </div>
     <div class="scenelist" id="scenelist" aria-label="Sections"></div>
     <div class="scenefocus" id="scenefocus"><span id="scenerange">Whole video</span><nav aria-label="Section navigation">
       <button type="button" id="bsceneprev" aria-label="Previous section" disabled>&larr;</button>
@@ -976,11 +999,26 @@ function injectPng(bytes, payload){
     return { h:pad(Math.floor(sec/3600)), m:pad(Math.floor(sec/60)%60), s:pad(sec%60), f:pad(frame%f) };
   }
   function paintTimecode(){
-    var t=timecode(state.frame,state.fps);
+    var t=timecode(state.frame,state.fps), millis=Math.round(state.frame/state.fps*1000), seconds=Math.floor(millis/1000);
+    var elapsed=(seconds>=3600?Math.floor(seconds/3600)+':':'')+pad(Math.floor(seconds/60)%60)+':'+pad(seconds%60);
     tcEl.textContent='';
     function put(x,c){ var s=document.createElement('span'); if(c)s.className=c; s.textContent=x; tcEl.appendChild(s); }
-    put(t.h); put(':','sep'); put(t.m); put(':','sep'); put(t.s); put(':','sep'); put(t.f,'ff');
+    put(elapsed); put('.'+String(millis%1000).padStart(3,'0'),'fraction');
+    $('mTimecode').textContent=t.h+':'+t.m+':'+t.s+':'+t.f;
   }
+  function setVideoInfo(on){
+    $('videoinfo').hidden=!on;
+    $('bvideoinfo').setAttribute('aria-expanded',String(on));
+  }
+  $('bvideoinfo').addEventListener('click',function(){
+    if(state.ready)setVideoInfo($('videoinfo').hidden);
+  });
+  function dismissVideoInfo(e){
+    if(!$('videoinfo').hidden&&!$('videoinfo').contains(e.target)&&!$('bvideoinfo').contains(e.target))setVideoInfo(false);
+  }
+  document.addEventListener('pointerdown',dismissVideoInfo);
+  document.addEventListener('click',dismissVideoInfo);
+  document.addEventListener('focusin',dismissVideoInfo);
   function say(m,w){
     if(!m) return;
     // Keep feedback transient; there is no status paragraph below the actions.
@@ -997,6 +1035,7 @@ function injectPng(bytes, payload){
     var ab=document.getElementById('cmpab'); if(ab) ab.className='cmpab';
   }
   function showSheet(id){
+    setVideoInfo(false);
     closeBoundaryReview(true);
     cancelSceneScan(true);
     closeAllSheets();
@@ -1005,6 +1044,9 @@ function injectPng(bytes, payload){
   function working(on,l){ busy.className=on?'busy on':'busy'; if(l)busyTxt.textContent=l; }
   function setEnabled(on){
     state.ready=on;
+    $('bsections').disabled=!on;
+    $('bvideoinfo').disabled=!on;
+    if(!on)setVideoInfo(false);
     scrubEl.setAttribute('aria-disabled', on?'false':'true');
     Object.keys(btns).forEach(function(k){ btns[k].disabled=!on; });
   }
@@ -1054,10 +1096,10 @@ function injectPng(bytes, payload){
     var r=sceneBounds(), item=sceneNav.enabled&&sceneNav.items[sceneNav.active];
     var multiple=sceneNav.items.length>1;
     $('bsections').setAttribute('aria-checked',String(sceneNav.enabled));
-    $('bsections').textContent=sceneNav.enabled?'On':'Off';
+    $('bsections').setAttribute('aria-expanded',String(sceneNav.enabled));
+    $('scenes').hidden=!sceneNav.enabled||!sceneNav.items.length;
     $('scenebody').hidden=!sceneNav.enabled;
     $('sceneoptions').hidden=sceneNav.done&&!multiple;
-    $('scenetitle').hidden=!multiple;
     $('scenelist').hidden=!multiple;
     $('scenefocus').hidden=!multiple;
     scrubEl.setAttribute('aria-valuemin',String(r.start));
@@ -1116,8 +1158,6 @@ function injectPng(bytes, payload){
     sceneNav.duration=video.duration;
     sceneNav.items=buildSceneRanges(video.duration,[]);
     sceneNav.interval=Math.max(0.5,video.duration/240);
-    $('scenes').hidden=!sceneNav.items.length;
-    $('scenetitle').textContent='Explore the video';
     $('scenestatus').textContent=sceneNav.items.length>1?'Choose a section to scrub in detail.':'';
     $('bscanscenes').textContent='Find scenes'; $('bscanscenes').disabled=false;
     paintSceneCards();
@@ -1295,7 +1335,6 @@ function injectPng(bytes, payload){
         sceneNav.done=true;sceneNav.cuts=cuts||detectSceneCuts(sceneNav.samples);
         sceneNav.items=buildSceneRanges(sceneNav.duration,sceneNav.cuts);sceneNav.active=-1;
         paintSceneCards();
-        $('scenetitle').textContent=sceneNav.cuts.length?'Scenes & sections':'Explore the video';
         $('scenestatus').textContent=sceneNav.cuts.length?'Suggested scenes · review a start to check it.':
           (sceneNav.items.length>1?'No scene changes found · '+sceneNav.items.length+' time sections.':'No scene changes found.');
         $('bscanscenes').textContent='Scan complete';$('bscanscenes').disabled=true;
@@ -1453,6 +1492,7 @@ function injectPng(bytes, payload){
     state.crop={ratio:0,scale:1,cx:0.5,cy:0.5,free:true};
     if(state.url){ URL.revokeObjectURL(state.url); state.url=null; }
     state.base=(file.name||'frame').replace(/\.[^.]+$/,'');
+    $('mFilename').textContent=file.name||'Video';
     state.marks=[]; lastFile=file; lastError=null; canvasState='not tested';
     state.meta={}; state.metaCount=0;
     readVideoMetadata(file).then(function(m){
@@ -1987,6 +2027,10 @@ function injectPng(bytes, payload){
   });
 
   document.addEventListener('keydown',function(e){
+    if(!$('videoinfo').hidden){
+      if(e.key==='Escape'){e.preventDefault();setVideoInfo(false);$('bvideoinfo').focus();return;}
+      if($('videoinfo').contains(e.target))return;
+    }
     var tag=(e.target&&e.target.tagName)||'';
     if(tag==='SELECT'||tag==='TEXTAREA') return;
     if(tag==='INPUT') return;

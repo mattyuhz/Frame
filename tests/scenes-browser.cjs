@@ -12,7 +12,7 @@ const output = process.env.FRAME_QA_OUTPUT || '/tmp/frame-scene-qa';
 fs.mkdirSync(output, { recursive: true });
 const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
 // Expose existing functions only inside the test browser, as the unit harness does.
-const instrumented = html.replace(/\}\)\(\);\s*<\/script>/, `window.__sceneQA={state,sceneNav,sceneBounds,requestFrame,goToFrame,selectScene};\n})();\n</script>`);
+const instrumented = html.replace(/\}\)\(\);\s*<\/script>/, `window.__sceneQA={state,sceneNav,sceneBounds,requestFrame,goToFrame,selectScene,setFrameUI};\n})();\n</script>`);
 (async () => {
   const browser = await chromium.launch({ headless: true,
     ...(process.env.FRAME_CHROME ? { executablePath: process.env.FRAME_CHROME } : {}) });
@@ -34,14 +34,25 @@ const instrumented = html.replace(/\}\)\(\);\s*<\/script>/, `window.__sceneQA={s
       return { enabled: nav.enabled, scan: nav.scan, samples: nav.samples.length, timer: nav.timer };
     }), { enabled: false, scan: null, samples: 0, timer: null }, 'opening a video never opts into Sections or starts analysis');
     assert.equal(await page.locator('#bsections').getAttribute('aria-checked'), 'false');
+    assert.equal(await page.locator('#bsections').getAttribute('aria-expanded'), 'false');
+    assert.equal(await page.locator('#bsections').textContent(), 'Sections');
+    assert.equal(await page.locator('#readout #bsections').count(), 1);
+    assert.equal(await page.locator('#scenes').isVisible(), false);
     assert.equal(await page.locator('#scenebody').isVisible(), false);
+    assert.equal(await page.locator('#videoinfo').isVisible(), false);
+    assert.equal(await page.locator('#mFrame').isVisible(), false);
+    assert.equal(await page.locator('#bvideoinfo').getAttribute('aria-expanded'), 'false');
+    assert.match(await page.locator('#tc').textContent(), /^\d{2}:\d{2}\.\d{3}$/);
     if (scan) {
       await page.locator('#bsections').click();
       assert.equal(await page.locator('#bsections').getAttribute('aria-checked'), 'true');
+      assert.equal(await page.locator('#bsections').getAttribute('aria-expanded'), 'true');
+      assert.equal(await page.locator('#bsections').textContent(), 'Sections');
+      assert.equal(await page.locator('#scenes').isVisible(), true);
       assert.deepEqual(await page.evaluate(() => [window.__sceneQA.sceneNav.scan, window.__sceneQA.sceneNav.timer, window.__sceneQA.sceneNav.samples.length]), [null, null, 0], 'Sections is navigation only until Find scenes');
       if (await page.evaluate(() => window.__sceneQA.sceneNav.items.length === 1)) {
         assert.equal(await page.locator('.scenecard').count(), 0, 'single-range sources do not show a redundant card');
-        assert.equal(await page.locator('#scenetitle').isVisible(), false);
+        assert.equal(await page.locator('#scenetitle').count(), 0);
         assert.equal(await page.locator('#scenefocus').isVisible(), false);
         assert.equal(await page.locator('#bscanscenes').isVisible(), true, 'Find scenes remains available before analysis');
       }
@@ -50,6 +61,65 @@ const instrumented = html.replace(/\}\)\(\);\s*<\/script>/, `window.__sceneQA={s
   }
   // Opening and enabling navigation must never secretly borrow the decoder.
   await open('02-long-continuous.mp4', false);
+  await page.locator('#bvideoinfo').click();
+  assert.equal(await page.locator('#videoinfo').isVisible(), true);
+  assert.equal(await page.locator('#videoinfo').getAttribute('role'), 'region');
+  assert.equal(await page.locator('#videoinfo').getAttribute('aria-label'), 'Video information');
+  assert.equal(await page.locator('#mFrame').isVisible(), true);
+  await page.locator('#videoinfo').click();assert.equal(await page.locator('#videoinfo').isVisible(), true);
+  await page.keyboard.press('Escape');
+  assert.equal(await page.locator('#videoinfo').isVisible(), false);
+  await page.locator('#bvideoinfo').click();await page.locator('#tc').click();
+  assert.equal(await page.locator('#videoinfo').isVisible(), false, 'outside click dismisses metadata');
+  await page.locator('#bvideoinfo').click();await page.keyboard.press('Tab');
+  assert.equal(await page.locator('#videoinfo').isVisible(), false, 'keyboard focus leaving Info dismisses metadata');
+  await page.locator('#bvideoinfo').click();
+  await page.locator('#file').setInputFiles(path.join(__dirname, 'fixtures/scenes/03-flashes-and-pan.mp4'));
+  await page.waitForFunction(() => window.__sceneQA.sceneNav.duration === 18 && window.__sceneQA.sceneNav.items.length > 0);
+  assert.equal(await page.locator('#videoinfo').isVisible(), false, 'new source closes metadata');
+  assert.equal(await page.locator('#bvideoinfo').getAttribute('aria-expanded'), 'false');
+  await open('02-long-continuous.mp4', false);
+  // Supply a long source-relative timestamp only in this test browser to audit
+  // the compact readout without needing a multi-hour media file.
+  const readoutState = await page.evaluate(() => {
+    const q = window.__sceneQA, previous = { frame: q.state.frame, total: q.state.total, fps: q.state.fps,
+      frameRateText: document.querySelector('#mFps').textContent, frameTotalText: document.querySelector('#mTotal').textContent };
+    q.state.fps = 30;q.state.total = 15000000;q.setFrameUI((123 * 3600 + 45 * 60 + 56) * 30 + 23);
+    document.querySelector('#mFps').textContent = '30 fps';document.querySelector('#mTotal').textContent = String(q.state.total);
+    return previous;
+  });
+  assert.equal(await page.locator('#tc').textContent(), '123:45:56.767');
+  const readoutGeometry = [];
+  for (const width of [320, 390]) {
+    await page.setViewportSize({ width, height: 1000 });
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, 'no page overflow at ' + width);
+    assert.equal(await page.locator('#readout').evaluate(el => el.scrollWidth > el.clientWidth), false, 'long-hour readout fits at ' + width);
+    const controls = await page.evaluate(() => ['tc', 'bsections', 'bvideoinfo'].map(id => {
+      const r = document.getElementById(id).getBoundingClientRect();
+      return { id, left: r.left, right: r.right, top: r.top, bottom: r.bottom };
+    }));
+    for (let i = 0; i < controls.length; i++) for (let j = i + 1; j < controls.length; j++) {
+      const a = controls[i], b = controls[j];
+      const overlap = Math.min(a.right, b.right) > Math.max(a.left, b.left) && Math.min(a.bottom, b.bottom) > Math.max(a.top, b.top);
+      assert.equal(overlap, false, a.id + ' and ' + b.id + ' do not overlap at ' + width);
+    }
+    readoutGeometry.push({ width, controls });
+    await page.locator('#bvideoinfo').click();
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, 'expanded Info fits at ' + width);
+    await page.screenshot({ path: path.join(output, 'readout-' + width + '.png'), fullPage: true });
+    await page.keyboard.press('Escape');
+  }
+  await page.evaluate(previous => {
+    const q = window.__sceneQA;Object.assign(q.state, { frame: previous.frame, total: previous.total, fps: previous.fps });q.setFrameUI(previous.frame);
+    document.querySelector('#mFps').textContent = previous.frameRateText;document.querySelector('#mTotal').textContent = previous.frameTotalText;
+  }, readoutState);
+  await page.setViewportSize({ width: 1024, height: 1050 });
+  if (process.env.FRAME_QA_READOUT_ONLY === '1') {
+    assert.deepEqual(errors, []);assert.deepEqual(network, []);
+    fs.writeFileSync(path.join(output, 'readout-results.json'), JSON.stringify({ info: 'passed', keyboardDismissal: 'passed', readoutGeometry, errors, externalRequests: network }, null, 2) + '\n');
+    console.log(JSON.stringify({ info: 'passed', keyboardDismissal: 'passed', readoutGeometry }));
+    await browser.close();return;
+  }
   await page.waitForTimeout(650);
   assert.deepEqual(await page.evaluate(() => [window.__sceneQA.sceneNav.scan, window.__sceneQA.sceneNav.samples.length]), [null, 0]);
   await page.locator('#bsections').click();
@@ -58,6 +128,7 @@ const instrumented = html.replace(/\}\)\(\);\s*<\/script>/, `window.__sceneQA={s
   const offFrame = await page.evaluate(() => window.__sceneQA.state.frame);
   await page.locator('#bsections').click();
   assert.equal(await page.locator('#scenebody').isVisible(), false);
+  assert.equal(await page.locator('#scenes').isVisible(), false);
   assert.deepEqual(await page.evaluate(() => [window.__sceneQA.state.frame, window.__sceneQA.sceneNav.active, window.__sceneQA.sceneNav.samples.length]), [offFrame, -1, 0]);
   for (const fixture of fixtures) {
     const start = Date.now();
@@ -83,7 +154,7 @@ const instrumented = html.replace(/\}\)\(\);\s*<\/script>/, `window.__sceneQA={s
       await page.waitForFunction(() => !window.__sceneQA.state.seeking);
     } else {
       assert.equal(await page.locator('.scenecard').count(), 0, fixture.file + ': no redundant whole-video card');
-      assert.equal(await page.locator('#scenetitle').isVisible(), false);
+      assert.equal(await page.locator('#scenetitle').count(), 0);
       assert.equal(await page.locator('#bscanscenes').isVisible(), false, 'completed single-range scans have no Scan complete button');
       assert.equal(await page.locator('#scenefocus').isVisible(), false);
       assert.equal(result.status, 'No scene changes found.');
