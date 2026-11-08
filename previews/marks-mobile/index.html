@@ -508,11 +508,32 @@
  .wrap>#markedentry{grid-row:5}
  .editorpopover{bottom:auto;top:100%}
 }
+
+/* Proportions from the supplied 440 px layout, using existing app components. */
+@media (orientation:portrait), (min-height:560px){
+ .wrap{padding:0 16px 12px}
+ .wrap>.appnav{height:48px;min-height:48px;margin:0;display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;font-size:16px}
+ .appnav>span:first-child{text-align:right;color:#fff}.appnav>span:nth-child(2){text-align:center;color:#555}.appnav>a{text-align:left;color:#555}
+ .wrap>.stage{flex:0 1 auto;aspect-ratio:16/9;min-height:80px}
+ .readout{padding:16px 0;gap:10px;min-height:80px}
+ .readout .tc{font-size:clamp(22px,calc(20vw - 42px),48px);line-height:1;font-weight:300;letter-spacing:-.04em}
+ .readout .tc .fraction{font-size:.48em;letter-spacing:-.02em}
+ .readout .tc[data-long="true"]{font-size:clamp(20px,7vw,32px)}
+ .readout .actions{gap:10px}
+ .readout .actions button{width:48px!important;height:48px;min-height:48px;border-radius:16px;font-size:12px;padding:4px}
+ .edittools summary{width:48px;height:48px;border-radius:16px}
+ .transport{grid-template-columns:48px 48px minmax(48px,1fr) 48px 48px;gap:8px;margin-top:8px}
+ .transport button{height:48px;min-height:48px;padding:8px 0;border-radius:16px}
+ .transport #bplay{border-radius:999px}
+ .scrub{height:48px;margin-top:0}
+}
+@media(max-width:360px){.readout{gap:6px}.readout .actions{gap:6px}.transport{grid-template-columns:44px 44px minmax(44px,1fr) 44px 44px;gap:6px}}
+@media(prefers-reduced-motion:no-preference){.stage{transition:aspect-ratio 200ms ease-out}}
 </style>
 </head>
 <body>
 <div class="wrap">
-  <nav class="appnav" aria-label="Apps"><span>Frame</span><a href="./compose.html" target="_blank" rel="noopener" aria-label="Compose layouts (opens in a new tab)">Compose ↗</a></nav>
+  <nav class="appnav" aria-label="Apps"><span aria-current="page">Frame</span><span aria-hidden="true">/</span><a href="./compose.html" target="_blank" rel="noopener" aria-label="Compose layouts (opens in a new tab)">Compose</a></nav>
   <select id="markworkflow" hidden aria-label="Marked-frame workflow"><option value="board" selected>Board + keeper</option><option value="drawer">Marks drawer</option><option value="filmstrip">Filmstrip</option><option value="review">Review pass</option></select>
 
   <div class="banner" id="banner">
@@ -547,10 +568,6 @@
 
   <div class="readout" id="readout">
     <div class="tc" id="tc" aria-label="Video position">00:00<span class="fraction">.000</span></div>
-<div class="actions" id="actions">
-    <button class="t" id="bmark" disabled>Mark</button>
-    <button class="t primary" id="bsave" disabled>Save</button>
-  </div>
     <details class="edittools" id="edittools"><summary aria-label="More video tools" title="More video tools">•••</summary><div class="editorpopover"><div class="iconbar" id="iconbar">
     <button class="ic" id="brotate" aria-label="Rotate 90 degrees" title="Rotate 90&deg;"><svg viewBox="0 0 20 20" aria-hidden="true"><rect x="6" y="7" width="9" height="10" rx="1" transform="rotate(20 10.5 12)"/><path d="M4 6a7 7 0 0 1 12-2M16 1v3h-3"/></svg></button>
     <button class="ic" id="bcrop" disabled aria-label="Crop" title="Crop"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5.5 1.5v13h13"/><path d="M1.5 5.5h13v13"/></svg></button>
@@ -565,6 +582,11 @@
       <button type="button" class="sectionswitch" id="bsections" role="switch" aria-checked="false" aria-expanded="false" aria-controls="scenebody" aria-label="Sections" disabled>Sections</button>
       <button type="button" class="infotoggle" id="bvideoinfo" aria-label="Video information" title="Video information" aria-expanded="false" aria-controls="videoinfo" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v6m0-10v1"/></svg></button>
     </div></div></details>
+    <div class="actions" id="actions">
+    <button class="t" id="bmark" disabled>Mark</button>
+    <button class="t primary" id="bsave" disabled>Save</button>
+  </div>
+
     <div class="videoinfo" id="videoinfo" role="region" aria-label="Video information" hidden>
       <h3>Video information</h3>
       <p id="mFilename"></p>
@@ -1194,6 +1216,7 @@ function injectPng(bytes, payload){
   function paintTimecode(){
     var t=timecode(state.frame,state.fps), millis=Math.round(state.frame/state.fps*1000), seconds=Math.floor(millis/1000);
     var elapsed=(seconds>=3600?Math.floor(seconds/3600)+':':'')+pad(Math.floor(seconds/60)%60)+':'+pad(seconds%60);
+    tcEl.setAttribute('data-long',String(seconds>=3600));
     tcEl.textContent='';
     function put(x,c){ var s=document.createElement('span'); if(c)s.className=c; s.textContent=x; tcEl.appendChild(s); }
     put(elapsed); put('.'+String(millis%1000).padStart(3,'0'),'fraction');
@@ -3158,6 +3181,7 @@ function injectPng(bytes, payload){
     var W=video.videoWidth, H=video.videoHeight;
     var r=cropMode?{w:W,h:H}:cropRect();
     var dispW=rotSwap()?r.h:r.w, dispH=rotSwap()?r.w:r.h;
+    stage.style.aspectRatio=dispW+' / '+dispH;
     var cw=viewport.clientWidth || 320;
     var s=Math.min(cw/dispW,stage.clientHeight/dispH);
     if(!(s>0)) return;
@@ -3266,7 +3290,7 @@ function injectPng(bytes, payload){
     }
     function show(id,on){node(id).hidden=!on;}
     function onFrame(){
-      var marked=contains(state.frame);btns.bmark.textContent=marked?'✓ Marked':'Mark';
+      var marked=contains(state.frame);btns.bmark.textContent=marked?'Marked':'Mark';
       btns.bmark.setAttribute('aria-pressed',String(marked));
       if(m.open)node('marktime').textContent=elapsed(state.frame);
       var buttons=node('markstrip').children;
