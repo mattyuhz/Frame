@@ -5,7 +5,7 @@
    its Content-Security-Policy. */
 
 var CACHE_PREFIX = 'frame:' + self.registration.scope + ':';
-var CACHE = CACHE_PREFIX + 'v20-marked-workflows';
+var CACHE = CACHE_PREFIX + 'v21-mobile-board-keeper';
 var SHELL = ['./', './index.html', './compose.html'];
 
 self.addEventListener('install', function(e){

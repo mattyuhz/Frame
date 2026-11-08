@@ -1,15 +1,44 @@
 # Marked-frame workflow explorations
 
-This is an isolated prototype for comparing three real-video workflows. Pick
-**Marks drawer**, **Filmstrip**, or **Review pass** from the Workflow preview
+This is an isolated prototype for comparing four real-video workflows. Pick
+**Board + keeper**, **Marks drawer**, **Filmstrip**, or **Review pass** from the Workflow preview
 menu. Switching workflows keeps the current video's marks and save selection.
 Opening a different video starts a new collection. Marks are held in this tab;
 they are not saved across reloads.
 
-The three workflows share the same source frames, crop, rotation, and verified
+The four workflows share the same source frames, crop, rotation, and verified
 export path. Marks identify moments in the source video; they do not hold
 independent crop settings. Nothing uploads the video or contacts an outside
 service. The workflow picker exists for this prototype.
+
+## Phone workflow: Board + keeper
+
+This is the default, also available directly at `#board`. It brings the visual
+browsing idea from the V2 Contact Board and the explicit keeper from Candidate
+Duel into the real-video preview. The V2 prototype files remain unchanged.
+
+1. Mark interesting moments while scrubbing, then open **Marked frames**.
+2. Tap a thumbnail to inspect it. Use the separate checkmark to select files for
+   saving. The board already contains only marks; no marked-only filter is needed.
+3. **Pin as keeper** identifies your current favorite independently of the save
+   selection. Open another candidate and compare it with the keeper, or select
+   exactly two frames on the board and compare those. Entering a two-frame
+   comparison keeps an existing pin; A is a candidate until you choose A or B.
+4. **A · Keeper** and **B · Candidate** switch the large image at the same zoom
+   and pan. Pinch to inspect details. The pair's timestamps identify each side.
+5. **Keep A** or **Promote B** advances through the remaining marked candidates.
+   **Next** skips a decision. None of these deletes marks or changes your export
+   selection. The pass stops at its end; it does not rank frames or loop forever.
+6. **Undo** reverses the latest decision, including the keeper and candidate
+   position. Return to the board whenever you want.
+7. **Save keeper** exports the pinned frame even when B is currently displayed.
+   **Save selected** on the board keeps the existing multiple-image workflow.
+
+Check these on a phone: 0/1/2/many marks, a portrait video, zoomed comparisons,
+promotion while A is displayed, Undo on the final comparison, removing a keeper
+and undoing it, rapid A/B taps, cancelling the save menu, and returning to the
+same scrub position. Marks and keeper state in this experimental preview are
+session-only; reload clears them.
 
 ## Try each workflow
 
@@ -22,7 +51,7 @@ service. The workflow picker exists for this prototype.
    collection for selection, comparison, and saving.
 4. **Review pass:** use Keep / Skip to build a save selection. Skipping does not
    delete a mark. Compare similar candidates and preserve unrelated keepers.
-5. Switch between all three workflows. Marks and selected keepers should remain.
+5. Switch between all four workflows. Marks and selected frames should remain.
 6. Save one frame and several selected frames. Review should remain open, and
    the original browsing frame and section should return when you finish review.
    On browsers that support sharing image files, use the system share menu;
@@ -58,6 +87,17 @@ the staging evaluation.
 
 ## Verified staging checks
 
+On November 8, 2026, the mobile integration passed 179 unit tests plus the new
+mobile workflow, existing marks, and original scene browser suites. Fresh mobile
+browser contexts at 320×568, 390×844, and 430×932 verified layout and touch-target
+sizes. Tests checked independent pin/selection state, provisional two-frame
+comparisons, decisions and Undo, finite progression, rendered A/B zoom and pan,
+source replacement, and decoder visibility during thumbnail regeneration.
+A real 900×1600 PNG contained the pinned burgundy shot while the blue challenger
+was displayed, and review returned to its original source frame and section.
+There were no page errors or external requests. Physical iPhone native sharing
+and long HEVC/HDR footage still require on-device evaluation.
+
 On November 2, 2026, 164 unit tests passed. Desktop Chrome decoded real files
 through all three workflows, 24-mark collections, selection and Undo, paired
 comparison, frame/section restoration, source replacement, and keyboard focus.
@@ -73,4 +113,6 @@ The shared workflow module is `prototypes/marked-frames.js`. Run
 `python3 prototypes/build-marked-preview.py` after editing it; the published app
 contains that code inline and loads no external script. Unit checks are
 `node --test tests/*.test.cjs`; real-decoder checks are `tests/marks-browser.cjs`
-using the same Playwright/Chrome environment variables as `scenes-browser.cjs`.
+and `tests/mobile-marks-browser.cjs`, using the same Playwright/Chrome environment
+variables as `scenes-browser.cjs`. The mobile harness defaults to localhost:8877;
+set `FRAME_PREVIEW_URL` to override it.
