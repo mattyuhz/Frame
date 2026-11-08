@@ -10,7 +10,7 @@ const base=process.env.FRAME_PREVIEW_URL||'http://127.0.0.1:8877';
 const output=process.env.FRAME_QA_OUTPUT||'/tmp/frame-mobile-marks-qa';
 fs.mkdirSync(output,{recursive:true});
 const html=fs.readFileSync(path.join(root,'index.html'),'utf8');
-const instrumented=html.replace(/\}\)\(\);\s*<\/script>/,`window.__mobileMarks={state,markFlow,sceneNav,goToFrame,setSections,buildSceneRanges,paintSceneCards,selectScene,setRotation,setCropToRect};\n})();\n</script>`);
+const instrumented=html.replace(/\}\)\(\);\s*<\/script>/,`window.__mobileMarks={slowSeeks(){window.originalSeek=goToFrame;goToFrame=function(n){return window.originalSeek(n).then(result=>new Promise(resolve=>setTimeout(()=>resolve(result),100)));};},normalSeeks(){goToFrame=window.originalSeek;},state,markFlow,sceneNav,goToFrame,setSections,buildSceneRanges,paintSceneCards,selectScene,setRotation,setCropToRect};\n})();\n</script>`);
 (async()=>{
  const browser=await chromium.launch({headless:true,...(process.env.FRAME_CHROME?{executablePath:process.env.FRAME_CHROME}:{})});
  let page;
@@ -65,7 +65,7 @@ const instrumented=html.replace(/\}\)\(\);\s*<\/script>/,`window.__mobileMarks={
  assert.equal((await snapshot()).view,'grid');
  assert.equal(await page.locator('#markviewer').isVisible(),false,'ready contact board gives its space to thumbnails');
  assert.equal(await page.locator('#markgrid .marktile').count(),4);
- await page.locator('#markpick-30').click();await page.locator('#markpick-240').click();
+ const boardTop=await page.locator('#markgrid').evaluate(e=>e.getBoundingClientRect().top);await page.locator('#markpick-30').click();assert.equal(await page.locator('#markgrid').evaluate(e=>e.getBoundingClientRect().top),boardTop,'first selection does not push thumbnails down');await page.locator('#markpick-240').click();assert.equal(await page.locator('#markgrid').evaluate(e=>e.getBoundingClientRect().top),boardTop,'second selection keeps thumbnails anchored');
  await page.locator('#markfilterselected').click();assert.equal(await page.locator('#markgrid .marktile').count(),2);
  await page.locator('#markfilterall').click();assert.equal(await page.locator('#markgrid .marktile').count(),4);
  const layouts=[];
@@ -80,12 +80,12 @@ const instrumented=html.replace(/\}\)\(\);\s*<\/script>/,`window.__mobileMarks={
  const zoom=(await snapshot()).zoom;
  const renderedZoom=()=>page.locator('#video').evaluate(v=>({width:v.style.width,height:v.style.height,transform:document.getElementById('vframe').style.transform}));
  const renderedBefore=await renderedZoom();
- await page.evaluate(()=>{window.hopSamples=[];window.hopSampling=true;function sample(){const el=document.getElementById('markviewer'),r=el.getBoundingClientRect(),c=document.getElementById('markoverlay');window.hopSamples.push([r.x,r.y,r.width,r.height,document.getElementById('markreviewbody').scrollTop,c.hidden]);if(window.hopSampling)requestAnimationFrame(sample);}sample();});
+ await page.evaluate(()=>{window.__mobileMarks.slowSeeks();window.hopSamples=[];window.hopSampling=true;function sample(){const el=document.getElementById('markviewer'),r=el.getBoundingClientRect(),c=document.getElementById('markoverlay');window.hopSamples.push([r.x,r.y,r.width,r.height,document.getElementById('markreviewbody').scrollTop,c.hidden,['markaccepta','markacceptb','marknextcandidate','markreveal','marksavekeeper'].map(id=>{const e=document.getElementById(id),r=e.getBoundingClientRect(),s=getComputedStyle(e);return [id,r.x,r.y,r.width,r.height,s.opacity,s.visibility,s.display];}),document.getElementById('markreview').getAttribute('data-frame-loading')]);if(window.hopSampling)requestAnimationFrame(sample);}sample();});
  await page.locator('#markshowa').click();await ready();assert.equal((await snapshot()).current,120);
  assert.deepEqual((await snapshot()).zoom,zoom,'A keeps the candidate zoom and pan');
  await page.locator('#markshowb').click();await ready();assert.equal((await snapshot()).current,30);
  assert.deepEqual((await snapshot()).zoom,zoom,'B keeps the keeper zoom and pan');
- const hopSamples=await page.evaluate(async()=>{await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));window.hopSampling=false;return window.hopSamples;});assert.ok(hopSamples.length>2);for(const sample of hopSamples){assert.deepEqual(sample.slice(0,5),hopSamples[0].slice(0,5),'viewer position and scroll remain stable throughout A/B');assert.equal(sample[5],false,'same canvas remains visible through loading and ready states');}
+ const hopSamples=await page.evaluate(async()=>{await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));window.hopSampling=false;window.__mobileMarks.normalSeeks();return window.hopSamples;});assert.ok(hopSamples.length>2);assert.ok(hopSamples.some(sample=>sample[7]==='true'),'measurements include the decoding interval');for(const sample of hopSamples){assert.deepEqual(sample.slice(0,5),hopSamples[0].slice(0,5),'viewer position and scroll remain stable throughout A/B');assert.equal(sample[5],false,'same canvas remains visible through loading and ready states');assert.deepEqual(sample[6],hopSamples[0][6],'bottom controls keep the same position and opacity throughout decoding');}
  assert.deepEqual(await renderedZoom(),renderedBefore,'A/B preserves rendered scale and pan, not just stored zoom');
  await page.locator('#markresetzoom').click();await page.locator('#markzoomtools summary').click();
 

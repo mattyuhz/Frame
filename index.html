@@ -435,6 +435,13 @@
 #markoverlay{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:3}#markzoomtools{display:flex;align-items:center;justify-content:space-between;gap:8px}#markzoomtools summary,#markmore summary{min-height:44px;display:flex;align-items:center;padding:8px 12px;cursor:pointer}#markzoomtools input{max-width:55%}#markrevealrange{width:100%;min-height:44px;flex-shrink:0}#markmore button{white-space:nowrap}.markactions:not(:has(>button:not([hidden]),>details:not([hidden]))){display:none}
 .markreview[data-view="compare"] .markfeedback{display:flex;min-height:44px;height:44px}.markreview[data-view="compare"] .markstatus{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #markrevealhandle{position:absolute;top:50%;transform:translate(-50%,-50%);z-index:4;width:44px;height:44px;padding:0;background:#222c;touch-action:none}#markrevealrange,#markzoomrange{accent-color:#fff}
+/* Transient decoding never changes the visual state or geometry of controls. */
+.markreview[data-frame-loading="true"] button:disabled{opacity:1}
+.markreview[data-mode="board"][data-view="grid"] .markfooter{min-height:48px}
+.markreview[data-mode="board"][data-view="grid"] #markcompare[hidden],.markreview[data-mode="board"][data-view="grid"] #marksave[hidden]{display:block!important;visibility:hidden;pointer-events:none}
+.markpairinfo{min-height:18px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#markzoomtools{position:relative;flex-shrink:0;min-height:44px}.markzoompopover{position:absolute;z-index:6;bottom:100%;left:0;right:0;padding:12px;background:#161616;border:1px solid #444;border-radius:14px;box-shadow:0 -8px 24px #0008}#markrevealrange{position:absolute;z-index:5;left:16px;right:16px;bottom:0;width:calc(100% - 32px)}
+#markmore{position:relative}#markmore[open] #markremove{position:absolute;bottom:100%;right:0;background:#222;z-index:6;border:1px solid #444}.markreview[data-mode="board"][data-view="grid"] .markviewer{position:absolute;right:16px;bottom:76px;width:80px;height:60px!important;min-height:60px;z-index:5;pointer-events:none}
 </style>
 </head>
 <body>
@@ -582,8 +589,8 @@
   <div class="markab" id="markab" hidden><button type="button" id="markshowa" aria-pressed="false">A · Keeper</button><button type="button" id="markshowb" aria-pressed="true">B · Candidate</button></div>
   <p class="markpairinfo" id="markpairinfo" hidden></p>
   <div class="markreviewbody" id="markreviewbody">
-    <div class="markviewer" id="markviewer"><button type="button" id="markrevealhandle" aria-label="Drag reveal divider; arrow keys adjust" hidden>↔</button><img id="markimage" alt="Marked frame" hidden></div>
-    <div id="markzoomtools"><details><summary>Zoom</summary><label>Zoom <input id="markzoomrange" type="range" min="1" max="12" step="0.1" value="1"></label><button type="button" id="markresetzoom">Reset</button><p>Pinch to zoom · drag to pan</p></details><button type="button" id="markreveal" hidden>Reveal</button></div><input id="markrevealrange" type="range" min="0" max="100" value="50" aria-label="Reveal divider: A left, B right" hidden><div class="markinspect" id="markinspect">
+    <div class="markviewer" id="markviewer"><button type="button" id="markrevealhandle" aria-label="Drag reveal divider; arrow keys adjust" hidden>↔</button><img id="markimage" alt="Marked frame" hidden><input id="markrevealrange" type="range" min="0" max="100" value="50" aria-label="Reveal divider: A left, B right" hidden></div>
+    <div id="markzoomtools"><details><summary>Zoom</summary><div class="markzoompopover"><label>Zoom <input id="markzoomrange" type="range" min="1" max="12" step="0.1" value="1"></label><button type="button" id="markresetzoom">Reset</button><p>Pinch to zoom · drag to pan</p></div></details><button type="button" id="markreveal" hidden>Reveal</button></div><div class="markinspect" id="markinspect">
       <div class="markbar"><span class="marktime" id="marktime"></span></div>
       <div class="markactions"><button type="button" id="markprev" aria-label="Previous marked frame">←</button><button type="button" id="marknext" aria-label="Next marked frame">→</button></div>
       <div class="markactions"><button type="button" id="markfit">Fit</button><button type="button" id="markactual">Actual pixels</button><button type="button" id="markflip">Show other</button></div>
@@ -3184,7 +3191,8 @@ function injectPng(bytes, payload){
       var editor=document.querySelector('.wrap');
       if(editor){if(m.open)editor.setAttribute('inert','');else editor.removeAttribute('inert');}
       node('markreview').setAttribute('data-mode',m.mode);node('markreview').setAttribute('data-view',m.view);
-      node('markreview').setAttribute('aria-busy',String(m.busy));
+      node('markreview').setAttribute('aria-busy',String(m.busy||m.loading));
+      node('markreview').setAttribute('data-frame-loading',String(m.loading));
       node('markworkflow').disabled=m.busy||saving;
       show('markundo',!!m.undo);if(node('markundoinline'))show('markundoinline',!!m.undo&&!m.open);
       if(node('markundoinline'))node('markundoinline').disabled=m.busy||saving;
@@ -3192,10 +3200,11 @@ function injectPng(bytes, payload){
       if(m.open){
         var board=m.mode==='board',reviewing=m.view==='review',comparing=m.view==='compare',inspecting=m.view==='inspect',isGrid=m.view==='grid';
         var shown=board&&m.filter==='selected'?frames.filter(selected):frames;
-        grid.textContent='';shown.forEach(function(frame){grid.appendChild(makeCard(frame));});body.scrollTop=scroll;
+        var gridKey=JSON.stringify([shown,m.selected,m.keeper,m.mode,shown.map(function(f){return m.thumbs[f]&&m.thumbs[f].url;})]);
+        if(isGrid&&m.gridKey!==gridKey){grid.textContent='';shown.forEach(function(frame){grid.appendChild(makeCard(frame));});m.gridKey=gridKey;}body.scrollTop=scroll;
         show('markgrid',isGrid);show('markinspect',!isGrid);show('markimage',false);show('markreveal',comparing);show('markrevealrange',comparing&&reveal);node('markreveal').textContent=reveal?'A/B':'Reveal';show('markmore',!isGrid&&!comparing);show('markzoomtools',!isGrid);node('markzoomrange').value=m.zoom.z;
         show('markviewer',!board||!isGrid||m.queueRunning||m.busy);
-        show('markfilters',board&&isGrid&&m.selected.length>0);
+        show('markfilters',board&&isGrid);
         node('markfilterall').setAttribute('aria-pressed',String(m.filter==='all'));
         node('markfilterselected').setAttribute('aria-pressed',String(m.filter==='selected'));
         node('markfilterselected').textContent='Selected · '+m.selected.length;
@@ -3472,7 +3481,7 @@ function injectPng(bytes, payload){
     }
     function onTransform(){stills={};invalidateThumbs();paint();if(m.mode==='filmstrip')scheduleThumbs();}
     function reset(){
-      stills={};heldFrame=null;overlay.width=1;overlay.height=1;reveal=false;m.generation++;interrupt();m.busy=false;m.loading=false;
+      m.gridKey=null;stills={};heldFrame=null;overlay.width=1;overlay.height=1;reveal=false;m.generation++;interrupt();m.busy=false;m.loading=false;
       if(m.open){m.open=false;node('markreview').hidden=true;unmount();}
       invalidateThumbs();m.selected=[];m.pair=[];m.keeper=null;m.candidates=[];m.candidateAt=0;m.candidateReady=false;m.filter='all';m.boardScroll=0;m.undo=null;m.current=0;m.message='';m.view='grid';state.marks=[];paint();
     }
@@ -3483,6 +3492,7 @@ function injectPng(bytes, payload){
     divider.addEventListener('pointermove',function(e){e.stopPropagation();if(!dividerDragging)return;var box=node('markviewer').getBoundingClientRect();node('markrevealrange').value=clamp((e.clientX-box.left)/box.width*100,0,100);renderOverlay();});
     ['pointerup','pointercancel'].forEach(function(type){divider.addEventListener(type,function(e){e.stopPropagation();dividerDragging=false;});});
     divider.addEventListener('keydown',function(e){if(e.key==='ArrowLeft'||e.key==='ArrowRight'){e.preventDefault();e.stopPropagation();node('markrevealrange').value=clamp(Number(node('markrevealrange').value)+(e.key==='ArrowLeft'?-5:5),0,100);renderOverlay();}});
+    ['pointerdown','pointermove','pointerup','pointercancel'].forEach(function(type){node('markrevealrange').addEventListener(type,function(e){e.stopPropagation();});});
     node('markreveal').addEventListener('click',enableReveal);node('markrevealrange').addEventListener('input',renderOverlay);node('markzoomrange').addEventListener('input',function(){m.zoom.z=Number(this.value);layout();});node('markresetzoom').addEventListener('click',fit);
     node('markpin').addEventListener('click',pin);
     node('markshowa').addEventListener('click',function(){showSide('a');});node('markshowb').addEventListener('click',function(){showSide('b');});
@@ -3508,6 +3518,7 @@ function injectPng(bytes, payload){
       return items;
     }
     node('markreview').addEventListener('keydown',function(e){
+      if(e.target&&e.target.tagName==='INPUT'&&e.key.indexOf('Arrow')===0){e.stopPropagation();return;}
       if(e.key==='Escape'){e.preventDefault();close();}
       else if(e.key==='ArrowLeft'||e.key==='ArrowRight'){e.preventDefault();if(m.view==='compare')flip();else if(m.view!=='grid')move(e.key==='ArrowLeft'?-1:1);}
       else if(e.key==='Tab'){

@@ -118,3 +118,15 @@ Pure black `#000`; surfaces `rgba(255,255,255,.08)` (pressed `.14`); strokes `rg
 ## Working style this project expects
 
 Direct, rigorous-mentor tone; the user wants pushback and named trade-offs, not agreement. Own mistakes plainly with root causes. Verify claims by measurement (build a harness, test the shipped bytes) before asserting. Diagnose before patching — three user bug reports in this project each had multiple stacked causes, and the visible symptom was never the whole story. Feedback must be *visible*: a message printed behind a modal is indistinguishable from a bug. All recipes/measurements in grams and metric where relevant.
+
+## UI stability — standing user requirement
+
+Keep existing content and controls anchored when selection, decoding, progress,
+or contextual actions change. Reserve space for conditional controls or place
+them in an overlay; do not insert rows above content after interaction. Brief
+background work must not flash, dim, hide, or rebuild unrelated controls. Keep
+interaction guards without cycling their visual appearance during each seek.
+If a layout change is necessary, use a short eased transition that lets the eye
+follow the content, and honor prefers-reduced-motion. Do not use animation to
+mask avoidable layout shifts. Verify the full transition, including control
+positions, opacity, and scroll, rather than only settled screenshots.

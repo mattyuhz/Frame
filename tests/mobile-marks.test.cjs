@@ -26,7 +26,7 @@ test('board opens a marked-only grid and hides the decoder after previews are av
   const f=setup();assert.equal(f.flow.state.mode,'board');await f.flow.open();
   assert.equal(f.flow.state.view,'grid');assert.equal(f.ids.get('markgrid').children.length,4);
   assert.equal(f.ids.get('markviewer').hidden,true);
-  assert.equal(f.ids.get('markfilters').hidden,true);
+  assert.equal(f.ids.get('markfilters').hidden,false,'filter row is present before selection so thumbnails stay anchored');
   f.flow.select(120);f.flow.setFilter('selected');
   assert.equal(f.ids.get('markgrid').children.length,1);
   assert.equal(f.ids.get('markfilterselected').getAttribute('aria-pressed'),'true');
