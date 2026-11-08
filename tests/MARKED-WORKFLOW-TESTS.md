@@ -211,3 +211,17 @@ mark. `mobile-editor-layout-browser.cjs` checks on-screen, non-overlapping actio
 at 320×568, 390×844, 720×1000 and 844×390, video rotation, and a portrait →
 landscape → portrait viewport round trip. These are Chromium checks; physical
 Safari toolbar resizing and safe-area behavior still need device verification.
+
+### v31 simplified editor
+
+Image → timecode with labeled Mark/Save and More → scrubber → playback controls.
+More holds the existing crop, rotation, actual-pixel zoom, source picker, Sections
+and Info. Technical metadata remains behind Info. Tools and crop ratios overlay
+the image instead of adding toolbar rows. The play target is wider than the frame
+step buttons. No new assets or dependencies were introduced.
+
+Recorded loading, sections, marking, selection, comparison, Reveal, save/cancel,
+source replacement and recovery. Per-frame geometry/opacity assertions pass;
+reviewed sampled recording frames. Editor tests also open tools and crop at all
+four sizes and assert Save does not move, then exercise video/device rotation.
+Physical iPhone Safari and native sharing remain outside this desktop coverage.

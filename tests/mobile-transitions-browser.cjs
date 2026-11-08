@@ -38,7 +38,7 @@ const html=original.replace(/\}\)\(\);\s*<\/script>/,injection+'\n})();\n</scrip
  const controlShifts={};for(const id of ['tc','scrub','bmark','bsave']){const ys=loadingSamples.map(s=>s.rects[id][1]);controlShifts[id]=Math.max(...ys)-Math.min(...ys);}
  const loadCheck={samples:loadingSamples.length,phases:[...new Set(loadingSamples.map(s=>s.phase))],loadingShift,controlShifts};
  if(!process.env.FRAME_LOAD_ONLY){
-  await label('sections-expand-collapse');await page.locator('#bsections').click();await pause(450);await page.locator('#bsections').click();await pause(450);
+  await label('sections-expand-collapse');await page.locator('#edittools summary').click();await page.locator('#bsections').click();await pause(450);await page.locator('#edittools summary').click();await page.locator('#bsections').click();await pause(450);
   for(const frame of [30,120,240]){await label('mark-'+frame);await page.evaluate(n=>audit.goToFrame(n),frame);await page.locator('#bmark').click();await pause();}
   await label('duplicate-mark');await page.locator('#bmark').click();await pause(600);
   await label('board-first-selection');await page.locator('#markedentry').click();await settled();await pause();await page.locator('#markpick-30').click();await pause();await page.locator('#markpick-120').click();await pause();
