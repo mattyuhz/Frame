@@ -535,9 +535,10 @@
 .appnav #tabframe{text-align:right}.appnav #tabcompose{text-align:left}
 .appnav{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px}
 .appnav>span{text-align:center}
-body[data-workspace="compose"] .wrap>:not(.appnav){display:none!important}
+body[data-workspace="compose"]{overflow:hidden}
 #composepanel{position:fixed;inset:calc(48px + env(safe-area-inset-top)) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);background:#000;z-index:30}
-#composepanel[hidden],#composeworkspace[hidden]{display:none}
+#composepanel[hidden]{display:block;visibility:hidden;pointer-events:none}
+#composeworkspace[hidden]{display:none}
 #composepanel>p{color:#aaa;text-align:center;margin:40px 0}
 #composeworkspace{width:100%;height:100%;border:0;display:block;background:#000}
 </style>
@@ -3728,21 +3729,24 @@ function injectPng(bytes, payload){
     var api=composeFrame&&composeFrame.contentWindow.frameWorkspace;
     if(workspace==='compose'&&api&&!api.canLeave())return;
     video.pause();
-    if(api)api.setActive(next==='compose');
     workspace=next;document.body.setAttribute('data-workspace',next);
     $('tabframe').setAttribute('aria-selected',String(next==='frame'));
     $('tabcompose').setAttribute('aria-selected',String(next==='compose'));
-    $('composepanel').hidden=next!=='compose';$('edittools').open=false;
+    $('composepanel').hidden=next!=='compose';$('composepanel').inert=next!=='compose';$('edittools').open=false;
+    Array.prototype.forEach.call(document.querySelector('.wrap').children,function(el){if(el.classList.contains('appnav'))return;el.inert=next==='compose';if(next==='compose')el.setAttribute('aria-hidden','true');else el.removeAttribute('aria-hidden');});
+    if(api)api.setActive(next==='compose');
     if(next==='compose'&&!composeFrame){
       composeFrame=document.createElement('iframe');composeFrame.id='composeworkspace';composeFrame.title='Compose workspace';composeFrame.hidden=true;
       composeFrame.onload=function(){ $('composeloading').hidden=true;composeFrame.hidden=false;if(composeFrame.contentWindow.frameWorkspace)composeFrame.contentWindow.frameWorkspace.setActive(workspace==='compose'); };
-      composeFrame.src='./compose.html';$('composepanel').appendChild(composeFrame);
+      composeFrame.src='./compose.html?workspace-embed=1';$('composepanel').appendChild(composeFrame);
     }
-    if(next==='frame'){layoutViewer();if(state.ready)goToFrame(state.frame);}
+    if(next==='frame')layoutViewer();
   }
   $('tabframe').addEventListener('click',function(){switchWorkspace('frame');});
   $('tabcompose').addEventListener('click',function(){switchWorkspace('compose');});
   [$('tabframe'),$('tabcompose')].forEach(function(tab){tab.addEventListener('keydown',function(e){if(e.key==='ArrowLeft'||e.key==='ArrowRight'){e.preventDefault();var next=workspace==='frame'?'compose':'frame';switchWorkspace(next);$(next==='frame'?'tabframe':'tabcompose').focus();}});});
+
+  if(/[?&]workspace=compose(?:&|$)/.test(location.search||''))switchWorkspace('compose');
 
   /* ---- offline shell: after the first visit, the page itself opens
      with no network. Registration is skipped in restricted frames. ---- */

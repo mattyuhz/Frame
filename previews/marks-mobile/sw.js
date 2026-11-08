@@ -5,7 +5,7 @@
    its Content-Security-Policy. */
 
 var CACHE_PREFIX = 'frame:' + self.registration.scope + ':';
-var CACHE = CACHE_PREFIX + 'v34-workspace-cache';
+var CACHE = CACHE_PREFIX + 'v35-stable-workspaces';
 var SHELL = ['./', './index.html', './compose.html'];
 
 self.addEventListener('install', function(e){
