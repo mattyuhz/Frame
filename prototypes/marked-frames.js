@@ -7,10 +7,32 @@
       generation:0,operation:0,queue:0,queueRunning:false,busy:false,loading:false,frameReady:false,
       message:'',zoom:{z:1,x:0,y:0},fitScale:1,focusId:''};
     var parent=null,nextSibling=null,frameStyle='',videoStyle='',returnFocus=null;
-    var ptr={},pinch=null,timer=null,cancelledPreview=false,stills={},heldFrame=null,reveal=false;
+    var ptr={},pinch=null,timer=null,cancelledPreview=false,stills={},heldFrame=null,reveal=false,revealPosition=50,revealBounds=null;
     var overlay=document.createElement('canvas');overlay.id='markoverlay';node('markviewer').appendChild(overlay);
     function snapshotFrame(frame){if(video.readyState<2||video.seeking||state.frame!==frame)return;var c=document.createElement('canvas');c.width=video.videoWidth;c.height=video.videoHeight;try{c.getContext('2d').drawImage(video,0,0);stills[frame]=c;Object.keys(stills).forEach(function(k){if(Number(k)!==frame&&m.pair.indexOf(Number(k))<0)delete stills[k];});}catch(_){}}
-    function renderOverlay(){var box=node('markviewer'),r=cropRect(),a=stills[m.pair[0]],b=stills[m.pair[1]],held=m.loading?heldFrame:(m.view==='compare'?stills[m.current]:null);var use=reveal&&m.view==='compare'&&a&&b;node('markrevealhandle').hidden=!use;node('markrevealhandle').style.left=node('markrevealrange').value+'%';overlay.hidden=!(use||held);if(overlay.hidden||!r)return;var w=box.clientWidth,h=box.clientHeight,d=Math.min(window.devicePixelRatio||1,2);overlay.width=w*d;overlay.height=h*d;var x=overlay.getContext('2d');x.scale(d,d);function draw(c){x.save();x.translate(w/2+m.zoom.x,h/2+m.zoom.y);x.scale(m.fitScale*m.zoom.z,m.fitScale*m.zoom.z);x.rotate(state.rot*Math.PI/180);x.drawImage(c,r.sx,r.sy,r.w,r.h,-r.w/2,-r.h/2,r.w,r.h);x.restore();}x.fillStyle='#000';x.fillRect(0,0,w,h);if(use){draw(a);var cut=w*Number(node('markrevealrange').value)/100;x.save();x.beginPath();x.rect(cut,0,w-cut,h);x.clip();x.fillRect(0,0,w,h);draw(b);x.restore();x.fillStyle='#fff';x.fillRect(cut-1,0,2,h);}else draw(held);}
+    function renderOverlay(){
+      var box=node('markviewer'),r=cropRect(),a=stills[m.pair[0]],b=stills[m.pair[1]];
+      var held=m.loading?heldFrame:(m.view==='compare'?stills[m.current]:null);
+      var use=reveal&&m.view==='compare'&&a&&b,handle=node('markrevealhandle');
+      handle.hidden=!use;overlay.hidden=!(use||held);if(overlay.hidden||!r)return;
+      var w=box.clientWidth,h=box.clientHeight,d=Math.min(window.devicePixelRatio||1,2);
+      overlay.width=w*d;overlay.height=h*d;var x=overlay.getContext('2d');x.scale(d,d);
+      function draw(c){x.save();x.translate(w/2+m.zoom.x,h/2+m.zoom.y);x.scale(m.fitScale*m.zoom.z,m.fitScale*m.zoom.z);x.rotate(state.rot*Math.PI/180);x.drawImage(c,r.sx,r.sy,r.w,r.h,-r.w/2,-r.h/2,r.w,r.h);x.restore();}
+      x.fillStyle='#000';x.fillRect(0,0,w,h);
+      if(use){
+        var swap=state.rot===90||state.rot===270,scale=m.fitScale*m.zoom.z;
+        var iw=(swap?r.h:r.w)*scale,ih=(swap?r.w:r.h)*scale;
+        var left=Math.max(0,w/2+m.zoom.x-iw/2),right=Math.min(w,w/2+m.zoom.x+iw/2);
+        var top=Math.max(0,h/2+m.zoom.y-ih/2),bottom=Math.min(h,h/2+m.zoom.y+ih/2);
+        revealBounds={left:left,right:right,top:top,bottom:bottom};
+        var cut=left+(right-left)*revealPosition/100;
+        draw(a);x.save();x.beginPath();x.rect(cut,top,right-cut,bottom-top);x.clip();x.fillRect(0,0,w,h);draw(b);x.restore();
+        x.fillStyle='#fff';x.fillRect(clamp(cut-1,left,right-2),top,2,bottom-top);
+        handle.style.left=cut+'px';handle.style.top=((top+bottom)/2)+'px';
+        handle.setAttribute('aria-valuenow',String(Math.round(revealPosition)));
+        handle.setAttribute('aria-valuetext',Math.round(revealPosition)+'% A, '+(100-Math.round(revealPosition))+'% B');
+      }else draw(held);
+    }
     function enableReveal(){if(m.loading||m.busy||saving)return;reveal=!reveal;if(reveal&&m.pair.length===2&&!stills[m.pair[0]]){var backFrame=m.current;inspect(m.pair[0],'compare').then(function(){if(m.open&&m.view==='compare')return inspect(backFrame,'compare');});}paint();}
     function node(id){return $(id);}
     function list(){return state.marks.slice().sort(function(a,b){return a-b;});}
@@ -85,7 +107,7 @@
         var shown=board&&m.filter==='selected'?frames.filter(selected):frames;
         var gridKey=JSON.stringify([shown,m.selected,m.keeper,m.mode,shown.map(function(f){return m.thumbs[f]&&m.thumbs[f].url;})]);
         if(isGrid&&m.gridKey!==gridKey){grid.textContent='';shown.forEach(function(frame){grid.appendChild(makeCard(frame));});m.gridKey=gridKey;}body.scrollTop=scroll;
-        show('markgrid',isGrid);show('markinspect',!isGrid);show('markimage',false);show('markreveal',comparing);show('markrevealrange',comparing&&reveal);node('markreveal').textContent=reveal?'A/B':'Reveal';show('markmore',!isGrid&&!comparing);show('markzoomtools',!isGrid);node('markzoomrange').value=m.zoom.z;
+        show('markgrid',isGrid);show('markinspect',!isGrid);show('markimage',false);show('markreveal',comparing);node('markreveal').textContent=reveal?'A/B':'Reveal';show('markmore',!isGrid&&!comparing);show('markzoomtools',!isGrid);node('markzoomrange').value=m.zoom.z;
         show('markviewer',!board||!isGrid||m.queueRunning||m.busy);
         show('markfilters',board&&isGrid);
         node('markfilterall').setAttribute('aria-pressed',String(m.filter==='all'));
@@ -103,8 +125,8 @@
         show('markpin',board&&inspecting);node('markpin').textContent=m.keeper===m.current?'Unpin keeper':'Pin as keeper';
         node('markpin').setAttribute('aria-pressed',String(m.keeper===m.current));
         ['markab','markdecisions','markshowa','markshowb','markaccepta','markacceptb','marknextcandidate','markpairinfo'].forEach(function(id){show(id,board&&comparing);});
-        node('markshowa').setAttribute('aria-pressed',String(m.current===m.pair[0]));node('markshowa').textContent=m.pair[0]===m.keeper?'A · Keeper':'A · Candidate';
-        node('markshowb').setAttribute('aria-pressed',String(m.current===m.pair[1]));
+        node('markshowa').setAttribute('aria-pressed',String(!reveal&&m.current===m.pair[0]));node('markshowa').textContent=m.pair[0]===m.keeper?'A · Keeper':'A · Candidate';
+        node('markshowb').setAttribute('aria-pressed',String(!reveal&&m.current===m.pair[1]));
         node('markpairinfo').textContent=board&&comparing&&m.pair.length===2?(m.current===m.pair[0]?(m.pair[0]===m.keeper?'A · Keeper':'A · Candidate'):'B · Candidate')+' · '+elapsed(m.current)+' · '+(m.candidateAt+1)+' of '+m.candidates.length:'';
         if(comparing&&reveal)node('markpairinfo').textContent='A on the left · B on the right';
         show('markback',!isGrid||m.mode==='review');node('markback').textContent=isGrid?'Continue review':board?'All marks':comparing?'Back to review':'All marks';
@@ -298,7 +320,7 @@
     }
     function showSide(side){
       if(m.pair.length!==2||saving||m.busy||m.loading)return Promise.resolve();
-      return inspect(m.pair[side==='a'?0:1],'compare');
+      reveal=false;return inspect(m.pair[side==='a'?0:1],'compare');
     }
     function advanceCandidate(message){
       var next=m.candidateAt+1;
@@ -326,7 +348,7 @@
       m.selected=m.selected.filter(function(f){return pair.indexOf(f)<0;}).concat(keep);m.pair=[];
       var back=m.beforePair;m.view=back;status(choice==='both'?'Both selected.':'Frame selected.');paint();if(back==='grid')scheduleThumbs();
     }
-    function flip(){if(m.pair.length!==2||saving||m.busy||m.loading||!m.frameReady)return;return inspect(m.current===m.pair[0]?m.pair[1]:m.pair[0],'compare');}
+    function flip(){if(reveal)return;if(m.pair.length!==2||saving||m.busy||m.loading||!m.frameReady)return;return inspect(m.current===m.pair[0]?m.pair[1]:m.pair[0],'compare');}
     function back(){
       if(saving||m.busy)return;
       if(m.mode==='board'){interrupt();m.view='grid';m.pair=[];status('');paint();node('markreviewbody').scrollTop=m.boardScroll;scheduleThumbs();return;}
@@ -372,11 +394,10 @@
     function actual(){m.zoom={z:clamp(1/(m.fitScale*(window.devicePixelRatio||1)),1,12),x:0,y:0};layout();}
     var dividerDragging=false,divider=node('markrevealhandle');
     divider.addEventListener('pointerdown',function(e){e.stopPropagation();if(saving||m.busy)return;dividerDragging=true;divider.setPointerCapture(e.pointerId);});
-    divider.addEventListener('pointermove',function(e){e.stopPropagation();if(!dividerDragging)return;var box=node('markviewer').getBoundingClientRect();node('markrevealrange').value=clamp((e.clientX-box.left)/box.width*100,0,100);renderOverlay();});
+    divider.addEventListener('pointermove',function(e){e.stopPropagation();if(!dividerDragging)return;var box=node('markviewer').getBoundingClientRect();if(!revealBounds)return;revealPosition=clamp((e.clientX-box.left-revealBounds.left)/(revealBounds.right-revealBounds.left)*100,0,100);renderOverlay();});
     ['pointerup','pointercancel'].forEach(function(type){divider.addEventListener(type,function(e){e.stopPropagation();dividerDragging=false;});});
-    divider.addEventListener('keydown',function(e){if(e.key==='ArrowLeft'||e.key==='ArrowRight'){e.preventDefault();e.stopPropagation();node('markrevealrange').value=clamp(Number(node('markrevealrange').value)+(e.key==='ArrowLeft'?-5:5),0,100);renderOverlay();}});
-    ['pointerdown','pointermove','pointerup','pointercancel'].forEach(function(type){node('markrevealrange').addEventListener(type,function(e){e.stopPropagation();});});
-    node('markreveal').addEventListener('click',enableReveal);node('markrevealrange').addEventListener('input',renderOverlay);node('markzoomrange').addEventListener('input',function(){m.zoom.z=Number(this.value);layout();});node('markresetzoom').addEventListener('click',fit);
+    divider.addEventListener('keydown',function(e){if(e.key==='ArrowLeft'||e.key==='ArrowRight'){e.preventDefault();e.stopPropagation();revealPosition=clamp(revealPosition+(e.key==='ArrowLeft'?-5:5),0,100);renderOverlay();}});
+    node('markreveal').addEventListener('click',enableReveal);node('markzoomrange').addEventListener('input',function(){m.zoom.z=Number(this.value);layout();});node('markresetzoom').addEventListener('click',fit);
     node('markpin').addEventListener('click',pin);
     node('markshowa').addEventListener('click',function(){showSide('a');});node('markshowb').addEventListener('click',function(){showSide('b');});
     node('markaccepta').addEventListener('click',function(){decide('a');});node('markacceptb').addEventListener('click',function(){decide('b');});

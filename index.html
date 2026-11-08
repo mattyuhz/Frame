@@ -432,15 +432,15 @@
     video{max-height:56vh}
   }
 
-#markoverlay{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:3}#markzoomtools{display:flex;align-items:center;justify-content:space-between;gap:8px}#markzoomtools summary,#markmore summary{min-height:44px;display:flex;align-items:center;padding:8px 12px;cursor:pointer}#markzoomtools input{max-width:55%}#markrevealrange{width:100%;min-height:44px;flex-shrink:0}#markmore button{white-space:nowrap}.markactions:not(:has(>button:not([hidden]),>details:not([hidden]))){display:none}
+#markoverlay{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:3}#markzoomtools{display:flex;align-items:center;justify-content:space-between;gap:8px}#markzoomtools summary,#markmore summary{min-height:44px;display:flex;align-items:center;padding:8px 12px;cursor:pointer}#markzoomtools input{max-width:55%}#markmore button{white-space:nowrap}.markactions:not(:has(>button:not([hidden]),>details:not([hidden]))){display:none}
 .markreview[data-view="compare"] .markfeedback{display:flex;min-height:44px;height:44px}.markreview[data-view="compare"] .markstatus{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-#markrevealhandle{position:absolute;top:50%;transform:translate(-50%,-50%);z-index:4;width:44px;height:44px;padding:0;background:#222c;touch-action:none}#markrevealrange,#markzoomrange{accent-color:#fff}
+#markrevealhandle{position:absolute;top:50%;transform:translate(-50%,-50%);z-index:4;width:44px;height:44px;padding:0;background:#222c;touch-action:none}#markzoomrange{accent-color:#fff}
 /* Transient decoding never changes the visual state or geometry of controls. */
 .markreview[data-frame-loading="true"] button:disabled{opacity:1}
 .markreview[data-mode="board"][data-view="grid"] .markfooter{min-height:48px}
 .markreview[data-mode="board"][data-view="grid"] #markcompare[hidden],.markreview[data-mode="board"][data-view="grid"] #marksave[hidden]{display:block!important;visibility:hidden;pointer-events:none}
 .markpairinfo{min-height:18px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-#markzoomtools{position:relative;flex-shrink:0;min-height:44px}.markzoompopover{position:absolute;z-index:6;bottom:100%;left:0;right:0;padding:12px;background:#161616;border:1px solid #444;border-radius:14px;box-shadow:0 -8px 24px #0008}#markrevealrange{position:absolute;z-index:5;left:16px;right:16px;bottom:0;width:calc(100% - 32px)}
+#markzoomtools{position:relative;flex-shrink:0;min-height:44px}.markzoompopover{position:absolute;z-index:6;bottom:100%;left:0;right:0;padding:12px;background:#161616;border:1px solid #444;border-radius:14px;box-shadow:0 -8px 24px #0008}
 #markmore{position:relative}#markmore[open] #markremove{position:absolute;bottom:100%;right:0;background:#222;z-index:6;border:1px solid #444}.markreview[data-mode="board"][data-view="grid"] .markviewer{position:absolute;right:16px;bottom:76px;width:80px;height:60px!important;min-height:60px;z-index:5;pointer-events:none}
 </style>
 </head>
@@ -589,7 +589,7 @@
   <div class="markab" id="markab" hidden><button type="button" id="markshowa" aria-pressed="false">A · Keeper</button><button type="button" id="markshowb" aria-pressed="true">B · Candidate</button></div>
   <p class="markpairinfo" id="markpairinfo" hidden></p>
   <div class="markreviewbody" id="markreviewbody">
-    <div class="markviewer" id="markviewer"><button type="button" id="markrevealhandle" aria-label="Drag reveal divider; arrow keys adjust" hidden>↔</button><img id="markimage" alt="Marked frame" hidden><input id="markrevealrange" type="range" min="0" max="100" value="50" aria-label="Reveal divider: A left, B right" hidden></div>
+    <div class="markviewer" id="markviewer"><button type="button" id="markrevealhandle" role="slider" aria-valuemin="0" aria-valuemax="100" aria-valuenow="50" aria-label="Reveal divider, A left and B right" hidden>↔</button><img id="markimage" alt="Marked frame" hidden></div>
     <div id="markzoomtools"><details><summary>Zoom</summary><div class="markzoompopover"><label>Zoom <input id="markzoomrange" type="range" min="1" max="12" step="0.1" value="1"></label><button type="button" id="markresetzoom">Reset</button><p>Pinch to zoom · drag to pan</p></div></details><button type="button" id="markreveal" hidden>Reveal</button></div><div class="markinspect" id="markinspect">
       <div class="markbar"><span class="marktime" id="marktime"></span></div>
       <div class="markactions"><button type="button" id="markprev" aria-label="Previous marked frame">←</button><button type="button" id="marknext" aria-label="Next marked frame">→</button></div>
@@ -3124,10 +3124,32 @@ function injectPng(bytes, payload){
       generation:0,operation:0,queue:0,queueRunning:false,busy:false,loading:false,frameReady:false,
       message:'',zoom:{z:1,x:0,y:0},fitScale:1,focusId:''};
     var parent=null,nextSibling=null,frameStyle='',videoStyle='',returnFocus=null;
-    var ptr={},pinch=null,timer=null,cancelledPreview=false,stills={},heldFrame=null,reveal=false;
+    var ptr={},pinch=null,timer=null,cancelledPreview=false,stills={},heldFrame=null,reveal=false,revealPosition=50,revealBounds=null;
     var overlay=document.createElement('canvas');overlay.id='markoverlay';node('markviewer').appendChild(overlay);
     function snapshotFrame(frame){if(video.readyState<2||video.seeking||state.frame!==frame)return;var c=document.createElement('canvas');c.width=video.videoWidth;c.height=video.videoHeight;try{c.getContext('2d').drawImage(video,0,0);stills[frame]=c;Object.keys(stills).forEach(function(k){if(Number(k)!==frame&&m.pair.indexOf(Number(k))<0)delete stills[k];});}catch(_){}}
-    function renderOverlay(){var box=node('markviewer'),r=cropRect(),a=stills[m.pair[0]],b=stills[m.pair[1]],held=m.loading?heldFrame:(m.view==='compare'?stills[m.current]:null);var use=reveal&&m.view==='compare'&&a&&b;node('markrevealhandle').hidden=!use;node('markrevealhandle').style.left=node('markrevealrange').value+'%';overlay.hidden=!(use||held);if(overlay.hidden||!r)return;var w=box.clientWidth,h=box.clientHeight,d=Math.min(window.devicePixelRatio||1,2);overlay.width=w*d;overlay.height=h*d;var x=overlay.getContext('2d');x.scale(d,d);function draw(c){x.save();x.translate(w/2+m.zoom.x,h/2+m.zoom.y);x.scale(m.fitScale*m.zoom.z,m.fitScale*m.zoom.z);x.rotate(state.rot*Math.PI/180);x.drawImage(c,r.sx,r.sy,r.w,r.h,-r.w/2,-r.h/2,r.w,r.h);x.restore();}x.fillStyle='#000';x.fillRect(0,0,w,h);if(use){draw(a);var cut=w*Number(node('markrevealrange').value)/100;x.save();x.beginPath();x.rect(cut,0,w-cut,h);x.clip();x.fillRect(0,0,w,h);draw(b);x.restore();x.fillStyle='#fff';x.fillRect(cut-1,0,2,h);}else draw(held);}
+    function renderOverlay(){
+      var box=node('markviewer'),r=cropRect(),a=stills[m.pair[0]],b=stills[m.pair[1]];
+      var held=m.loading?heldFrame:(m.view==='compare'?stills[m.current]:null);
+      var use=reveal&&m.view==='compare'&&a&&b,handle=node('markrevealhandle');
+      handle.hidden=!use;overlay.hidden=!(use||held);if(overlay.hidden||!r)return;
+      var w=box.clientWidth,h=box.clientHeight,d=Math.min(window.devicePixelRatio||1,2);
+      overlay.width=w*d;overlay.height=h*d;var x=overlay.getContext('2d');x.scale(d,d);
+      function draw(c){x.save();x.translate(w/2+m.zoom.x,h/2+m.zoom.y);x.scale(m.fitScale*m.zoom.z,m.fitScale*m.zoom.z);x.rotate(state.rot*Math.PI/180);x.drawImage(c,r.sx,r.sy,r.w,r.h,-r.w/2,-r.h/2,r.w,r.h);x.restore();}
+      x.fillStyle='#000';x.fillRect(0,0,w,h);
+      if(use){
+        var swap=state.rot===90||state.rot===270,scale=m.fitScale*m.zoom.z;
+        var iw=(swap?r.h:r.w)*scale,ih=(swap?r.w:r.h)*scale;
+        var left=Math.max(0,w/2+m.zoom.x-iw/2),right=Math.min(w,w/2+m.zoom.x+iw/2);
+        var top=Math.max(0,h/2+m.zoom.y-ih/2),bottom=Math.min(h,h/2+m.zoom.y+ih/2);
+        revealBounds={left:left,right:right,top:top,bottom:bottom};
+        var cut=left+(right-left)*revealPosition/100;
+        draw(a);x.save();x.beginPath();x.rect(cut,top,right-cut,bottom-top);x.clip();x.fillRect(0,0,w,h);draw(b);x.restore();
+        x.fillStyle='#fff';x.fillRect(clamp(cut-1,left,right-2),top,2,bottom-top);
+        handle.style.left=cut+'px';handle.style.top=((top+bottom)/2)+'px';
+        handle.setAttribute('aria-valuenow',String(Math.round(revealPosition)));
+        handle.setAttribute('aria-valuetext',Math.round(revealPosition)+'% A, '+(100-Math.round(revealPosition))+'% B');
+      }else draw(held);
+    }
     function enableReveal(){if(m.loading||m.busy||saving)return;reveal=!reveal;if(reveal&&m.pair.length===2&&!stills[m.pair[0]]){var backFrame=m.current;inspect(m.pair[0],'compare').then(function(){if(m.open&&m.view==='compare')return inspect(backFrame,'compare');});}paint();}
     function node(id){return $(id);}
     function list(){return state.marks.slice().sort(function(a,b){return a-b;});}
@@ -3202,7 +3224,7 @@ function injectPng(bytes, payload){
         var shown=board&&m.filter==='selected'?frames.filter(selected):frames;
         var gridKey=JSON.stringify([shown,m.selected,m.keeper,m.mode,shown.map(function(f){return m.thumbs[f]&&m.thumbs[f].url;})]);
         if(isGrid&&m.gridKey!==gridKey){grid.textContent='';shown.forEach(function(frame){grid.appendChild(makeCard(frame));});m.gridKey=gridKey;}body.scrollTop=scroll;
-        show('markgrid',isGrid);show('markinspect',!isGrid);show('markimage',false);show('markreveal',comparing);show('markrevealrange',comparing&&reveal);node('markreveal').textContent=reveal?'A/B':'Reveal';show('markmore',!isGrid&&!comparing);show('markzoomtools',!isGrid);node('markzoomrange').value=m.zoom.z;
+        show('markgrid',isGrid);show('markinspect',!isGrid);show('markimage',false);show('markreveal',comparing);node('markreveal').textContent=reveal?'A/B':'Reveal';show('markmore',!isGrid&&!comparing);show('markzoomtools',!isGrid);node('markzoomrange').value=m.zoom.z;
         show('markviewer',!board||!isGrid||m.queueRunning||m.busy);
         show('markfilters',board&&isGrid);
         node('markfilterall').setAttribute('aria-pressed',String(m.filter==='all'));
@@ -3220,8 +3242,8 @@ function injectPng(bytes, payload){
         show('markpin',board&&inspecting);node('markpin').textContent=m.keeper===m.current?'Unpin keeper':'Pin as keeper';
         node('markpin').setAttribute('aria-pressed',String(m.keeper===m.current));
         ['markab','markdecisions','markshowa','markshowb','markaccepta','markacceptb','marknextcandidate','markpairinfo'].forEach(function(id){show(id,board&&comparing);});
-        node('markshowa').setAttribute('aria-pressed',String(m.current===m.pair[0]));node('markshowa').textContent=m.pair[0]===m.keeper?'A · Keeper':'A · Candidate';
-        node('markshowb').setAttribute('aria-pressed',String(m.current===m.pair[1]));
+        node('markshowa').setAttribute('aria-pressed',String(!reveal&&m.current===m.pair[0]));node('markshowa').textContent=m.pair[0]===m.keeper?'A · Keeper':'A · Candidate';
+        node('markshowb').setAttribute('aria-pressed',String(!reveal&&m.current===m.pair[1]));
         node('markpairinfo').textContent=board&&comparing&&m.pair.length===2?(m.current===m.pair[0]?(m.pair[0]===m.keeper?'A · Keeper':'A · Candidate'):'B · Candidate')+' · '+elapsed(m.current)+' · '+(m.candidateAt+1)+' of '+m.candidates.length:'';
         if(comparing&&reveal)node('markpairinfo').textContent='A on the left · B on the right';
         show('markback',!isGrid||m.mode==='review');node('markback').textContent=isGrid?'Continue review':board?'All marks':comparing?'Back to review':'All marks';
@@ -3415,7 +3437,7 @@ function injectPng(bytes, payload){
     }
     function showSide(side){
       if(m.pair.length!==2||saving||m.busy||m.loading)return Promise.resolve();
-      return inspect(m.pair[side==='a'?0:1],'compare');
+      reveal=false;return inspect(m.pair[side==='a'?0:1],'compare');
     }
     function advanceCandidate(message){
       var next=m.candidateAt+1;
@@ -3443,7 +3465,7 @@ function injectPng(bytes, payload){
       m.selected=m.selected.filter(function(f){return pair.indexOf(f)<0;}).concat(keep);m.pair=[];
       var back=m.beforePair;m.view=back;status(choice==='both'?'Both selected.':'Frame selected.');paint();if(back==='grid')scheduleThumbs();
     }
-    function flip(){if(m.pair.length!==2||saving||m.busy||m.loading||!m.frameReady)return;return inspect(m.current===m.pair[0]?m.pair[1]:m.pair[0],'compare');}
+    function flip(){if(reveal)return;if(m.pair.length!==2||saving||m.busy||m.loading||!m.frameReady)return;return inspect(m.current===m.pair[0]?m.pair[1]:m.pair[0],'compare');}
     function back(){
       if(saving||m.busy)return;
       if(m.mode==='board'){interrupt();m.view='grid';m.pair=[];status('');paint();node('markreviewbody').scrollTop=m.boardScroll;scheduleThumbs();return;}
@@ -3489,11 +3511,10 @@ function injectPng(bytes, payload){
     function actual(){m.zoom={z:clamp(1/(m.fitScale*(window.devicePixelRatio||1)),1,12),x:0,y:0};layout();}
     var dividerDragging=false,divider=node('markrevealhandle');
     divider.addEventListener('pointerdown',function(e){e.stopPropagation();if(saving||m.busy)return;dividerDragging=true;divider.setPointerCapture(e.pointerId);});
-    divider.addEventListener('pointermove',function(e){e.stopPropagation();if(!dividerDragging)return;var box=node('markviewer').getBoundingClientRect();node('markrevealrange').value=clamp((e.clientX-box.left)/box.width*100,0,100);renderOverlay();});
+    divider.addEventListener('pointermove',function(e){e.stopPropagation();if(!dividerDragging)return;var box=node('markviewer').getBoundingClientRect();if(!revealBounds)return;revealPosition=clamp((e.clientX-box.left-revealBounds.left)/(revealBounds.right-revealBounds.left)*100,0,100);renderOverlay();});
     ['pointerup','pointercancel'].forEach(function(type){divider.addEventListener(type,function(e){e.stopPropagation();dividerDragging=false;});});
-    divider.addEventListener('keydown',function(e){if(e.key==='ArrowLeft'||e.key==='ArrowRight'){e.preventDefault();e.stopPropagation();node('markrevealrange').value=clamp(Number(node('markrevealrange').value)+(e.key==='ArrowLeft'?-5:5),0,100);renderOverlay();}});
-    ['pointerdown','pointermove','pointerup','pointercancel'].forEach(function(type){node('markrevealrange').addEventListener(type,function(e){e.stopPropagation();});});
-    node('markreveal').addEventListener('click',enableReveal);node('markrevealrange').addEventListener('input',renderOverlay);node('markzoomrange').addEventListener('input',function(){m.zoom.z=Number(this.value);layout();});node('markresetzoom').addEventListener('click',fit);
+    divider.addEventListener('keydown',function(e){if(e.key==='ArrowLeft'||e.key==='ArrowRight'){e.preventDefault();e.stopPropagation();revealPosition=clamp(revealPosition+(e.key==='ArrowLeft'?-5:5),0,100);renderOverlay();}});
+    node('markreveal').addEventListener('click',enableReveal);node('markzoomrange').addEventListener('input',function(){m.zoom.z=Number(this.value);layout();});node('markresetzoom').addEventListener('click',fit);
     node('markpin').addEventListener('click',pin);
     node('markshowa').addEventListener('click',function(){showSide('a');});node('markshowb').addEventListener('click',function(){showSide('b');});
     node('markaccepta').addEventListener('click',function(){decide('a');});node('markacceptb').addEventListener('click',function(){decide('b');});
