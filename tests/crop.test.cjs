@@ -644,14 +644,15 @@ test('rotation preserves its arrow and does not print a routine status message',
   }
 });
 
-test('full-frame crop reaches the viewer edges and crop actions replace zoom', () => {
+test('full-frame crop fits the stable viewer and crop actions replace zoom', () => {
   const { api, ids }=boot();
   for (const rot of [0,90,180,270]) {
     api.setRotation(rot);
     api.setCropMode(true);
-    assert.ok(Math.abs(api.cropView.box.x)<0.5,'no horizontal inset beyond pixel rounding');
-    assert.ok(Math.abs(api.cropView.box.y)<0.5,'no vertical inset beyond pixel rounding');
-    assert.ok(Math.abs(api.cropView.box.w-ids.get('viewport').clientWidth)<1,'crop fills viewer width within pixel rounding');
+    const box=api.cropView.box, viewport=ids.get('viewport');
+    assert.ok(box.x>=-0.5&&box.y>=-0.5,'crop stays inside viewer');
+    assert.ok(box.x+box.w<=viewport.clientWidth+1&&box.y+box.h<=viewport.clientHeight+1);
+    assert.ok(Math.abs(box.w-viewport.clientWidth)<1||Math.abs(box.h-viewport.clientHeight)<1,'crop fits one axis without distortion');
     assert.equal(ids.get('bzoomtoggle').hidden,true);
     assert.equal(ids.get('cropactions').className,'cropactions on');
     assert.equal(ids.has('cropoptions'),false);
@@ -672,8 +673,7 @@ test('Done shows only the applied crop, while reopening restores the editor', ()
     api.setCropMode(false);
     assert.equal(ids.get('cropwrap').style.display,'none');
     assert.ok(ids.get('vframe').style.clipPath.startsWith('inset('));
-    const ratio=rot%180?before.h/before.w:before.w/before.h;
-    assert.ok(Math.abs(ids.get('viewport').clientHeight-ids.get('viewport').clientWidth/ratio)<=0.5);
+    assert.equal(ids.get('viewport').clientHeight,ids.get('stage').clientHeight,'cropping preserves the reserved viewing area');
     assert.deepEqual({...api.cropRect()},before,'Done preserves the export crop');
     api.setCropMode(true);
     assert.equal(ids.get('vframe').style.clipPath,'none');

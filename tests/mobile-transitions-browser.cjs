@@ -60,6 +60,11 @@ const html=original.replace(/\}\)\(\);\s*<\/script>/,injection+'\n})();\n</scrip
   await label('recover-short-video');await load('07-subsecond.mp4');await pause();
  }
  const samples=await page.evaluate(()=>auditSamples);fs.writeFileSync(path.join(out,'samples.json'),JSON.stringify(samples));fs.writeFileSync(path.join(out,'events.json'),JSON.stringify(events));
+ const emptyToReady=samples.filter(s=>s.label==='empty'||s.label==='upload-landscape');
+ for(const id of ['tc','scrub','bmark','bsave']){
+  const ys=emptyToReady.map(s=>s.rects[id][1]);
+  assert.ok(Math.max(...ys)-Math.min(...ys)<1,id+' moved from empty to loaded');
+ }
  const transitionChecks=[];
  for(const label of ['A-B-delayed-seek','reveal-keyboard-toggle','zoom-open-close','share-cancel-simulated','save-real-png']){
   const rows=samples.filter(s=>s.label===label);if(!rows.length)continue;
