@@ -218,7 +218,7 @@ function boot(options = {}) {
       }
     };
   `;
-  const instrumented = shippedScript.replace(/\}\)\(\);\s*$/, exposure + '\n})();');
+  const instrumented = shippedScript.replace(/\}\)\(\);\s*$/, exposure + (options.exposure || '') + '\n})();');
   assert.notEqual(instrumented, shippedScript, 'the shipped IIFE must be instrumented');
   vm.runInNewContext(instrumented, globals, { filename: 'index.html' });
   const api = window.__cropTest;

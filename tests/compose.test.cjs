@@ -15,7 +15,7 @@ function loadArtboards(context){
 }
 function setup(navigator={}){
   const notices=[],downloads=[],buttons=[];
-  const context={navigator,File:require('node:buffer').File,Promise,
+  const context={navigator,window:{},File:require('node:buffer').File,Promise,
     pendingBlob:new Blob(['test'],{type:'image/jpeg'}),pendingName:'story.jpg',
     toastTimer:null,clearTimeout(){},statusEl:{appendChild(b){buttons.push(b);}},
     document:{createElement(){return {addEventListener(type,fn){this[type]=fn;}};}},
@@ -52,6 +52,20 @@ test('Compose activation expiry offers a fresh tap for the same prepared file',a
 test('Compose unexpected share errors remain visible and restore Save',async()=>{
   const {context,notices}=setup({canShare:()=>true,share:()=>{throw new Error('failed');}});
   context.sharePrepared();await flush();assert.match(notices.at(-1),/Could not/);assert.equal(context.bExport.disabled,false);
+});
+test('Compose native saving waits for Photos confirmation and never falls back to a download',async()=>{
+  let complete,calls=0;
+  const {context,notices,downloads}=setup();
+  context.window.FrameNative={saveFiles(files){calls++;assert.equal(files[0].name,'story.jpg');return new Promise(resolve=>complete=resolve);}};
+  context.sharePrepared();context.sharePrepared();
+  assert.equal(calls,1);assert.equal(notices.length,0);assert.equal(context.bExport.disabled,true);
+  complete({count:1});await flush();assert.equal(notices.at(-1),'Saved to Photos');assert.equal(downloads.length,0);
+});
+test('Compose native permission failure stays visible and does not claim success',async()=>{
+  const {context,notices,downloads}=setup();
+  context.window.FrameNative={saveFiles:()=>Promise.reject(new Error('Allow Photos access in Settings.'))};
+  context.sharePrepared();await flush();assert.equal(notices.at(-1),'Allow Photos access in Settings.');
+  assert.equal(downloads.length,0);assert.equal(context.bExport.disabled,false);
 });
 function gestureSetup(){
   const handlers={};let picks=0,edits=0,updates=0;
@@ -97,6 +111,53 @@ test('Compose selection and media picking are locked during export',()=>{
   const {context,send,picks}=gestureSetup();context.state.exporting=true;context.state.cells[0]=null;
   send('pointerdown',1,100,200);send('pointerup',1,100,200);
   assert.equal(context.state.selected,-1);assert.equal(picks(),0);
+});
+test('Compose accepts assistive clicks without double-firing pointer taps or selecting after a swipe',()=>{
+  const {context,send,handlers,picks}=gestureSetup();
+  const target={closest(){return this;},getAttribute(){return '0';}};
+  context.board.contains=node=>node===target;context.state.cells[0]=null;
+  handlers.click({detail:0,target});assert.equal(picks(),1,'VoiceOver can open the media picker');
+  send('pointerdown',1,100,200);send('pointerup',1,100,200);
+  handlers.click({detail:1,target});assert.equal(picks(),2,'the browser click does not repeat a pointer tap');
+  context.state.selected=-1;
+  send('pointerdown',2,100,200);send('pointermove',2,100,160);send('pointerup',2,100,160);
+  handlers.click({detail:1,target});assert.equal(context.state.selected,-1);assert.equal(picks(),2);
+  context.state.exporting=true;handlers.click({detail:0,target});assert.equal(picks(),2);
+});
+
+function windowSliderSetup(){
+  const handlers={},attributes={};let commits=0;
+  const paint={setTransform(){},clearRect(){},strokeRect(){},fillRect(){}};
+  const cell={kind:'video',ready:true,dur:9,start:2,fps:25,el:{currentTime:2,seeking:false}};
+  const context={state:{exporting:false},sharing:false,window:{devicePixelRatio:1},
+    winCv:{clientWidth:300,setAttribute(k,v){attributes[k]=v;},addEventListener(k,fn){handlers[k]=fn;},
+      getContext:()=>paint,getBoundingClientRect:()=>({left:0,top:0,bottom:56,width:300})},winLabel:{},
+    document:{addEventListener(){}},selCell:()=>cell,effDuration:()=>3,videoRate:c=>c.fps||30,
+    clamp:(v,a,b)=>Math.max(a,Math.min(b,v)),commitHistory(){commits++;}};
+  vm.createContext(context);
+  vm.runInContext(script.slice(script.indexOf('  var winState='),script.indexOf('  /* ---------- story length ---------- */')),context);
+  function key(key,shiftKey=false){const e={key,shiftKey,preventDefault(){this.prevented=true;}};handlers.keydown(e);return e;}
+  return {context,cell,attributes,key,commits:()=>commits};
+}
+test('clip window keyboard controls expose the same value, clamp at endpoints, and preserve frame precision',()=>{
+  const {context,cell,attributes,key,commits}=windowSliderSetup();context.drawWin();
+  assert.equal(attributes['aria-disabled'],'false');assert.equal(attributes['aria-valuemax'],'6');
+  assert.equal(attributes['aria-valuenow'],'2');assert.match(attributes['aria-valuetext'],/2.00 seconds, 3.00 second window/);
+  assert.equal(key('ArrowRight').prevented,true);assert.equal(cell.start,2.04);assert.equal(cell.el.currentTime,2.04);
+  key('ArrowLeft',true);assert.ok(Math.abs(cell.start-1.64)<1e-10);
+  key('End');assert.equal(cell.start,6);key('ArrowRight');assert.equal(cell.start,6);
+  key('Home');key('ArrowLeft');assert.equal(cell.start,0);assert.equal(attributes['aria-valuenow'],'0');
+  key('PageUp');assert.equal(cell.start,1);assert.ok(commits()>0);
+  assert.equal(key('Tab').prevented,undefined);
+});
+test('clip window refuses assistive changes during export, sharing, or when the whole clip is used',()=>{
+  const {context,cell,attributes,key,commits}=windowSliderSetup();
+  for(const lock of ['export','share','full','unready','photo']){
+    context.state.exporting=lock==='export';context.sharing=lock==='share';
+    cell.dur=lock==='full'?3:9;cell.ready=lock!=='unready';cell.kind=lock==='photo'?'image':'video';
+    context.drawWin();assert.equal(attributes['aria-disabled'],'true',lock);
+    assert.equal(key('ArrowRight').prevented,undefined);assert.equal(cell.start,2);assert.equal(commits(),0);
+  }
 });
 
 // A seam can be smaller than a visible row if a destination edge is fractional.
@@ -417,12 +478,12 @@ function historySetup(){
 function layoutSelectionSetup(firstKind='video'){
   const fixture=historySetup(),c=fixture.context;
   vm.runInContext(script.match(/  var LAYOUTS=\[[\s\S]*?\n  \];/)[0],c);
-  for(const name of ['layoutDef','cellCount','selCell','changeLayout','selectCell','drawWin','winSpan']){
+  for(const name of ['layoutDef','cellCount','selCell','changeLayout','selectCell','drawWin','winSpan','updateWinAccessibility']){
     vm.runInContext(script.match(new RegExp('  function '+name+'\\([^]*?\\n  }'))[0],c);
   }
   const paint={setTransform(){},clearRect(){},strokeRect(){},fillRect(){}};
-  c.window={devicePixelRatio:1};c.effDuration=()=>3;
-  c.winCv={clientWidth:300,getContext:()=>paint};c.winLabel={};c.fileIn={click(){throw new Error('layout changes must not open a picker');}};
+  c.window={devicePixelRatio:1};c.effDuration=()=>3;c.clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+  c.winCv={clientWidth:300,getContext:()=>paint,setAttribute(){}};c.winLabel={};c.fileIn={click(){throw new Error('layout changes must not open a picker');}};
   c.state.cells[0]=fixture.cell('first',firstKind);c.state.cells[0].dur=6;
   c.state.cells[1]=fixture.cell('second','video');c.state.cells[1].dur=9;
   c.state.selected=1;c.state.selectionAnchor=1;c.commitHistory();
@@ -441,7 +502,8 @@ test('canvas picker highlights the active ratio, commits a choice, and dismisses
     el.attributes={};el.setAttribute=function(k,v){this.attributes[k]=v;};el.focus=function(){c.focused=this;};
     el.showModal=function(){this.open=true;};el.close=function(){this.open=false;};
   }
-  c.window={innerWidth:390,innerHeight:844};
+  c.window={innerWidth:390,innerHeight:844,getComputedStyle:()=>({paddingLeft:'0px',paddingRight:'0px',paddingTop:'0px',paddingBottom:'0px'})};
+  c.document={body:{}};
   elements.get('artboard').getBoundingClientRect=()=>({left:130,bottom:100});
   elements.get('artboardpicker').getBoundingClientRect=()=>({width:358});
   elements.get('artboardpicker').style={};
@@ -464,6 +526,13 @@ test('canvas picker highlights the active ratio, commits a choice, and dismisses
   assert.ok(prevented);assert.equal(picker.open,false);assert.equal(c.state.artboard,'1:1');
   assert.equal(trigger.attributes['aria-expanded'],'false');
   c.state.exporting=true;c.openArtboardPicker();assert.equal(picker.open,false);
+});
+test('canvas picker stays outside landscape safe areas',()=>{
+  const {context:c,elements}=artboardSetup(),picker=elements.get('artboardpicker');
+  c.window={innerWidth:844,innerHeight:390,getComputedStyle:()=>({paddingLeft:'59px',paddingRight:'59px',paddingTop:'0px',paddingBottom:'21px'})};
+  c.document={body:{}};picker.style={};picker.getBoundingClientRect=()=>({width:440});
+  elements.get('artboard').getBoundingClientRect=()=>({left:10,bottom:80});c.positionArtboardPicker();
+  assert.equal(picker.style.left,'75px');assert.equal(picker.style.top,'88px');assert.equal(picker.style.maxHeight,'265px');
 });
 test('artboard changes preserve media, crop intent, selection and captured-video provenance through Undo/Redo',()=>{
   const {context:c,cell,assignments,releases}=artboardSetup();
@@ -857,7 +926,7 @@ function artboardExportSetup(){
     document:{createElement(){const c={getContext:()=>({}),toBlob(fn){c.encode=fn;}};canvases.push(c);return c;}},
     drawInto(g,w,h){draws.push([w,h]);},verifyImage:()=>Promise.resolve(context.decoded),
     updateHistoryUI(){},say:m=>notices.push(m),stamp:()=> 'test',allFilled:()=>true,
-    sheet:{},sheetImg:node(),sheetVid:node(),sheetInfo:{},sheetCheck:{},sheetHint:{},sheetUrl:null,
+    sheet:{},sheetImg:node(),sheetVid:node(),sheetInfo:{},sheetCheck:{},sheetHint:{},sheetUrl:null,showResultSheet(){context.sheet.className='sheet on';},
     pendingBlob:null,pendingName:'',fmtSize:()=> '1 KB',shareHint:()=> '',sharePrepared(){shares.push(context.pendingName);},
     URL:{createObjectURL:()=> 'blob:export',revokeObjectURL(){}}};
   vm.createContext(context);for(const name of ['exportStill','openSheetStill','openSheetVideo'])loadFunction(context,name);
@@ -886,4 +955,28 @@ test('still and video export verification rejects wrong sizes and explains the s
     c.OUT_W=2;c.OUT_H=2;c.openSheetVideo(blob,'clip.mp4',{...expected,dur:3},3,'video/mp4',0,0,expected);
     assert.equal(shares.length,previous+1,'valid original dimensions can share even after UI dimensions change');
   }
+});
+test('export warning dialog focuses the result and returns focus without retaining a decoder or blob URL',()=>{
+  const focused=[],revoked=[];
+  const trigger={isConnected:true,disabled:false,focus(){focused.push('trigger');}};
+  const context={sheetReturn:null,document:{activeElement:trigger},sheetUrl:'blob:warning',
+    sheet:{open:false,className:'sheet',showModal(){this.open=true;},close(){this.open=false;}},
+    sheetCheck:{focus(){focused.push('warning');}},sheetVid:{pause(){this.paused=true;},removeAttribute(){this.cleared=true;},load(){this.released=true;}},
+    sheetImg:{removeAttribute(){this.cleared=true;}},URL:{revokeObjectURL:url=>revoked.push(url)},updateHistoryUI(){}};
+  vm.createContext(context);loadFunction(context,'showResultSheet');loadFunction(context,'closeSheet');
+  context.showResultSheet();assert.equal(context.sheet.open,true);assert.equal(context.sheet.className,'sheet on');
+  assert.deepEqual(focused,['warning']);
+  context.closeSheet();assert.equal(context.sheet.open,false);assert.equal(context.sheet.className,'sheet');
+  assert.deepEqual(focused,['warning','trigger']);assert.deepEqual(revoked,['blob:warning']);
+  assert.equal(context.sheetVid.paused,true);assert.equal(context.sheetVid.released,true);assert.equal(context.sheetImg.cleared,true);
+  context.closeSheet();assert.deepEqual(focused,['warning','trigger'],'a direct successful share never steals focus');
+});
+test('share errors remain inside the active modal rather than behind its backdrop',()=>{
+  const nodes={sheetstatus:{},editorstatus:{}};
+  const context={editor:{open:false},sheet:{open:true},statusEl:{},toastTimer:null,$:id=>nodes[id],clearTimeout(){},setTimeout(){return 1;}};
+  vm.createContext(context);loadFunction(context,'say');
+  context.say('Could not open the save menu. Please try again.',true);
+  assert.equal(nodes.sheetstatus.className,'status on');assert.match(nodes.sheetstatus.textContent,/Could not/);
+  assert.equal(context.statusEl.textContent,undefined);
+  context.sheet.open=false;context.say('Shared');assert.equal(context.statusEl.textContent,'Shared');
 });

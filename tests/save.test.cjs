@@ -42,6 +42,22 @@ test('Save shares a verified file directly, with no in-app save sheet', async ()
   assert.equal(f.api.saving, false);
   assert.equal(f.ids.get('bsave').disabled, false);
 });
+test('the iOS trial waits for PhotoKit completion and bypasses browser activation expiry', async () => {
+  const f = setup({ canShare: () => false, userActivation: { isActive: false } }), pending = deferred();
+  let calls = 0;
+  f.window.FrameNative = { saveFiles(files) { calls++; assert.equal(files[0].type, 'image/png'); return pending.promise; } };
+  const saving = f.api.saveCurrent();
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(calls, 1);assert.equal(f.api.saving, true);assert.notEqual(f.toast(), 'Saved to Photos');
+  pending.resolve({ count: 1 });await saving;
+  assert.equal(f.toast(), 'Saved to Photos');assert.equal(f.downloads.length, 0);assert.equal(f.shares.length, 0);
+});
+test('the iOS trial reports permission failure without a download or false Photos success', async () => {
+  const f = setup({canShare: () => false});
+  f.window.FrameNative = { saveFiles() { return Promise.reject(new Error('Allow Photos access in Settings.')); } };
+  await f.api.saveCurrent();
+  assert.equal(f.toast(), 'Allow Photos access in Settings.');assert.equal(f.downloads.length, 0);assert.equal(f.api.saving, false);
+});
 
 test('Save freezes crop, rotation, metadata and filename while capture is asynchronous', async () => {
   const f = setup(), capture = deferred();
@@ -187,21 +203,17 @@ test('unexpected native share failures report failure without a false saved mess
 test('marked-frame saving calls the real encoder without passing a seek status as its snapshot', async () => {
   const f = boot(), downloads = [];
   f.api.state.marks = [12, 3];
+  f.api.state.total = 100;
+  f.api.state.url = 'blob:batch-source';
   f.api.state.base = 'batch';
   f.api.setCropToRect({ sx: 100, sy: 150, w: 800, h: 600 });
   f.api.stubExport({
     goToFrame: frame => { f.api.state.frame = frame; return Promise.resolve('seeked'); },
-    downloadBlob: (blob, name) => downloads.push({ blob, name })
+    downloadBlob: (blob, name) => downloads.push({ blob, name }),
+    verifyImage: blob => Promise.resolve({ w: blob.width, h: blob.height })
   });
-  f.api.saveAllMarks();
-  for (let i = 0; i < 8; i++) await Promise.resolve();
-  assert.equal(downloads.length, 1, 'first marked frame is encoded');
-  for (const [id, callback] of [...f.timers]) {
-    f.timers.delete(id);
-    callback();
-  }
-  for (let i = 0; i < 8; i++) await Promise.resolve();
-  assert.equal(downloads.length, 2, 'next marked frame is encoded');
+  await f.api.saveAllMarks();
+  assert.equal(downloads.length, 2, 'every marked frame is encoded and checked');
   assert.deepEqual(downloads.map(item => item.name), ['batch_00-00-00-03.png', 'batch_00-00-00-12.png']);
   for (const { blob } of downloads) {
     assert.equal(blob.width, 800);

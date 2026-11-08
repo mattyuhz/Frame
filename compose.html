@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <!--
   COMPOSE — story grid composer (companion to Frame)
   ------------------------------------------------------------------
@@ -38,10 +38,15 @@
     --gap:16px;
     --sans: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   }
-  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;
-    -webkit-touch-callout:none}
-  button,.chip,label,.eyebrow,.winscrub{-webkit-user-select:none;user-select:none;touch-action:manipulation}
-  html,body{height:100%;overscroll-behavior:none}
+  *{box-sizing:border-box;margin:0;padding:0}
+  /* Chrome is not document text. Keep messages, filenames and form fields
+     selectable; suppress callouts only where they compete with controls. */
+  button,[role="button"],label,.eyebrow,.mark,.winscrub,.toolbar,.editorbar,.video-readout,.winlabel,.durlabel{
+    -webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+  button,[role="button"],a,input[type="range"]{-webkit-tap-highlight-color:transparent}
+  #board,#editorcanvas{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
+  #board .media,.sheetmedia img{-webkit-user-drag:none}
+  html,body{height:100%;overscroll-behavior:none;touch-action:manipulation}
   body{
     background:var(--void);color:var(--read);font-family:var(--sans);font-size:14px;
     -webkit-font-smoothing:antialiased;
@@ -67,7 +72,7 @@
      iOS only decodes video that is genuinely visible, so the preview
      IS the videos; a canvas is used at export time only, when the
      same visible elements are captured. */
-  #board{position:relative;background:#000;overflow:hidden;touch-action:pan-y;cursor:pointer}
+  #board{position:relative;background:#000;overflow:hidden;touch-action:pan-y pinch-zoom;cursor:pointer}
   .cellbox{position:absolute;overflow:hidden;background:#000}
   .cellbox.empty{background:rgba(255,255,255,.05);box-shadow:inset 0 0 0 1px rgba(255,255,255,.08)}
   .photo-preview .cellbox{background:transparent;box-shadow:none;z-index:3}
@@ -118,6 +123,7 @@
 
   .winscrub{position:relative;height:56px;touch-action:none;cursor:ew-resize;display:block;flex:1;min-width:0}
   .winscrub.off{opacity:.3;cursor:default}
+  .winscrub:focus-visible{outline:2px solid var(--read);outline-offset:3px}
   .winlabel{font-size:13px;color:var(--dim);margin-top:8px;line-height:1.5}
 
   .durrow{display:flex;align-items:center;gap:12px}
@@ -146,8 +152,10 @@
   .status{margin-top:var(--gap);font-size:13px;line-height:1.55;color:var(--dim);min-height:1.55em}
   .status.warn{color:var(--read)}
 
-  .sheet{position:fixed;inset:0;background:var(--void);z-index:50;display:none;
-    flex-direction:column;padding:calc(env(safe-area-inset-top) + 16px) 16px calc(env(safe-area-inset-bottom) + 16px)}
+  .sheet{position:fixed;inset:0;width:100%;height:100%;height:100dvh;max-width:none;max-height:none;margin:0;border:0;
+    background:var(--void);color:var(--read);z-index:50;display:none;overflow-y:auto;overscroll-behavior:contain;
+    flex-direction:column;padding:calc(env(safe-area-inset-top) + 16px) calc(env(safe-area-inset-right) + 16px) calc(env(safe-area-inset-bottom) + 16px) calc(env(safe-area-inset-left) + 16px)}
+  .sheet::backdrop{background:var(--void)}
   .sheet.on{display:flex}
   .sheet > *{width:100%;max-width:760px;align-self:center}
   .sheetmedia{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;margin-bottom:14px}
@@ -195,8 +203,8 @@
   .status.on{display:block}
   .status button{display:block;border:0;background:var(--read);color:var(--void);border-radius:12px;padding:10px 14px;margin-top:8px;font:inherit}
   button:focus-visible,a:focus-visible{outline:2px solid white;outline-offset:3px}
-  .crop-editor{position:fixed;inset:0;width:100%;height:100%;max-width:none;max-height:none;margin:0;border:0;
-    background:#000;color:#fff;padding:calc(env(safe-area-inset-top) + 16px) 16px calc(env(safe-area-inset-bottom) + 16px)}
+  .crop-editor{position:fixed;inset:0;width:100%;height:100%;height:100dvh;max-width:none;max-height:none;margin:0;border:0;
+    background:#000;color:#fff;overscroll-behavior:contain;padding:calc(env(safe-area-inset-top) + 16px) calc(env(safe-area-inset-right) + 16px) calc(env(safe-area-inset-bottom) + 16px) calc(env(safe-area-inset-left) + 16px)}
   .crop-editor::backdrop{background:#000}
   .crop-editor[open]{display:flex;flex-direction:column}
   .crop-editor .editorbar{display:grid;grid-template-columns:72px 1fr 72px;align-items:center;gap:8px;width:100%;max-width:760px;margin:0 auto}
@@ -250,7 +258,7 @@
   .editortransport button{min-width:0;min-height:48px}
   .editorchoices{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
   .crop-editor.video-editor{overflow-y:auto}
-  .ratio-picker{position:fixed;inset:0 auto auto 0;width:calc(100% - 32px);max-width:440px;max-height:calc(100% - 32px);margin:0;padding:20px;border:1px solid var(--rule);border-radius:24px;background:var(--void);color:var(--read);overflow:auto}
+  .ratio-picker{position:fixed;inset:0 auto auto 0;width:calc(100% - 32px - env(safe-area-inset-left) - env(safe-area-inset-right));max-width:440px;max-height:calc(100% - 32px);margin:0;padding:20px;border:1px solid var(--rule);border-radius:24px;background:var(--void);color:var(--read);overflow:auto;overscroll-behavior:contain}
   .ratio-picker::backdrop{background:#0003}
   .ratio-header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px}
   .ratio-header h2{font-size:17px;font-weight:500}
@@ -258,12 +266,12 @@
   .ratio-header svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round}
   .ratio-bar{display:flex;align-items:center;margin:16px -20px 0 0;min-width:0}
   .ratio-orientation{display:flex;flex:none;background:var(--raise);border-radius:999px;padding:3px}
-  .ratio-orientation button{display:grid;place-items:center;width:52px;height:40px;border:0;border-radius:999px;background:transparent;color:var(--mid);cursor:pointer}
+  .ratio-orientation button{display:grid;place-items:center;width:52px;height:44px;border:0;border-radius:999px;background:transparent;color:var(--mid);cursor:pointer}
   .ratio-orientation button[aria-pressed="true"]{background:var(--read);color:var(--void)}
   .ratio-orientation svg{width:24px;height:24px;fill:currentColor;fill-opacity:.18;stroke:currentColor;stroke-width:1.5}
   .ratio-options{display:flex;flex:1;min-width:0;gap:6px;padding:5px 24px 5px 16px;overflow-x:auto;scrollbar-width:none;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch;mask-image:linear-gradient(to right,transparent,#000 24px,#000 calc(100% - 24px),transparent)}
   .ratio-options::-webkit-scrollbar{display:none}
-  .ratio-options button{flex:none;height:34px;min-height:0;padding:0 16px;border:1px solid var(--rule);border-radius:999px;background:transparent;color:var(--mid);font:13px var(--sans);cursor:pointer}
+  .ratio-options button{flex:none;height:44px;min-height:44px;padding:0 16px;border:1px solid var(--rule);border-radius:999px;background:transparent;color:var(--mid);font:13px var(--sans);cursor:pointer}
   .ratio-options button[hidden]{display:none}
   .ratio-options button[aria-pressed="true"]{background:var(--read);color:var(--void);border-color:var(--read)}
   .ratio-options button:active:not([aria-pressed="true"]){background:var(--raise-hi)}
@@ -312,7 +320,7 @@
   <div class="group" id="winrow">
     <span class="eyebrow" id="winhint">Clip window</span>
     <div class="winbar">
-      <canvas class="winscrub" id="winscrub"></canvas>
+      <canvas class="winscrub" id="winscrub" role="slider" tabindex="0" aria-label="Clip window start" aria-describedby="winlabel" aria-valuemin="0" aria-valuemax="0" aria-valuenow="0" aria-disabled="true"></canvas>
       <button class="icbtn" id="bplaypause" aria-label="Pause the preview" title="Pause the preview">
         <svg id="icpause" viewBox="0 0 20 20" aria-hidden="true"><path d="M7.5 4v12M12.5 4v12"/></svg>
         <svg id="icplay" class="hidden" viewBox="0 0 20 20" aria-hidden="true"><path d="M6 4l10 6-10 6z"/></svg>
@@ -392,17 +400,18 @@
   <div id="editorstatus" class="status" role="status" aria-live="polite"></div>
 </dialog>
 
-<div class="sheet" id="sheet">
+<dialog class="sheet" id="sheet" aria-label="Export result" aria-describedby="sheetcheck">
   <div class="sheetmedia">
     <img id="sheetimg" alt="The story you exported" class="hidden">
     <video id="sheetvid" playsinline muted loop class="hidden"></video>
   </div>
   <div class="sheetinfo" id="sheetinfo"></div>
-  <div class="sheetcheck" id="sheetcheck"></div>
+  <div class="sheetcheck" id="sheetcheck" tabindex="-1"></div>
   <div class="sheethint" id="sheethint"></div>
   <button class="t wide primary" id="bshare">Save</button>
   <button class="t wide" id="bdone">Back to the layout</button>
-</div>
+  <div id="sheetstatus" class="status" role="status" aria-live="polite"></div>
+</dialog>
 
 <script>
 (function(){
@@ -455,7 +464,7 @@
   var toastTimer=null;
   function say(m,w){
     clearTimeout(toastTimer);
-    var target=editor && editor.open?$('editorstatus'):statusEl;
+    var target=editor && editor.open?$('editorstatus'):sheet && sheet.open?$('sheetstatus'):statusEl;
     target.textContent=m||''; target.className=m?'status on':'status';
     if(m) toastTimer=setTimeout(function(){ target.className='status'; },w?9000:4000);
   }
@@ -586,13 +595,27 @@
   function positionArtboardPicker(){
     var picker=$('artboardpicker'),anchor=$('artboard').getBoundingClientRect();
     var width=picker.getBoundingClientRect().width;
-    var top=Math.max(16,Math.min(anchor.bottom+8,window.innerHeight-180));
-    picker.style.left=Math.max(16,Math.min(anchor.left,window.innerWidth-width-16))+'px';
+    var padding=window.getComputedStyle(document.body);
+    var left=16+(parseFloat(padding.paddingLeft)||0),right=16+(parseFloat(padding.paddingRight)||0);
+    var safeTop=16+(parseFloat(padding.paddingTop)||0),bottom=16+(parseFloat(padding.paddingBottom)||0);
+    var top=Math.max(safeTop,Math.min(anchor.bottom+8,window.innerHeight-bottom-164));
+    picker.style.left=Math.max(left,Math.min(anchor.left,window.innerWidth-width-right))+'px';
     picker.style.top=top+'px';
-    picker.style.maxHeight=Math.max(120,window.innerHeight-top-16)+'px';
+    picker.style.maxHeight=Math.max(0,window.innerHeight-top-bottom)+'px';
   }
+  var nativePickerOpen=false;
   function openArtboardPicker(){
     if(state.exporting || sharing || editorIndexActive() || sheet.className==='sheet on')return;
+    if(window.FrameNative){
+      if(nativePickerOpen)return;
+      nativePickerOpen=true;$('artboard').disabled=true;
+      window.FrameNative.chooseRatio(state.artboard).then(function(value){
+        if(value)changeArtboard(value);
+      },function(error){say(error && error.message || 'Could not open the canvas picker.',true);}).then(function(){
+        nativePickerOpen=false;$('artboard').disabled=false;$('artboard').focus();
+      });
+      return;
+    }
     if(OUT_W!==OUT_H)artboardPortrait=OUT_W<OUT_H;
     refreshArtboardPicker();
     var selected=0;
@@ -928,6 +951,13 @@
     if(e.key!=='Enter' && e.key!==' ')return;
     var index=e.target.getAttribute('data-cell');if(index===null)return;
     e.preventDefault();selectCell(Number(index));
+  });
+  board.addEventListener('click',function(e){
+    // VoiceOver and other assistive activation may send only a click. Real
+    // pointer clicks were already handled above, including swipe cancellation.
+    if(e.detail!==0)return;
+    var cell=e.target.closest('[data-cell]');
+    if(cell && board.contains(cell))selectCell(Number(cell.getAttribute('data-cell')));
   });
   window.addEventListener('blur',function(){ptrs={};});
 
@@ -1345,7 +1375,11 @@
     }
   }
 
+  var filePickerPending=false;
+  fileIn.addEventListener('click',function(){filePickerPending=true;});
+  fileIn.addEventListener('cancel',function(){filePickerPending=false;});
   fileIn.addEventListener('change',function(){
+    filePickerPending=false;
     if(state.exporting){ fileIn.value=''; return; }
     /* One file per tap: a cell is picked first, so choosing several at
        once had no meaning beyond guessing where the rest should land. */
@@ -1435,9 +1469,19 @@
     return Math.max(0, (c.dur||0)-L);
   }
 
+  function updateWinAccessibility(c){
+    var live=!!(c && c.kind==='video' && c.ready),span=live?winSpan(c):0;
+    var start=live?clamp(c.start||0,0,span):0;
+    winCv.setAttribute('aria-valuemax',String(span));
+    winCv.setAttribute('aria-valuenow',String(start));
+    winCv.setAttribute('aria-valuetext',live?start.toFixed(2)+' seconds, '+(effDuration()||0).toFixed(2)+' second window':'Select a video');
+    winCv.setAttribute('aria-disabled',String(!live || span<=0.01 || state.exporting || sharing));
+  }
+
   function drawWin(){
     var c=selCell();
     var live=!!(c && c.kind==='video' && c.ready);
+    updateWinAccessibility(c);
     var w=winCv.clientWidth||300, h=56;
     var d=window.devicePixelRatio||1;
     if(winCv.width!==Math.round(w*d)){ winCv.width=Math.round(w*d); winCv.height=Math.round(h*d); }
@@ -1479,7 +1523,7 @@
      the document instead, and accept touch events too in case a
      WebKit build withholds pointer events from the canvas. */
   function winGrab(x,y){
-    if(state.exporting) return false;
+    if(state.exporting || sharing) return false;
     var c=selCell();
     if(!c || c.kind!=='video' || !c.ready) return false;
     var span=winSpan(c);
@@ -1537,6 +1581,22 @@
   },{passive:false});
   ['touchend','touchcancel'].forEach(function(ev){
     document.addEventListener(ev,winDrop);
+  });
+  winCv.addEventListener('keydown',function(e){
+    var c=selCell();
+    if(state.exporting || sharing || !c || c.kind!=='video' || !c.ready || winSpan(c)<=0.01)return;
+    var amount=(e.shiftKey?10:1)/videoRate(c),next=c.start;
+    if(e.key==='ArrowRight' || e.key==='ArrowUp')next+=amount;
+    else if(e.key==='ArrowLeft' || e.key==='ArrowDown')next-=amount;
+    else if(e.key==='PageUp')next+=1;
+    else if(e.key==='PageDown')next-=1;
+    else if(e.key==='Home')next=0;
+    else if(e.key==='End')next=winSpan(c);
+    else return;
+    e.preventDefault();
+    c.start=clamp(next,0,winSpan(c));
+    try{if(!c.el.seeking)c.el.currentTime=c.start;}catch(_){}
+    drawWin();commitHistory();
   });
 
   /* ---------- story length ---------- */
@@ -1712,7 +1772,7 @@
       sheetCheck.textContent='Could not re-read the file to check its size.';
     }
     sheetHint.textContent=shareHint();
-    sheet.className='sheet on';updateHistoryUI();
+    showResultSheet();
     say('');
   }
 
@@ -2077,12 +2137,19 @@
       sheetCheck.textContent='Could not re-read the recording to check it. The file may still be fine — no sound in this version.';
     }
     sheetHint.textContent=shareHint();
-    sheet.className='sheet on';updateHistoryUI();
+    showResultSheet();
     say('');
   }
 
   /* ---------- sheet: save / share ---------- */
+  var sheetReturn=null;
+  function showResultSheet(){
+    if(!sheet.open){sheetReturn=document.activeElement;sheet.className='sheet on';sheet.showModal();}
+    sheetCheck.focus();updateHistoryUI();
+  }
+  sheet.addEventListener('cancel',function(e){e.preventDefault();closeSheet();});
   function shareHint(){
+    if(window.FrameNative)return 'Save adds the verified file to Photos.';
     if(!env.secure){
       return 'Saving into Photos needs the page opened from an https address; here Safari can only offer a download.';
     }
@@ -2104,25 +2171,27 @@
   }
   function sharePrepared(){
     if(!pendingBlob || sharing) return;
-    var f=null, canShare=false;
+    var nativeSave=!!window.FrameNative, f=null, canShare=false;
     try{
       f=new File([pendingBlob],pendingName,{type:pendingBlob.type});
-      canShare=!!(navigator.canShare && navigator.share && navigator.canShare({files:[f]}));
+      canShare=nativeSave || !!(navigator.canShare && navigator.share && navigator.canShare({files:[f]}));
     }catch(_){}
     if(!canShare){ downloadBlob(pendingBlob,pendingName); closeSheet(); say('Download started'); return; }
     sharing=true; bExport.disabled=true;updateHistoryUI();
     var result;
-    try{ result=navigator.share({files:[f]}); }catch(e){ result=Promise.reject(e); }
+    try{ result=nativeSave ? window.FrameNative.saveFiles([f]) : navigator.share({files:[f]}); }catch(e){ result=Promise.reject(e); }
     Promise.resolve(result).then(function(){
-      closeSheet(); say('Shared');
+      closeSheet(); say(nativeSave?'Saved to Photos':'Shared');
     },function(e){
       if(e && e.name==='AbortError'){closeSheet();say('');}
-      else if(e && e.name==='NotAllowedError'){closeSheet();offerShareRetry();}
-      else say('Could not open the save menu. Please try again.',true);
+      else if(!nativeSave && e && e.name==='NotAllowedError'){closeSheet();offerShareRetry();}
+      else {closeSheet();say(nativeSave && e && e.message ? e.message : 'Could not open the save menu. Please try again.',true);}
     }).then(function(){sharing=false;bExport.disabled=!allFilled();updateHistoryUI();});
   }
   bShare.addEventListener('click',sharePrepared);
   function closeSheet(){
+    var wasOpen=sheet.open;
+    if(wasOpen)sheet.close();
     sheet.className='sheet';
     try{ sheetVid.pause(); }catch(_){}
     sheetVid.removeAttribute('src');
@@ -2130,6 +2199,8 @@
     sheetImg.removeAttribute('src');
     if(sheetUrl){ URL.revokeObjectURL(sheetUrl); sheetUrl=null; }
     updateHistoryUI();
+    if(wasOpen && sheetReturn && sheetReturn.isConnected && !sheetReturn.disabled)sheetReturn.focus();
+    sheetReturn=null;
   }
   bDone.addEventListener('click',closeSheet);
   document.addEventListener('keydown',function(e){
@@ -2166,15 +2237,98 @@
   say('');
   loop();
 
-  /* ---- offline shell: after the first visit, the page itself opens
-     with no network. Registration is skipped in restricted frames. ---- */
-  if('serviceWorker' in navigator && location.protocol==='https:' && !env.restricted){
-    try{
-      navigator.serviceWorker.register('sw.js').then(function(){
-        env.sw=true;
-      }).catch(function(){});
-    }catch(_){}
+  /* FRAME_UPDATE_CLIENT_BEGIN */
+  /* Kept inline by prepare-release.py so the app has no runtime dependency. */
+  function startFrameUpdates(options){
+    if(!('serviceWorker' in navigator) || location.protocol!=='https:')return;
+    try{if(window.self!==window.top)return;}catch(_){return;}
+    var registration=null, checking=false, lastCheck=0, targetBuild=null;
+    var locked=false, lockToken=null, lockTimer=null, reloading=false;
+    var workerURL=new URL('sw.js',location.href).href;
+    function safe(){
+      if(reloading)return false;
+      try{
+        var selection=window.getSelection && window.getSelection();
+        if(selection && !selection.isCollapsed)return false;
+        var el=document.activeElement;
+        if(el && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName)))return false;
+        return options.safeToReload()===true;
+      }catch(_){return false;}
+    }
+    function blockInput(event){
+      if(!locked)return;
+      if(event.cancelable)event.preventDefault();event.stopImmediatePropagation();
+    }
+    ['pointerdown','touchstart','click','keydown','drop'].forEach(function(type){
+      document.addEventListener(type,blockInput,{capture:true,passive:false});
+    });
+    function unlock(){locked=false;lockToken=null;clearTimeout(lockTimer);}
+    function maybeReload(worker){
+      if(!targetBuild || targetBuild===options.build || !worker)return;
+      var channel=new MessageChannel(), timer=setTimeout(function(){channel.port1.close();},1800);
+      channel.port1.onmessage=function(event){
+        clearTimeout(timer);channel.port1.close();
+        if(event.data && event.data.build===targetBuild && safe()){
+          reloading=true;location.reload();
+        }
+      };
+      try{worker.postMessage({type:'FRAME_BUILD'},[channel.port2]);}catch(_){clearTimeout(timer);channel.port1.close();}
+    }
+    navigator.serviceWorker.addEventListener('message',function(event){
+      if(!event.source || event.source.scriptURL!==workerURL)return;
+      var data=event.data||{}, port=event.ports && event.ports[0];
+      if(data.type==='FRAME_PROBE' && port){
+        port.postMessage({ready:safe() && !locked});port.close();
+      }else if(data.type==='FRAME_PREPARE' && port){
+        var ready=safe() && (!locked || lockToken===data.token);
+        if(ready){
+          locked=true;lockToken=data.token;targetBuild=data.build;
+          clearTimeout(lockTimer);lockTimer=setTimeout(unlock,6000);
+        }
+        port.postMessage({ready:ready});port.close();
+      }else if(data.type==='FRAME_CANCEL' && lockToken===data.token){
+        targetBuild=null;unlock();
+      }
+    });
+    navigator.serviceWorker.addEventListener('controllerchange',function(){
+      unlock();maybeReload(navigator.serviceWorker.controller);
+    });
+    function tryWaiting(){
+      /* A first installation activates by itself. Asking it to prepare can
+         race its initial claim and leave an unnecessary input lock behind. */
+      if(registration && registration.waiting && navigator.serviceWorker.controller && safe()){
+        registration.waiting.postMessage({type:'FRAME_CHECK'});
+      }
+      maybeReload(navigator.serviceWorker.controller);
+    }
+    function watchInstalling(){
+      var worker=registration && registration.installing;
+      if(worker)worker.addEventListener('statechange',function(){
+        if(worker.state==='installed')tryWaiting();
+      });
+    }
+    function check(){
+      if(!registration || document.hidden)return;
+      tryWaiting();
+      if(checking || Date.now()-lastCheck<60000 || navigator.onLine===false)return;
+      checking=true;lastCheck=Date.now();
+      registration.update().catch(function(){}).then(function(){checking=false;tryWaiting();});
+    }
+    navigator.serviceWorker.register('sw.js',{updateViaCache:'none'}).then(function(value){
+      registration=value;registration.addEventListener('updatefound',watchInstalling);
+      watchInstalling();check();
+    }).catch(function(){/* Online use remains available if offline storage is denied. */});
+    document.addEventListener('visibilitychange',function(){if(!document.hidden)check();});
+    window.addEventListener('online',check);
+    window.addEventListener('pageshow',check);
+    setInterval(check,60000);
   }
+  /* FRAME_UPDATE_CLIENT_END */
+  if(!env.restricted) startFrameUpdates({build: /* FRAME_RELEASE_ID */ '65f7ee188ef3c0ad71c4', safeToReload:function(){
+    return !state.cells.some(function(cell){return !!cell;}) && historyEntries.length<=1 &&
+      !pendingBlob && !state.exporting && !sharing && !nativePickerOpen && !filePickerPending &&
+      !editorIndexActive() && !document.querySelector('dialog[open]');
+  }});
 })();
 </script>
 </body>

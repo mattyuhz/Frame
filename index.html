@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <!--
   FRAME — local video frame extractor
   ------------------------------------------------------------------
@@ -41,20 +41,26 @@
     --mono: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     --sans: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   }
-  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;
-    -webkit-touch-callout:none}
-  button,.ic,.scrub,.chip,summary,label,.tc,.meta,.eyebrow,.keys,.drop h1,.drop p{
-    -webkit-user-select:none;user-select:none;touch-action:manipulation}
+  *{box-sizing:border-box;margin:0;padding:0}
+  button,a,input,select,summary,[role="button"],.scrub{touch-action:manipulation;
+    -webkit-tap-highlight-color:transparent}
+  button,.appnav,.iconbar,.transport,.actions,.cropbar,.scrubwrap,.chip,summary,label,.tc,.eyebrow,.keys,.cmpbar2,.cmpablabel,.cmpabhint{
+    -webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+  .viewport,.cmpstage,.cmpcard img{-webkit-user-select:none;user-select:none;
+    -webkit-touch-callout:none;-webkit-user-drag:none}
+  input,textarea,[contenteditable="true"],.meta,.banner p{
+    -webkit-user-select:text;user-select:text;-webkit-touch-callout:default}
+  button{min-height:44px}
   .transport button{touch-action:none}
   html,body{height:100%;overscroll-behavior:none}
   body{
-    background:var(--void);color:var(--read);font-family:var(--sans);font-size:14px;
+    background:var(--void);color:var(--read);font-family:var(--sans);font-size:14px;touch-action:manipulation;
     -webkit-font-smoothing:antialiased;
     padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
   }
   .wrap{--page-pad:16px;max-width:760px;margin:0 auto;padding:16px 16px 48px}
   .appnav{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;font-size:13px;color:var(--dim)}
-  .appnav a{color:var(--read);text-decoration:none;padding:8px 0;touch-action:manipulation}
+  .appnav a{color:var(--read);text-decoration:none;padding:8px 0;min-height:44px;display:inline-flex;align-items:center;touch-action:manipulation}
   .appnav a:focus-visible{outline:2px solid var(--read);outline-offset:4px}
   .eyebrow{font-family:var(--sans);font-size:13px;letter-spacing:0;text-transform:none;color:var(--dim)}
 
@@ -82,6 +88,27 @@
   .busy{position:absolute;inset:0;display:none;align-items:center;justify-content:center;background:rgba(10,10,11,.75)}
   .busy.on{display:flex}
   .busy span{font-family:var(--sans);font-size:14px;color:var(--read)}
+
+  .history-status{font-size:13px;line-height:1.5;color:var(--mid);padding:12px 0 4px}
+  .history-status[hidden],.recents[hidden]{display:none}
+  .history-status progress{display:block;width:100%;height:3px;margin-top:8px;accent-color:#fff}
+  .history-status progress[hidden]{display:none}
+  .recents{margin:16px 0;border:1px solid var(--rule);border-radius:var(--r-md);overflow:hidden}
+  .recents summary{cursor:pointer;padding:15px 16px;min-height:48px;font-size:14px}
+  .recent-count{color:var(--mid);font-variant-numeric:tabular-nums;margin-left:6px}
+  .recent-list{padding:0 8px}
+  .recent-row{display:flex;align-items:center;gap:4px;border-top:1px solid var(--rule)}
+  .recent-open{display:flex;align-items:center;gap:12px;flex:1;min-width:0;text-align:left;
+    background:transparent;color:var(--read);border:0;padding:12px 8px;font:inherit;cursor:pointer}
+  .recent-thumb{width:72px;height:54px;object-fit:cover;flex:none;border-radius:8px;background:var(--deck)}
+  .recent-copy{min-width:0;display:block}
+  .recent-name{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:14px}
+  .recent-meta{display:block;color:var(--mid);font-size:12px;margin-top:5px}
+  .recent-remove{border:0;background:transparent;color:var(--mid);font:inherit;cursor:pointer;
+    width:44px;min-width:44px;min-height:44px;font-size:22px;border-radius:12px}
+  .recent-open:focus-visible,.recent-remove:focus-visible{outline:2px solid white;outline-offset:-2px}
+  .recent-open:disabled,.recent-remove:disabled{opacity:.45;cursor:wait}
+  .recent-note{padding:8px 16px 16px;font-size:12px;line-height:1.6;color:var(--mid)}
 
   .readout{display:flex;align-items:center;justify-content:space-between;gap:14px;
     flex-wrap:wrap;padding:16px 0}
@@ -124,7 +151,7 @@
   button.primary{background:var(--read);color:var(--void);font-weight:500}
   button.primary:disabled{opacity:.28}
   .row2{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:9px}
-  button.t:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visible{outline:1px solid var(--mid);outline-offset:2px}
+  button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visible{outline:1px solid var(--mid);outline-offset:2px}
 
   .toggle{display:flex;align-items:center;gap:7px;cursor:pointer}
   .toggle input{accent-color:var(--phos);width:16px;height:16px}
@@ -134,13 +161,13 @@
   .markhead{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;gap:10px}
   .chips{display:flex;gap:6px;flex-wrap:wrap}
   .chip{font-family:var(--sans);font-size:13px;background:transparent;border:1px solid var(--rule);
-    border-radius:var(--r-pill);padding:0 14px;height:34px;display:inline-flex;align-items:center;
+    border-radius:var(--r-pill);padding:0 14px;height:44px;display:inline-flex;align-items:center;
     color:var(--mid);cursor:pointer}
   .chip b{font-weight:400;color:var(--dim);margin-left:8px}
 
   .savetoast{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom) + 20px);
     transform:translateX(-50%);z-index:80;display:none;align-items:center;gap:16px;
-    max-width:calc(100% - 32px);padding:14px 18px;border:1px solid var(--rule);
+    max-width:calc(100% - env(safe-area-inset-left) - env(safe-area-inset-right) - 32px);padding:14px 18px;border:1px solid var(--rule);
     border-radius:var(--r-md);background:#222;color:var(--read);font-size:14px;
     line-height:1.4;box-shadow:0 8px 30px rgba(0,0,0,.4)}
   .savetoast.on{display:flex}
@@ -149,7 +176,7 @@
 
   /* result sheet */
   .sheet{position:fixed;inset:0;background:var(--void);z-index:50;display:none;
-    flex-direction:column;padding:calc(env(safe-area-inset-top) + 16px) 16px calc(env(safe-area-inset-bottom) + 16px)}
+    flex-direction:column;padding:calc(env(safe-area-inset-top) + 16px) calc(env(safe-area-inset-right) + 16px) calc(env(safe-area-inset-bottom) + 16px) calc(env(safe-area-inset-left) + 16px)}
   .sheet.on{display:flex}
   .sheet > *{width:100%;max-width:760px;align-self:center}
   .cmpab > *{width:100%;max-width:760px;align-self:center}
@@ -228,10 +255,10 @@
   .ratios{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;-webkit-overflow-scrolling:touch}
   button.ratio{flex:none;font-family:var(--sans);font-size:13px;background:transparent;
     color:var(--mid);border:1px solid var(--rule);border-radius:var(--r-pill);
-    padding:0 16px;height:34px;cursor:pointer;min-height:0}
+    padding:0 16px;height:44px;cursor:pointer;min-height:44px}
   button.ratio.on{background:var(--read);color:var(--void);border-color:var(--read)}
   .cropbar.on{display:flex;align-items:center;gap:0;flex-wrap:nowrap;
-    margin-right:calc((min(760px, 100vw) - 100vw)/2 - var(--page-pad))}
+    margin-right:0}
   .cropbar .ratios{flex:1;min-width:0;padding:5px var(--page-pad) 5px 16px;
     flex-wrap:nowrap;overflow-x:auto;overflow-y:hidden;scrollbar-width:none;
     overscroll-behavior-x:contain;scroll-snap-type:x proximity;scroll-padding-inline:16px;
@@ -241,7 +268,7 @@
   .cropbar .ratio{scroll-snap-align:start}
   .croporientation{display:flex;flex:none;background:var(--raise);border-radius:var(--r-pill);padding:3px}
   .croporientation button{border:0;background:transparent;color:var(--mid);font:inherit;
-    width:52px;height:40px;border-radius:var(--r-pill);cursor:pointer;display:grid;place-items:center}
+    width:52px;height:44px;border-radius:var(--r-pill);cursor:pointer;display:grid;place-items:center}
   .croporientation button[aria-pressed="true"]{background:var(--read);color:var(--void)}
   .croporientation svg{width:24px;height:24px;fill:currentColor;fill-opacity:.18;stroke:currentColor;stroke-width:1.5}
   .cropactions{display:none;align-items:center;gap:6px}
@@ -273,7 +300,7 @@
     letter-spacing:.1em;text-transform:uppercase;background:var(--phos);color:var(--void);
     padding:3px 6px;border-radius:2px}
   .cmpab{position:fixed;inset:0;background:var(--void);z-index:60;display:none;
-    flex-direction:column;padding:calc(env(safe-area-inset-top) + 16px) 16px calc(env(safe-area-inset-bottom) + 16px)}
+    flex-direction:column;padding:calc(env(safe-area-inset-top) + 16px) calc(env(safe-area-inset-right) + 16px) calc(env(safe-area-inset-bottom) + 16px) calc(env(safe-area-inset-left) + 16px)}
   .cmpab.on{display:flex}
   .cmpstage{flex:1;min-height:0;position:relative;overflow:hidden;background:#000;
     touch-action:none;cursor:grab;border:1px solid var(--rule);border-radius:3px}
@@ -338,6 +365,16 @@
     </div>
     <div class="busy" id="busy"><span id="busytext">Reading</span></div>
   </div>
+
+  <div class="history-status" id="historystatus" hidden>
+    <span id="historystext" role="status" aria-live="polite" aria-atomic="true"></span>
+    <progress id="historyprogress" max="100" value="0" aria-label="Saving video on this device" hidden></progress>
+  </div>
+  <details class="recents" id="recents" open hidden>
+    <summary>Recent videos <span class="recent-count" id="recentcount"></span></summary>
+    <div class="recent-list" id="recentlist"></div>
+    <p class="recent-note" id="recentnote">Copies stay on this device. Removing one leaves your original untouched.</p>
+  </details>
 
   <div class="cropbar" id="cropbar">
     <div class="croporientation" role="group" aria-label="Crop orientation">
@@ -881,7 +918,7 @@ function injectPng(bytes, payload){
   var STD=[23.976,24,25,29.97,30,48,50,59.94,60,100,119.88,120,240];
   var state = { url:null, base:'frame', fps:30, total:0, frame:0, marks:[], ready:false,
                 seeking:false, seekAt:0, meta:{}, metaCount:0 };
-  var pending = null, lastFile=null, lastError=null, canvasState='not tested';
+  var pending = null, lastFile=null, lastError=null, canvasState='not tested', loadToken=0;
 
   /* ---------- environment ---------- */
   var env = {
@@ -905,6 +942,399 @@ function injectPng(bytes, payload){
   };
 
   if(env.restricted) banner.className='banner on';
+
+  /* FRAME_HISTORY_STORE_BEGIN */
+  /* Large sources are copied as small Blob slices. The catalog contains only
+     completed imports; a terminated copy can never appear as a usable video. */
+  function createVideoHistoryStore(options){
+    options=options||{};
+    var idb=null;
+    try{idb=options.indexedDB===undefined?(typeof indexedDB==='undefined'?null:indexedDB):options.indexedDB;}catch(_){}
+    var nav=options.navigator || (typeof navigator==='undefined'?{}:navigator);
+    var folder=typeof location==='undefined'?'/':(location.pathname||'/').replace(/[^/]*$/,'');
+    var name=options.name || 'frame-video-history:'+folder;
+    var limit=options.limit || 8000000000, maxEntries=options.maxEntries || 12;
+    var chunkSize=options.chunkSize || 8*1024*1024;
+    var dbPromise=null, queue=Promise.resolve(), initialized=false, counter=0;
+    var locks=nav.locks && typeof nav.locks.request==='function'?nav.locks:null;
+    function error(code,message){var e=new Error(message);e.code=code;return e;}
+    function normalize(e){
+      if(e && typeof e.code==='string')return e;
+      return error(e && e.name==='QuotaExceededError'?'quota':'unavailable',
+        e && e.name==='QuotaExceededError'?'There is not enough space to keep this video.':'Local video storage is unavailable.');
+    }
+    function database(){
+      if(!idb)return Promise.reject(error('unavailable','Local video storage is unavailable.'));
+      if(dbPromise)return dbPromise;
+      dbPromise=new Promise(function(resolve,reject){
+        var request,settled=false;
+        function fail(e){if(settled)return;settled=true;reject(normalize(e));}
+        try{request=idb.open(name,1);}catch(e){fail(e);return;}
+        request.onupgradeneeded=function(){
+          var db=request.result;
+          db.createObjectStore('entries',{keyPath:'id'});
+          db.createObjectStore('chunks',{keyPath:['id','index']}).createIndex('id','id');
+        };
+        request.onblocked=function(){fail(error('unavailable','Close other Frame tabs to use local video storage.'));};
+        request.onerror=function(){fail(request.error);};
+        request.onsuccess=function(){
+          if(settled){request.result.close();return;}
+          settled=true;
+          request.result.onversionchange=function(){request.result.close();dbPromise=null;initialized=false;};
+          resolve(request.result);
+        };
+      }).catch(function(e){dbPromise=null;throw e;});
+      return dbPromise;
+    }
+    function transaction(stores,mode,work){
+      return database().then(function(db){return new Promise(function(resolve,reject){
+        var tx,result,failure;
+        try{
+          tx=db.transaction(stores,mode);
+          tx.oncomplete=function(){resolve(result);};
+          tx.onabort=function(){reject(normalize(failure || tx.error));};
+          tx.onerror=function(event){failure=failure || event.target.error;};
+          work(tx,function(value){result=value;},function(e){failure=e;tx.abort();});
+        }catch(e){if(tx){failure=e;try{tx.abort();}catch(_){reject(normalize(e));}}else reject(normalize(e));}
+      });});
+    }
+    function guarded(callback,fail){
+      return function(){try{callback();}catch(e){fail(e);}};
+    }
+    function erase(tx,id){
+      tx.objectStore('entries').delete(id);
+      var request=tx.objectStore('chunks').index('id').openKeyCursor(id);
+      request.onsuccess=function(){
+        var cursor=request.result;if(!cursor)return;
+        tx.objectStore('chunks').delete(cursor.primaryKey);cursor.continue();
+      };
+    }
+    function cleanDrafts(){
+      return transaction(['entries','chunks'],'readwrite',function(tx,done,fail){
+        var request=tx.objectStore('entries').getAll();
+        request.onsuccess=guarded(function(){
+          var cutoff=Date.now()-24*60*60*1000;
+          request.result.forEach(function(entry){
+            // A Web Lock proves no other copy is active. Without Web Locks,
+            // expire only old drafts; every chunk checks its reservation.
+            if(!entry.complete && (locks || entry.updated<cutoff))erase(tx,entry.id);
+          });
+        },fail);
+      });
+    }
+    function run(action){
+      function task(){
+        function ready(){return (initialized?Promise.resolve():cleanDrafts().then(function(){initialized=true;})).then(action);}
+        return locks?locks.request(name,ready):ready();
+      }
+      var result=queue.then(task);queue=result.catch(function(){});return result;
+    }
+    function entries(){
+      return transaction(['entries'],'readonly',function(tx,done){
+        var request=tx.objectStore('entries').getAll();
+        request.onsuccess=function(){done(request.result.filter(function(e){return e.complete;}).sort(function(a,b){return b.lastUsed-a.lastUsed;}));};
+      });
+    }
+    function discard(id){return transaction(['entries','chunks'],'readwrite',function(tx){erase(tx,id);});}
+    function requestPersistence(){
+      try{if(nav.storage && nav.storage.persist){var promise=nav.storage.persist();if(promise && promise.catch)promise.catch(function(){});}}catch(_){}
+    }
+    function newID(){
+      var bytes=new Uint8Array(16);
+      if(typeof crypto!=='undefined' && crypto.getRandomValues){
+        crypto.getRandomValues(bytes);
+        return Array.prototype.map.call(bytes,function(b){return ('0'+b.toString(16)).slice(-2);}).join('');
+      }
+      return Date.now().toString(36)+'-'+(++counter)+'-'+Math.random().toString(36).slice(2)+'-'+Math.random().toString(36).slice(2);
+    }
+    function cloneSession(session){try{return JSON.parse(JSON.stringify(session || {}));}catch(_){return {};}}
+    function save(file,metadata,onProgress){
+      if(!file || !(file.size>0) || typeof file.slice!=='function')return Promise.reject(error('unavailable','The selected video is empty or unreadable.'));
+      if(file.size>limit)return Promise.reject(error('too-large','This video exceeds the local history storage limit.'));
+      metadata=metadata||{};
+      var entry={id:newID(),name:file.name||'video',type:file.type||'',size:file.size,lastModified:file.lastModified||0,
+        duration:Number(metadata.duration)||0,fps:Number(metadata.fps)||0,
+        thumbnail:typeof metadata.thumbnail==='string'?metadata.thumbnail.slice(0,262144):'',
+        session:cloneSession(metadata.session),lastUsed:Date.now(),updated:Date.now(),complete:false,chunks:0};
+      return run(function(){
+        requestPersistence();
+        var offset=0,index=0;
+        function progress(){try{if(onProgress)onProgress(offset,file.size);}catch(_){} }
+        function reserve(){return transaction(['entries','chunks'],'readwrite',function(tx,done,fail){
+          var request=tx.objectStore('entries').getAll();
+          request.onsuccess=guarded(function(){
+            var all=request.result,total=file.size,count=1,victims=[],reserved=Object.create(null);
+            all.forEach(function(e){if(!e.complete)(e.evictions||[]).forEach(function(id){reserved[id]=true;});});
+            all.forEach(function(e){if(!e.complete || !reserved[e.id]){total+=e.size;count++;}});
+            all.filter(function(e){return e.complete && !reserved[e.id];}).sort(function(a,b){return a.lastUsed-b.lastUsed;}).some(function(e){
+              if(total<=limit && count<=maxEntries)return true;
+              victims.push(e.id);total-=e.size;count--;return false;
+            });
+            if(total>limit || count>maxEntries){fail(error('quota','Another video is using the available local storage.'));return;}
+            // Keep existing copies until this one commits. Copying may need
+            // temporary space above the retained-cache budget; a failed copy
+            // leaves the previous recents intact. Reserve each victim once.
+            entry.evictions=victims;
+            tx.objectStore('entries').add(entry);
+          },fail);
+        });}
+        function writeChunk(){
+          if(offset>=file.size)return Promise.resolve();
+          var end=Math.min(offset+chunkSize,file.size),part=file.slice(offset,end);
+          return transaction(['entries','chunks'],'readwrite',function(tx,done,fail){
+            var request=tx.objectStore('entries').get(entry.id);
+            request.onsuccess=guarded(function(){
+              if(!request.result || request.result.complete){fail(error('missing','This local copy was interrupted.'));return;}
+              tx.objectStore('chunks').put({id:entry.id,index:index,blob:part});
+              entry.updated=Date.now();entry.chunks=index+1;
+              tx.objectStore('entries').put(entry);
+            },fail);
+          }).then(function(){offset=end;index++;progress();return writeChunk();});
+        }
+        return reserve().then(function(){progress();return writeChunk();}).then(function(){
+          return transaction(['entries','chunks'],'readwrite',function(tx,done,fail){
+            var request=tx.objectStore('entries').getAll();
+            request.onsuccess=guarded(function(){
+              var all=request.result,draft=null,victims=Object.create(null),total=0,count=0;
+              all.forEach(function(e){if(e.id===entry.id)draft=e;});
+              if(!draft || draft.chunks!==index){fail(error('missing','This local copy was interrupted.'));return;}
+              (draft.evictions||[]).forEach(function(id){victims[id]=true;});
+              // Another tab may have finished, failed, or removed a copy since
+              // admission. Recheck the actual catalog in this same transaction.
+              all.forEach(function(e){if(!victims[e.id]){total+=e.size;count++;}});
+              all.filter(function(e){return e.complete && !victims[e.id];}).sort(function(a,b){return a.lastUsed-b.lastUsed;}).some(function(e){
+                if(total<=limit && count<=maxEntries)return true;
+                victims[e.id]=true;total-=e.size;count--;return false;
+              });
+              if(total>limit || count>maxEntries){fail(error('quota','Another video is using the available local storage.'));return;}
+              Object.keys(victims).forEach(function(id){erase(tx,id);});delete entry.evictions;
+              entry.complete=true;entry.updated=Date.now();tx.objectStore('entries').put(entry);done(entry);
+            },fail);
+          });
+        }).catch(function(e){return discard(entry.id).catch(function(){}).then(function(){throw normalize(e);});});
+      });
+    }
+    function open(id){return run(function(){
+      return transaction(['entries','chunks'],'readwrite',function(tx,done,fail){
+        var request=tx.objectStore('entries').get(id);
+        request.onsuccess=guarded(function(){
+          var entry=request.result;
+          if(!entry || !entry.complete){fail(error('missing','This video is no longer stored on this device.'));return;}
+          var parts=[],size=0,index=0,cursorRequest=tx.objectStore('chunks').index('id').openCursor(id);
+          cursorRequest.onsuccess=guarded(function(){
+            var cursor=cursorRequest.result;
+            if(cursor){
+              var chunk=cursor.value;
+              if(chunk.index!==index++ || !chunk.blob || typeof chunk.blob.size!=='number'){
+                fail(error('missing','The stored video is incomplete.'));return;
+              }
+              parts.push(chunk.blob);size+=chunk.blob.size;cursor.continue();return;
+            }
+            if(size!==entry.size || index!==entry.chunks){fail(error('missing','The stored video is incomplete.'));return;}
+            var file;
+            try{file=new File(parts,entry.name,{type:entry.type,lastModified:entry.lastModified});}
+            catch(e){fail(e);return;}
+            entry.lastUsed=Date.now();tx.objectStore('entries').put(entry);done({file:file,entry:entry});
+          },fail);
+        },fail);
+      }).catch(function(e){
+        if(e.code!=='missing')throw e;
+        return discard(id).catch(function(){}).then(function(){throw e;});
+      });
+    });}
+    function updateSession(id,session){
+      var copy=cloneSession(session);
+      return run(function(){return transaction(['entries'],'readwrite',function(tx,done,fail){
+        var request=tx.objectStore('entries').get(id);
+        request.onsuccess=guarded(function(){
+          var entry=request.result;
+          if(!entry || !entry.complete){fail(error('missing','This video is no longer stored on this device.'));return;}
+          entry.session=copy;tx.objectStore('entries').put(entry);
+        },fail);
+      });});
+    }
+    return {supported:!!idb,limit:limit,maxEntries:maxEntries,
+      list:function(){return run(entries);},save:save,open:open,
+      remove:function(id){return run(function(){return discard(id);});},updateSession:updateSession};
+  }
+  var videoHistoryStore=createVideoHistoryStore();
+  /* FRAME_HISTORY_STORE_END */
+
+  /* FRAME_HISTORY_UI_BEGIN */
+  var historyContext=null, historyTimer=null, historyRefreshToken=0,
+      historyOpenToken=0, historyOpenBusy=false;
+
+  function historySize(bytes){
+    return bytes>=1e9?(bytes/1e9).toFixed(bytes>=10e9?0:1).replace(/\.0$/,'')+' GB':
+      Math.max(0.1,bytes/1e6).toFixed(1).replace(/\.0$/,'')+' MB';
+  }
+  function historyDuration(seconds){
+    var s=Math.max(0,Math.round(seconds||0));
+    return Math.floor(s/60)+':'+pad(s%60);
+  }
+  function historyStatus(message,progress){
+    $('historystatus').hidden=!message;
+    $('historystext').textContent=message||'';
+    $('historyprogress').hidden=typeof progress!=='number';
+    if(typeof progress==='number') $('historyprogress').value=Math.max(0,Math.min(100,progress));
+  }
+  function historyError(error){
+    if(error && error.code==='too-large')return 'This video is larger than the 8 GB history limit. You can still use it now.';
+    if(error && error.code==='quota')return 'Not enough device storage to keep this video. You can still use it now.';
+    return 'Could not keep this video on this device. You can still use it now; choose it again next time.';
+  }
+  function historyRemember(immediate){
+    var context=historyContext;
+    if(!context || !state.ready || context.removed)return;
+    context.session={frame:state.frame,marks:state.marks.slice()};
+    if(immediate){
+      if(historyTimer){clearTimeout(historyTimer);historyTimer=null;}
+      historyFlush(context);
+    }else if(!historyTimer){
+      // Throttle, rather than debounce, so continuous playback also checkpoints.
+      historyTimer=setTimeout(function(){historyTimer=null;historyFlush(context);},700);
+    }
+  }
+  function historySessionKey(id){
+    return 'frame-video-session:'+(location.pathname||'/').replace(/[^/]*$/,'')+':'+(id||'');
+  }
+  function historySavedSession(entry){
+    if(!entry)return null;
+    try{
+      var saved=JSON.parse(window.localStorage.getItem(historySessionKey(entry.id)));
+      if(saved && Number.isFinite(saved.frame) && Array.isArray(saved.marks))return saved;
+    }catch(_){}
+    return entry.session;
+  }
+  function historyPruneSessions(entries){
+    try{
+      var storage=window.localStorage, prefix=historySessionKey(''), keep=Object.create(null);
+      entries.forEach(function(entry){keep[historySessionKey(entry.id)]=true;});
+      for(var i=storage.length-1;i>=0;i--){
+        var key=storage.key(i);
+        if(key && key.indexOf(prefix)===0 && !keep[key])storage.removeItem(key);
+      }
+    }catch(_){}
+  }
+  function historyFlush(context){
+    if(!context || !context.id || context.removed || !context.session)return;
+    var serialized=JSON.stringify(context.session);
+    if(context.lastSession===serialized)return;
+    // A pagehide cannot wait for IndexedDB/Web Locks. This tiny checkpoint
+    // survives an immediate close; video bytes stay in the chunked database.
+    try{window.localStorage.setItem(historySessionKey(context.id),serialized);}catch(_){}
+    context.lastSession=serialized;
+    videoHistoryStore.updateSession(context.id,context.session).catch(function(){
+      if(context.lastSession===serialized)context.lastSession=null;
+    });
+  }
+  function historyThumbnail(){
+    try{
+      if(!video.videoWidth || !video.videoHeight)return '';
+      var canvas=document.createElement('canvas'), scale=Math.min(1,192/video.videoWidth,144/video.videoHeight);
+      canvas.width=Math.max(1,Math.round(video.videoWidth*scale));
+      canvas.height=Math.max(1,Math.round(video.videoHeight*scale));
+      canvas.getContext('2d').drawImage(video,0,0,canvas.width,canvas.height);
+      return canvas.toDataURL('image/jpeg',0.7);
+    }catch(_){return '';}
+  }
+  function cacheHistoryVideo(context){
+    if(context.caching || context.id || context.removed)return Promise.resolve();
+    if(!videoHistoryStore.supported){
+      if(context===historyContext)historyStatus('Local history is unavailable here. You can still use this video now.');
+      return Promise.resolve();
+    }
+    context.caching=true;
+    var metadata={duration:video.duration,fps:state.fps,thumbnail:historyThumbnail(),session:context.session};
+    if(context===historyContext)historyStatus('Keeping video on this device… 0%',0);
+    return videoHistoryStore.save(context.file,metadata,function(written,total){
+      if(context!==historyContext)return;
+      var percent=Math.min(99,Math.floor(written/Math.max(1,total)*100));
+      if(context.lastPercent===percent)return;
+      context.lastPercent=percent;
+      // 100% is reserved for the final catalog commit, not just written chunks.
+      historyStatus('Keeping video on this device… '+percent+'%',percent);
+    }).then(function(entry){
+      context.caching=false; context.id=entry.id;
+      historyFlush(context);
+      if(context===historyContext)historyStatus('Available in Recent videos · '+historySize(entry.size));
+      return refreshHistory();
+    }).catch(function(error){
+      context.caching=false;
+      if(context===historyContext)historyStatus(historyError(error));
+      return refreshHistory();
+    });
+  }
+  function refreshHistory(){
+    var token=++historyRefreshToken;
+    if(!videoHistoryStore.supported)return Promise.resolve();
+    return videoHistoryStore.list().then(function(entries){
+      if(token!==historyRefreshToken)return;
+      historyPruneSessions(entries);
+      if(historyContext && historyContext.id && !historyContext.caching &&
+          !entries.some(function(entry){return entry.id===historyContext.id;})){
+        historyContext.removed=true;historyContext.id=null;
+        historyStatus('This video is no longer in Recent videos. You can keep working with the open video.');
+      }
+      var list=$('recentlist'); list.textContent='';
+      $('recents').hidden=!entries.length;
+      $('recentcount').textContent=entries.length?'('+entries.length+')':'';
+      var bytes=entries.reduce(function(total,entry){return total+entry.size;},0);
+      $('recentnote').textContent=historySize(bytes)+' of 8 GB used · Up to 12 videos. Least recently used copies are removed as space is needed. Removing a copy leaves your original untouched.';
+      entries.forEach(function(entry){
+        var row=document.createElement('div'), open=document.createElement('button'),
+            picture=document.createElement(entry.thumbnail?'img':'span'), copy=document.createElement('span'),
+            name=document.createElement('span'), meta=document.createElement('span'), remove=document.createElement('button');
+        row.className='recent-row'; open.className='recent-open';open.type='button';
+        open.disabled=historyOpenBusy;
+        open.setAttribute('aria-label','Open '+entry.name);
+        picture.className='recent-thumb';
+        if(entry.thumbnail){picture.src=entry.thumbnail;picture.alt='';}
+        copy.className='recent-copy';name.className='recent-name';meta.className='recent-meta';
+        name.textContent=entry.name;
+        meta.textContent=historyDuration(entry.duration)+' · '+historySize(entry.size);
+        copy.appendChild(name);copy.appendChild(meta);open.appendChild(picture);open.appendChild(copy);
+        open.addEventListener('click',function(){openHistoryVideo(entry.id);});
+        remove.type='button';remove.className='recent-remove';remove.textContent='×';
+        remove.disabled=historyOpenBusy;remove.setAttribute('aria-label','Remove '+entry.name+' from recent videos');
+        remove.addEventListener('click',function(){removeHistoryVideo(entry.id);});
+        row.appendChild(open);row.appendChild(remove);list.appendChild(row);
+      });
+    }).catch(function(){/* Imports remain usable even when browser storage is blocked. */});
+  }
+  function openHistoryVideo(id){
+    if(saving || historyOpenBusy)return Promise.resolve();
+    historyRemember(true);
+    var token=++historyOpenToken;
+    historyOpenBusy=true;
+    historyStatus('Opening saved video…'); refreshHistory();
+    return videoHistoryStore.open(id).then(function(saved){
+      if(token!==historyOpenToken)return;
+      historyOpenBusy=false;
+      loadFile(saved.file,saved.entry);
+    }).catch(function(){
+      if(token!==historyOpenToken)return;
+      historyOpenBusy=false;
+      historyStatus('This saved copy is unavailable. Choose the video again from Photos or Files.');
+    }).then(function(){return refreshHistory();});
+  }
+  function removeHistoryVideo(id){
+    if(saving || historyOpenBusy)return Promise.resolve();
+    return videoHistoryStore.remove(id).then(function(){
+      if(historyContext && historyContext.id===id){
+        historyContext.removed=true;historyContext.id=null;
+        historyStatus('Removed from Recent videos. You can keep working with the open video.');
+      }
+      return refreshHistory();
+    }).catch(function(){historyStatus('Could not remove this saved copy. Try again.');});
+  }
+  document.addEventListener('visibilitychange',function(){
+    if(document.hidden)historyRemember(true);
+    else refreshHistory();
+  });
+  window.addEventListener('pagehide',function(){historyRemember(true);});
+  $('recents').addEventListener('toggle',function(){if($('recents').open)refreshHistory();});
+  /* FRAME_HISTORY_UI_END */
 
   /* ---------- helpers ---------- */
   function pad(n){ return String(n).padStart(2,'0'); }
@@ -970,12 +1400,15 @@ function injectPng(bytes, payload){
   }
 
   /* ---------- frame rate ---------- */
-  function detectFps(){
+  function detectFps(token){
+    if(token===undefined) token=loadToken;
     return new Promise(function(resolve){
       if(typeof video.requestVideoFrameCallback!=='function'){ resolve(null); return; }
       var first=null,last=null,n=0,fin=false;
       function stop(){
-        if(fin)return; fin=true; video.pause();
+        if(fin)return; fin=true;
+        if(token!==loadToken){resolve(null);return;}
+        video.pause();
         if(first&&last&&last.p>first.p&&last.m>first.m){
           var raw=(last.p-first.p)/(last.m-first.m);
           resolve(raw>0.5&&raw<400?raw:null);
@@ -983,6 +1416,7 @@ function injectPng(bytes, payload){
       }
       function tick(now,meta){
         if(fin)return;
+        if(token!==loadToken){fin=true;resolve(null);return;}
         var s={p:meta.presentedFrames,m:meta.mediaTime};
         if(first===null) first=s; else last=s;
         if(++n>=45){ stop(); return; }
@@ -1001,8 +1435,17 @@ function injectPng(bytes, payload){
   }
 
   /* ---------- loading ---------- */
-  function loadFile(file){
+  function loadFile(file,cachedEntry){
     if(!file) return;
+    historyRemember(true);
+    var token=++loadToken;
+    historyOpenToken++; historyOpenBusy=false;
+    seekToken++; pending=null; stalls=0; state.seeking=false;
+    setEnabled(false); video.pause(); stopHolds(); closeAllSheets();
+    var context={id:cachedEntry?cachedEntry.id:null,file:file,session:null,caching:false,removed:false};
+    historyContext=context;
+    historyStatus(cachedEntry?'Opening saved video…':'Opening video…');
+    $('recents').open=false;
     saveToken++; preparedSave=null; saving=false; sharing=false; clearSaveToast();
     setCropMode(false);
     state.crop={ratio:0,scale:1,cx:0.5,cy:0.5,free:true};
@@ -1011,17 +1454,17 @@ function injectPng(bytes, payload){
     state.marks=[]; lastFile=file; lastError=null; canvasState='not tested';
     state.meta={}; state.metaCount=0;
     readVideoMetadata(file).then(function(m){
+      if(token!==loadToken)return;
       state.meta=m||{}; state.metaCount=Object.keys(state.meta).length;
     });
     paintMarks(); say(''); working(true,'Reading');
 
-    state.url=URL.createObjectURL(file);
-    video.src=state.url; video.load();
-
     var failed=false;
     video.onerror=function(){
+      if(token!==loadToken)return;
       failed=true; lastError=video.error||{code:0,message:''};
       working(false); setEnabled(false);
+      historyStatus('This video could not be opened.');
       var reason=MEDIA_ERR[lastError.code]||'The browser did not say why.';
       var advice = env.restricted
         ? 'You are in a restricted preview frame, which blocks video whatever the file is. Open this address in Safari directly.'
@@ -1032,12 +1475,15 @@ function injectPng(bytes, payload){
     };
 
     video.onloadedmetadata=function(){
-      if(failed) return;
+      if(failed || token!==loadToken) return;
+      video.onloadedmetadata=null;
       working(true,'Reading frame rate');
       drop.className='drop gone'; viewport.className='viewport live';
       $('iconbar').className='iconbar on'; $('bnew').title='Open another video — '+file.name;
 
-      detectFps().then(function(raw){
+      var savedFps=cachedEntry && cachedEntry.fps;
+      (savedFps>0.5 && savedFps<400?Promise.resolve(savedFps):detectFps(token)).then(function(raw){
+        if(failed || token!==loadToken)return;
         var snapped=raw?snapToStandard(raw):null, note='';
         if(snapped){ state.fps=snapped; }
         else if(raw){
@@ -1047,17 +1493,32 @@ function injectPng(bytes, payload){
           state.fps=30; note='Could not measure the frame rate, so frame numbers assume 30 fps and may be approximate. The saved picture is still correct.';
         }
         video.currentTime=0; recomputeTotal(); setEnabled(true); working(false);
+        var session=historySavedSession(cachedEntry);
+        state.marks=session && Array.isArray(session.marks)?session.marks.filter(function(f,i,all){
+          return Number.isInteger(f) && f>=0 && f<state.total && all.indexOf(f)===i;
+        }):[];
+        state.frame=session && Number.isFinite(session.frame)?clampFrame(session.frame):0;
+        paintMarks();
         state.rot=0; $('brotate').className='ic';
         layoutViewer(); zoomFit();
-        setTimeout(function(){ layoutViewer(); layoutCrop(); },60);
-        goToFrame(0).then(function(){
+        setTimeout(function(){ if(token===loadToken){layoutViewer(); layoutCrop();} },60);
+        goToFrame(session && Number.isFinite(session.frame)?clampFrame(session.frame):0).then(function(){
+          if(token!==loadToken)return;
           canvasState=testCanvas();
           if(canvasState!=='working'){
             say('The video loaded, but this browser will not let the page copy pixels out of it ('+canvasState+'). Saving will fail here. Open the address in Safari directly.',true);
           } else say(note,!!note);
+          historyRemember(true);
+          if(cachedEntry){
+            historyStatus('Available in Recent videos · '+historySize(file.size));refreshHistory();
+            scrubEl.focus({preventScroll:true});
+          }
+          else cacheHistoryVideo(context);
         });
       });
     };
+    state.url=URL.createObjectURL(file);
+    video.src=state.url; video.load();
   }
 
   function recomputeTotal(){
@@ -1091,6 +1552,7 @@ function injectPng(bytes, payload){
     scrubFill.style.width = pct+'%';
     scrubEl.setAttribute('aria-valuenow', String(n));
     paintTimecode();
+    historyRemember(false);
   }
 
   var seekToken=0, stalls=0;
@@ -1124,15 +1586,16 @@ function injectPng(bytes, payload){
      given up. Re-open the same file and carry on from the same frame. */
   function recoverVideo(){
     if(!state.url) return;
-    var want = state.frame;
+    var want = state.frame, token=loadToken;
     stalls = 0; pending = null; state.seeking = false;
     working(true,'Reloading');
     say('The video decoder stalled, usually because memory ran low. Reloading it and returning to your frame.', true);
     video.addEventListener('loadeddata', function again(){
       video.removeEventListener('loadeddata', again);
+      if(token!==loadToken)return;
       working(false);
       state.seeking = false; pending = null;
-      goToFrame(want).then(function(){ say('Back at frame '+want+'.'); });
+      goToFrame(want).then(function(){ if(token===loadToken)say('Back at frame '+want+'.'); });
     });
     try { video.load(); } catch(err){ working(false); }
   }
@@ -1254,17 +1717,21 @@ function injectPng(bytes, payload){
     var t=timecode(f,state.fps);
     return state.base+'_'+t.h+'-'+t.m+'-'+t.s+'-'+t.f+'.png';
   }
+  var exportAnchor=null;
   function downloadBlob(blob,name){
     var u=URL.createObjectURL(blob), a=document.createElement('a');
-    a.href=u; a.download=name; document.body.appendChild(a); a.click();
-    document.body.removeChild(a); setTimeout(function(){ URL.revokeObjectURL(u); },4000);
+    a.href=u; a.download=name; document.body.appendChild(a);exportAnchor=a;
+    try{a.click();}finally{
+      exportAnchor=null;document.body.removeChild(a);setTimeout(function(){ URL.revokeObjectURL(u); },4000);
+    }
   }
 
-  var saving=false, sharing=false, saveToken=0, preparedSave=null, saveToastTimer=null;
+  var saving=false, sharing=false, saveToken=0, preparedSave=null, saveToastTimer=null, saveBusyCallback=null;
   function clearSaveToast(){
     if(saveToastTimer){ clearTimeout(saveToastTimer); saveToastTimer=null; }
     $('savetoast').className='savetoast';
     $('savetoasttext').textContent=''; $('bsavemenu').hidden=true;
+    $('bsavemenu').textContent='Open save menu';
   }
   function saveToast(message,retry){
     clearSaveToast();
@@ -1280,41 +1747,188 @@ function injectPng(bytes, payload){
   function finishSave(){
     saving=false; sharing=false; working(false);
     btns.bsave.disabled=!state.ready;
+    $('bsaveall').disabled=!state.ready || !state.marks.length;
+    var done=saveBusyCallback;saveBusyCallback=null;
+    if(done)done(false);
   }
   function sharePrepared(item){
     if(!item || item.token!==saveToken || sharing) return Promise.resolve();
+    if(item.source && item.source!==state.url)return Promise.resolve({status:'stale',count:0});
+    if(item.resume)return item.resume();
     saving=true; btns.bsave.disabled=true; clearSaveToast();
-    var canShare=false;
-    try{ canShare=!!(item.file && navigator.share && navigator.canShare && navigator.canShare({files:[item.file]})); }
+    if(item.onBusy){saveBusyCallback=item.onBusy;saveBusyCallback(true);}
+    var files=item.files || (item.file?[item.file]:[]);
+    var entries=item.entries || [{blob:item.blob,name:item.name}];
+    var nativeSave=!!(window.FrameNative && files.length), canShare=nativeSave;
+    try{ canShare=canShare || !!(files.length && navigator.share && navigator.canShare && navigator.canShare({files:files})); }
     catch(_){}
     if(!canShare){
-      try{ downloadBlob(item.blob,item.name); preparedSave=null; finishSave(); saveToast('Download started'); }
-      catch(_){ finishSave(); saveToast('Could not download. Please try again.'); }
-      return Promise.resolve();
+      var requested=0;
+      try{
+        entries.forEach(function(entry){downloadBlob(entry.blob,entry.name);requested++;});
+        preparedSave=null;finishSave();
+        if(item.afterShare)return Promise.resolve(item.afterShare('downloaded'));
+        saveToast(entries.length===1?'Download started':'Downloads started for '+entries.length+' frames.');
+      }catch(_){
+        finishSave();preparedSave=null;
+        if(item.onFailure)item.onFailure(requested);
+        saveToast((requested?'Started '+requested+' downloads. ':'')+'Could not download the remaining frames. Please try again.');
+        return Promise.resolve({status:'error',count:requested});
+      }
+      return Promise.resolve({status:'downloaded',count:requested});
     }
     function retryMenu(){
       finishSave(); preparedSave=item;
       saveToast('Ready to save',true);
+      return {status:'prepared',count:0};
     }
     // Long captures can outlast Safari's user-activation window. The retry
     // button reuses this verified file and opens the menu in a fresh gesture.
-    if(navigator.userActivation && navigator.userActivation.isActive===false){
-      retryMenu(); return Promise.resolve();
+    if(!nativeSave && navigator.userActivation && navigator.userActivation.isActive===false){
+      return Promise.resolve(retryMenu());
     }
     function failed(err){
       if(item.token!==saveToken) return;
-      if(err && err.name==='NotAllowedError'){ retryMenu(); return; }
+      if(!nativeSave && err && err.name==='NotAllowedError')return retryMenu();
       finishSave(); preparedSave=null;
-      if(!err || err.name!=='AbortError') saveToast('Could not share. Please try again.');
+      if(!err || err.name!=='AbortError') saveToast(nativeSave && err && err.message ? err.message : 'Could not share. Please try again.');
+      if(item.release)item.release();
+      return {status:err && err.name==='AbortError'?'cancelled':'error',count:0};
     }
     var result;
-    try{ sharing=true; result=navigator.share({files:[item.file]}); }
-    catch(err){ failed(err); return Promise.resolve(); }
-    if(!result || typeof result.then!=='function'){ retryMenu(); return Promise.resolve(); }
+    try{ sharing=true; result=nativeSave ? window.FrameNative.saveFiles(files) : navigator.share({files:files}); }
+    catch(err){ return Promise.resolve(failed(err)); }
+    if(!result || typeof result.then!=='function')return Promise.resolve(retryMenu());
     return result.then(function(){
       if(item.token!==saveToken) return;
-      finishSave(); preparedSave=null; saveToast('Shared');
+      finishSave(); preparedSave=null;
+      var status=nativeSave?'saved':'shared';
+      if(item.afterShare)return item.afterShare(status);
+      saveToast(nativeSave?'Saved to Photos':'Shared');return {status:status,count:files.length};
     },failed);
+  }
+
+  /* Marked exports share the verified single-frame encoder. Native menus are
+     prepared in bounded batches; download-only browsers release each image
+     before decoding the next. Every continuation stays tied to its source. */
+  function saveFrameList(frames,options){
+    options=options||{};
+    if(!state.ready||saving)return Promise.resolve({status:'busy',count:0});
+    var list=[];
+    (frames||[]).forEach(function(frame){
+      if(isFinite(frame)&&Math.floor(frame)===frame&&frame>=0&&frame<state.total&&list.indexOf(frame)<0)list.push(frame);
+    });
+    list.sort(function(a,b){return a-b;});
+    if(!list.length)return Promise.resolve({status:'empty',count:0});
+    var crop=cropRect();if(!crop)return Promise.resolve({status:'error',count:0});
+    video.pause();stopHolds();
+    var snapshot={crop:crop,rot:state.rot,meta:state.meta,metaCount:state.metaCount};
+    var swap=snapshot.rot===90||snapshot.rot===270;
+    var width=Math.round(swap?crop.h:crop.w),height=Math.round(swap?crop.w:crop.h);
+    var source=state.url,token=++saveToken,index=0,completed=0,downloadOnly=null;
+    var restoreFrame=typeof options.restoreFrame==='number'?clamp(options.restoreFrame,0,state.total-1):state.frame;
+    var names=list.map(nameFor),batch=[],batchBytes=0;
+    preparedSave=null;clearSaveToast();
+    function alive(){return token===saveToken&&source===state.url&&state.ready;}
+    function result(status){return {status:status,count:completed,total:list.length};}
+    function progress(message){
+      working(true,message);if(options.onProgress)options.onProgress(message);
+    }
+    function begin(){
+      if(!alive())return Promise.resolve(result('stale'));
+      saving=true;btns.bsave.disabled=true;preparedSave=null;clearSaveToast();
+      saveBusyCallback=options.onBusy||null;if(saveBusyCallback)saveBusyCallback(true);
+      video.pause();
+      return next().catch(failed);
+    }
+    function restore(){
+      if(!alive())return Promise.resolve(false);
+      return goToFrame(restoreFrame).then(function(how){
+        if(!alive())return false;
+        if(how!=='seeked'&&how!=='frame')return false;
+        setFrameUI(restoreFrame);return true;
+      });
+    }
+    function release(){batch=[];batchBytes=0;}
+    function stale(){
+      release();
+      if(token===saveToken){preparedSave=null;finishSave();}
+      return result('stale');
+    }
+    function failed(error){
+      if(!alive())return stale();
+      return restore().then(function(){
+        if(!alive())return stale();
+        release();finishSave();preparedSave=null;
+        saveToast((completed?'Started '+completed+' of '+list.length+' exports. ':'')+
+          (error&&error.message?error.message:'Could not save the selected frames. Please try again.'));
+        return result('error');
+      });
+    }
+    function afterBatch(status){
+      completed+=batch.length;release();
+      if(index<list.length){
+        preparedSave={token:token,source:source,resume:function(){
+          // Review may have closed or moved while this batch awaited a fresh
+          // gesture. Return the decoder to the context active at continuation.
+          restoreFrame=state.frame;
+          return begin();
+        }};
+        saveToast((status==='saved'?'Saved to Photos: ':status==='shared'?'Shared ':'Downloads started for ')+completed+' of '+list.length+' frames.',true);
+        $('bsavemenu').textContent='Save next batch';return result('prepared');
+      }
+      saveToast(status==='saved'?'Saved '+completed+' frames to Photos.':status==='shared'?'Shared '+completed+' frames.':'Downloads started for '+completed+' frames.');
+      return result(status);
+    }
+    function handoff(){
+      return restore().then(function(restored){
+        if(!alive())return stale();
+        if(!restored)throw new Error('Could not return to your selected frame. Try saving again.');
+        working(false);
+        if(downloadOnly){finishSave();saveToast('Downloads started for '+completed+' frames.');return result('downloaded');}
+        var item={token:token,source:source,entries:batch,files:batch.map(function(entry){return entry.file;}),
+          onBusy:options.onBusy,afterShare:afterBatch,release:release,
+          onFailure:function(requested){completed+=requested;release();}};
+        preparedSave=item;
+        return sharePrepared(item).then(function(outcome){
+          if(!alive())return stale();
+          if(outcome&&outcome.status==='prepared')return result('prepared');
+          if(outcome&&outcome.status==='cancelled')return result('cancelled');
+          if(outcome&&outcome.status==='error')return result('error');
+          return outcome;
+        });
+      });
+    }
+    function next(){
+      if(!alive())return Promise.resolve(stale());
+      if(index>=list.length||batch.length>=8)return handoff();
+      var frame=list[index],name=names[index];progress('Preparing '+(index+1)+' of '+list.length);
+      return goToFrame(frame).then(function(how){
+        if(!alive())return null;
+        if((how!=='seeked'&&how!=='frame')||state.seeking||video.seeking||state.frame!==frame||video.readyState<2)
+          throw new Error('The selected frame is not ready. Try saving again.');
+        return currentBlob(snapshot);
+      }).then(function(blob){
+        if(!alive())return stale();
+        if(!blob)throw new Error('Could not capture a selected frame. Try saving again.');
+        return verifyImage(blob).then(function(size){
+          if(!alive())return stale();
+          if(!size||size.w!==width||size.h!==height)throw new Error('Could not verify a selected image. Try saving again.');
+          var file=null;try{file=new File([blob],name,{type:blob.type});}catch(_){}
+          if(downloadOnly===null){
+            var supported=!!(file&&window.FrameNative);try{supported=supported||!!(file&&navigator.share&&navigator.canShare&&navigator.canShare({files:[file]}));}catch(_){}
+            downloadOnly=!supported;
+          }
+          if(downloadOnly){downloadBlob(blob,name);blob=null;file=null;completed++;index++;return next();}
+          // A large next image is re-created in the next batch instead of
+          // keeping an extra full-resolution file alive beside this batch.
+          if(batch.length&&batchBytes+(blob.size||0)>64*1024*1024){blob=null;file=null;return handoff();}
+          batch.push({blob:blob,file:file,name:name});batchBytes+=blob.size||0;index++;
+          return next();
+        });
+      });
+    }
+    return begin();
   }
   function saveCurrent(){
     if(!state.ready || saving) return Promise.resolve();
@@ -1358,19 +1972,7 @@ function injectPng(bytes, payload){
   });
 
   function saveAllMarks(){
-    if(saving || !state.marks.length) return;
-    var list=state.marks.slice().sort(function(a,b){return a-b;}), i=0;
-    working(true,'Saving');
-    function next(){
-      if(i>=list.length){ working(false); say('Saved '+list.length+' frames.'); return; }
-      var f=list[i++];
-      say('Saving '+i+' of '+list.length+'\u2026');
-      goToFrame(f).then(function(){ return currentBlob(); }).then(function(b){
-        if(b) downloadBlob(b,nameFor(f));
-        setTimeout(next,420);
-      });
-    }
-    next();
+    return saveFrameList(state.marks);
   }
 
   /* ---------- marks ---------- */
@@ -1388,6 +1990,7 @@ function injectPng(bytes, payload){
       b.addEventListener('click',function(){ requestFrame(f); });
       chipsEl.appendChild(b);
     });
+    historyRemember(true);
   }
   function toggleMark(){
     if(!state.ready) return;
@@ -1397,9 +2000,25 @@ function injectPng(bytes, payload){
   }
 
   /* ---------- wiring ---------- */
+  function guardCaptureInteraction(e){
+    if(!saving || e.target===$('bsavemenu') || e.target===exportAnchor || (e.type==='keydown' && e.key==='Tab'))return;
+    e.preventDefault();e.stopPropagation();
+    if(e.stopImmediatePropagation)e.stopImmediatePropagation();
+  }
+  document.addEventListener('pointerdown',guardCaptureInteraction,true);
+  document.addEventListener('click',guardCaptureInteraction,true);
+  document.addEventListener('keydown',guardCaptureInteraction,true);
+  var filePickerPending=false;
+  fileIn.addEventListener('click',function(){filePickerPending=true;});
+  fileIn.addEventListener('change',function(){filePickerPending=false;});
+  fileIn.addEventListener('cancel',function(){filePickerPending=false;});
   $('pick').addEventListener('click',function(){ fileIn.click(); });
   $('bnew').addEventListener('click',function(){ fileIn.click(); });
-  fileIn.addEventListener('change',function(){ loadFile(fileIn.files&&fileIn.files[0]); });
+  fileIn.addEventListener('change',function(){
+    var file=fileIn.files&&fileIn.files[0];
+    fileIn.value=''; // Selecting the same original again must still fire change.
+    loadFile(file);
+  });
 
   ['dragenter','dragover'].forEach(function(e){
     stage.addEventListener(e,function(ev){ ev.preventDefault(); stage.className='stage dragging'; }); });
@@ -1505,9 +2124,11 @@ function injectPng(bytes, payload){
   });
 
   document.addEventListener('keydown',function(e){
+    if(saving)return;
     var tag=(e.target&&e.target.tagName)||'';
     if(tag==='SELECT'||tag==='TEXTAREA') return;
     if(tag==='INPUT') return;
+    if(e.target && e.target.closest && e.target.closest('#recents')) return;
     if(e.target===scrubEl) return;   // the scrubber handles its own keys
     if(!state.ready) return;
     var k=e.key;
@@ -1666,7 +2287,7 @@ function injectPng(bytes, payload){
   function setCropMode(on){
     clearCropGesture();
     cropMode=!!(on && state.ready); cropView=null;
-    vPtr={}; vPinch=null; vTapTime=0;
+    vPtr={}; vPinch=null;
     bCrop.className=cropMode?'ic on':'ic'; bCrop.setAttribute('aria-pressed',String(cropMode));
     cropBox.tabIndex=cropMode?0:-1;
     $('cropbar').className='cropbar'+(cropMode?' on':'');
@@ -1861,7 +2482,7 @@ function injectPng(bytes, payload){
   viewport.addEventListener('touchmove',function(e){
     if(state.ready && e.touches.length>1) e.preventDefault();
   },{passive:false});
-  var vPtr={}, vPinch=null, vTapTime=0;
+  var vPtr={}, vPinch=null;
   function vCount(){ return Object.keys(vPtr).length; }
   function vDist(){
     var k=Object.keys(vPtr); if(k.length<2) return 0;
@@ -1874,7 +2495,7 @@ function injectPng(bytes, payload){
     if(e.pointerType!=='touch' && viewport.setPointerCapture){ try{ viewport.setPointerCapture(e.pointerId); }catch(_){} }
     vPtr[e.pointerId]={x:e.clientX,y:e.clientY,startX:e.clientX,startY:e.clientY,moved:false};
     if(vCount()===2){
-      vPinch={d:vDist(),z:vz.z}; vTapTime=0;
+      vPinch={d:vDist(),z:vz.z};
       Object.keys(vPtr).forEach(function(id){ vPtr[id].moved=true; });
     }
   });
@@ -1895,15 +2516,9 @@ function injectPng(bytes, payload){
   ['pointerup','pointercancel','lostpointercapture'].forEach(function(ev){
     viewport.addEventListener(ev,function(e){
       if(cropMode) return;
-      var p=vPtr[e.pointerId], single=vCount()===1;
       delete vPtr[e.pointerId];
       if(vCount()<2) vPinch=null;
-      if(p && (ev!=='pointerup' || p.moved)) vTapTime=0;
-      if(ev==='pointerup' && single && p && !p.moved){
-        var now=Date.now();
-        if(now-vTapTime<320){ viewerIsFit() ? zoomActual() : zoomFit(); vTapTime=0; }
-        else vTapTime=now;
-      }
+
     });
   });
   bZoomToggle.addEventListener('click',function(){ if(!cropMode) viewerIsFit()?zoomActual():zoomFit(); });
@@ -2279,16 +2894,100 @@ function injectPng(bytes, payload){
   }
 
   setFrameUI(0);
+  refreshHistory();
 
-  /* ---- offline shell: after the first visit, the page itself opens
-     with no network. Registration is skipped in restricted frames. ---- */
-  if('serviceWorker' in navigator && location.protocol==='https:' && !env.restricted){
-    try{
-      navigator.serviceWorker.register('sw.js').then(function(){
-        env.sw=true;
-      }).catch(function(){});
-    }catch(_){}
+  /* FRAME_UPDATE_CLIENT_BEGIN */
+  /* Kept inline by prepare-release.py so the app has no runtime dependency. */
+  function startFrameUpdates(options){
+    if(!('serviceWorker' in navigator) || location.protocol!=='https:')return;
+    try{if(window.self!==window.top)return;}catch(_){return;}
+    var registration=null, checking=false, lastCheck=0, targetBuild=null;
+    var locked=false, lockToken=null, lockTimer=null, reloading=false;
+    var workerURL=new URL('sw.js',location.href).href;
+    function safe(){
+      if(reloading)return false;
+      try{
+        var selection=window.getSelection && window.getSelection();
+        if(selection && !selection.isCollapsed)return false;
+        var el=document.activeElement;
+        if(el && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName)))return false;
+        return options.safeToReload()===true;
+      }catch(_){return false;}
+    }
+    function blockInput(event){
+      if(!locked)return;
+      if(event.cancelable)event.preventDefault();event.stopImmediatePropagation();
+    }
+    ['pointerdown','touchstart','click','keydown','drop'].forEach(function(type){
+      document.addEventListener(type,blockInput,{capture:true,passive:false});
+    });
+    function unlock(){locked=false;lockToken=null;clearTimeout(lockTimer);}
+    function maybeReload(worker){
+      if(!targetBuild || targetBuild===options.build || !worker)return;
+      var channel=new MessageChannel(), timer=setTimeout(function(){channel.port1.close();},1800);
+      channel.port1.onmessage=function(event){
+        clearTimeout(timer);channel.port1.close();
+        if(event.data && event.data.build===targetBuild && safe()){
+          reloading=true;location.reload();
+        }
+      };
+      try{worker.postMessage({type:'FRAME_BUILD'},[channel.port2]);}catch(_){clearTimeout(timer);channel.port1.close();}
+    }
+    navigator.serviceWorker.addEventListener('message',function(event){
+      if(!event.source || event.source.scriptURL!==workerURL)return;
+      var data=event.data||{}, port=event.ports && event.ports[0];
+      if(data.type==='FRAME_PROBE' && port){
+        port.postMessage({ready:safe() && !locked});port.close();
+      }else if(data.type==='FRAME_PREPARE' && port){
+        var ready=safe() && (!locked || lockToken===data.token);
+        if(ready){
+          locked=true;lockToken=data.token;targetBuild=data.build;
+          clearTimeout(lockTimer);lockTimer=setTimeout(unlock,6000);
+        }
+        port.postMessage({ready:ready});port.close();
+      }else if(data.type==='FRAME_CANCEL' && lockToken===data.token){
+        targetBuild=null;unlock();
+      }
+    });
+    navigator.serviceWorker.addEventListener('controllerchange',function(){
+      unlock();maybeReload(navigator.serviceWorker.controller);
+    });
+    function tryWaiting(){
+      /* A first installation activates by itself. Asking it to prepare can
+         race its initial claim and leave an unnecessary input lock behind. */
+      if(registration && registration.waiting && navigator.serviceWorker.controller && safe()){
+        registration.waiting.postMessage({type:'FRAME_CHECK'});
+      }
+      maybeReload(navigator.serviceWorker.controller);
+    }
+    function watchInstalling(){
+      var worker=registration && registration.installing;
+      if(worker)worker.addEventListener('statechange',function(){
+        if(worker.state==='installed')tryWaiting();
+      });
+    }
+    function check(){
+      if(!registration || document.hidden)return;
+      tryWaiting();
+      if(checking || Date.now()-lastCheck<60000 || navigator.onLine===false)return;
+      checking=true;lastCheck=Date.now();
+      registration.update().catch(function(){}).then(function(){checking=false;tryWaiting();});
+    }
+    navigator.serviceWorker.register('sw.js',{updateViaCache:'none'}).then(function(value){
+      registration=value;registration.addEventListener('updatefound',watchInstalling);
+      watchInstalling();check();
+    }).catch(function(){/* Online use remains available if offline storage is denied. */});
+    document.addEventListener('visibilitychange',function(){if(!document.hidden)check();});
+    window.addEventListener('online',check);
+    window.addEventListener('pageshow',check);
+    setInterval(check,60000);
   }
+  /* FRAME_UPDATE_CLIENT_END */
+  if(!env.restricted) startFrameUpdates({build: /* FRAME_RELEASE_ID */ '65f7ee188ef3c0ad71c4', safeToReload:function(){
+    return !lastFile && !state.url && !saving && !sharing && !preparedSave && !filePickerPending &&
+      !(typeof historyOpenBusy!=='undefined' && historyOpenBusy) &&
+      !document.querySelector('.sheet.on,.cmpab.on,dialog[open]');
+  }});
 })();
 </script>
 </body>
