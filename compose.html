@@ -431,7 +431,8 @@
   var inApp=false;try{inApp=!!window.frameElement&&window.frameElement.id==='composeworkspace';}catch(_){}
   if(inApp)document.documentElement.classList.add('in-app');
   env.restricted = (env.framed&&!inApp) || env.opaque;
-  if(env.restricted) banner.className='banner on';
+  // Embedding alone is not evidence that local video playback is blocked.
+  // Show media errors only when a load actually fails.
 
   /* ---------- constants + state ---------- */
   var OUT_W=1080, OUT_H=1920;       /* selected canvas, with a 1080 px short edge */

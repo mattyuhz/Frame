@@ -23,6 +23,7 @@ const {chromium}=require(process.env.FRAME_PLAYWRIGHT_PATH||'playwright');
  await compose.waitForFunction(()=>testCompose.state.cells.some(c=>c&&c.ready));
  const composition=await compose.evaluate(()=>({artboard:testCompose.state.artboard,url:testCompose.state.cells[0].url}));
  assert.equal(await iframe.locator('#banner').isVisible(),false,'owned local workspace is not a restricted preview');
+ assert.equal(await iframe.locator('#hdr').isVisible(),false,'Compose must not duplicate the shared navigation');
  await page.screenshot({path:'/tmp/v33-compose.png'});
  for(let i=0;i<3;i++){
   await page.locator('#tabframe').click();await page.waitForTimeout(100);
