@@ -99,6 +99,7 @@
       node('markreview').setAttribute('data-mode',m.mode);node('markreview').setAttribute('data-view',m.view);
       node('markreview').setAttribute('aria-busy',String(m.busy||m.loading));
       node('markreview').setAttribute('data-frame-loading',String(m.loading));
+      node('markreview').setAttribute('data-saving',String(m.busy||saving));
       node('markworkflow').disabled=m.busy||saving;
       show('markundo',!!m.undo);if(node('markundoinline'))show('markundoinline',!!m.undo&&!m.open);
       if(node('markundoinline'))node('markundoinline').disabled=m.busy||saving;

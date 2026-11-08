@@ -5,7 +5,7 @@
    its Content-Security-Policy. */
 
 var CACHE_PREFIX = 'frame:' + self.registration.scope + ':';
-var CACHE = CACHE_PREFIX + 'v26-mobile-polish';
+var CACHE = CACHE_PREFIX + 'v27-loading-transitions';
 var SHELL = ['./', './index.html', './compose.html'];
 
 self.addEventListener('install', function(e){

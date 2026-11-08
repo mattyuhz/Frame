@@ -259,7 +259,7 @@
   .markfeedback{display:flex;align-items:center;gap:8px;flex-shrink:0}
   .markfeedback .markstatus{flex:1;margin:0;min-width:0}
   .markfeedback .markundo{margin:0;flex-shrink:0;background:transparent;padding:10px 4px}
-  .markfeedback:has(.markstatus:empty):has(.markundo[hidden]){display:none}
+  /* Feedback keeps its reserved space even when empty. */
   @media(min-width:600px){.markreview[data-mode="board"] .markgrid{grid-template-columns:repeat(3,minmax(0,1fr))}}
   @media(max-width:360px){.markgrid{grid-template-columns:repeat(2,minmax(0,1fr))}.markreview{padding-left:12px;padding-right:12px}.exploration{gap:8px}}
   .markhead{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;gap:10px}
@@ -436,7 +436,8 @@
 .markreview[data-view="compare"] .markfeedback{display:flex;min-height:44px;height:44px}.markreview[data-view="compare"] .markstatus{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #markrevealhandle{position:absolute;top:50%;transform:translate(-50%,-50%);z-index:4;width:44px;height:44px;padding:0;background:#222c;touch-action:none}#markzoomrange{accent-color:#fff}
 /* Transient decoding never changes the visual state or geometry of controls. */
-.markreview[data-frame-loading="true"] button:disabled:not([data-unavailable="true"]){opacity:1}
+.markreview[data-frame-loading="true"] button:disabled:not([data-unavailable="true"]),
+.markreview[data-saving="true"] button:disabled:not([data-unavailable="true"]){opacity:1}
 .markreview[data-mode="board"][data-view="grid"] .markfooter{min-height:48px}
 .markreview[data-mode="board"][data-view="grid"] #markcompare[hidden],.markreview[data-mode="board"][data-view="grid"] #marksave[hidden]{display:block!important;visibility:hidden;pointer-events:none}
 .markpairinfo{min-height:18px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -1647,6 +1648,7 @@ function injectPng(bytes, payload){
   /* ---------- loading ---------- */
   function loadFile(file){
     if(!file) return;
+    stage.setAttribute('data-load-phase','reading');
     finishSave();
     if(markFlow)markFlow.reset();
     banner.className='banner';
@@ -1675,6 +1677,7 @@ function injectPng(bytes, payload){
       if(serial!==fileSerial)return;
       closeBoundaryReview(false);
       cancelSceneScan(false);
+      stage.setAttribute('data-load-phase','error');
       failed=true; lastError=video.error||{code:0,message:''};
       working(false); setEnabled(false);
       var reason=MEDIA_ERR[lastError.code]||'The browser did not say why.';
@@ -1692,6 +1695,11 @@ function injectPng(bytes, payload){
       working(true,'Reading frame rate');
       drop.className='drop gone'; viewport.className='viewport live';
       $('iconbar').className='iconbar on'; $('bnew').title='Open another video — '+file.name;
+      // Establish the final geometry before the first frame-rate probe is painted.
+      // Detection changes timing, never the picture's dimensions or orientation.
+      state.rot=0; $('brotate').className='ic';
+      layoutViewer(); zoomFit();
+      stage.setAttribute('data-load-phase','detecting');
 
       detectFps().then(function(raw){
         if(failed||serial!==fileSerial)return;
@@ -1704,9 +1712,7 @@ function injectPng(bytes, payload){
           state.fps=30; note='Could not measure the frame rate, so frame numbers assume 30 fps and may be approximate. The saved picture is still correct.';
         }
         video.currentTime=0; recomputeTotal(); setEnabled(true); working(false);
-        state.rot=0; $('brotate').className='ic';
-        layoutViewer(); zoomFit();
-        setTimeout(function(){ layoutViewer(); layoutCrop(); },60);
+        stage.setAttribute('data-load-phase','ready');
         goToFrame(0).then(function(){
           if(failed||serial!==fileSerial)return;
           canvasState=testCanvas();
@@ -3242,6 +3248,7 @@ function injectPng(bytes, payload){
       node('markreview').setAttribute('data-mode',m.mode);node('markreview').setAttribute('data-view',m.view);
       node('markreview').setAttribute('aria-busy',String(m.busy||m.loading));
       node('markreview').setAttribute('data-frame-loading',String(m.loading));
+      node('markreview').setAttribute('data-saving',String(m.busy||saving));
       node('markworkflow').disabled=m.busy||saving;
       show('markundo',!!m.undo);if(node('markundoinline'))show('markundoinline',!!m.undo&&!m.open);
       if(node('markundoinline'))node('markundoinline').disabled=m.busy||saving;
