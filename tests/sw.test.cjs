@@ -86,9 +86,9 @@ test('worker leaves outside-scope, cross-origin, non-GET and Range requests to t
   assert.deepEqual(f.opened, []);assert.deepEqual(f.fetched, []);
 });
 
-test('cache hit comes only from the named preview cache and does not wait for refresh', async () => {
+test('non-document cache hit comes only from the named preview cache and does not wait for refresh', async () => {
   const hit = { cached: 'preview' }, f = boot({ hit, fetch: () => new Promise(() => {}) });
-  const { req, pending } = f.request(scope + 'index.html?test=1');
+  const { req, pending } = f.request(scope + 'poster.png?test=1');
   assert.equal(await pending, hit);
   assert.deepEqual(f.opened, [current]);
   assert.equal(f.matches[0].request, req);
@@ -104,3 +104,10 @@ test('uncached same-scope response is fetched and saved only to the preview cach
   assert.equal(f.puts.length, 1);assert.equal(f.puts[0].request, req);
   assert.deepEqual(f.puts[0].value, { copy: true });
 });
+
+ test('HTML uses the current online response even when an older workspace is cached', async () => {
+ const f=boot({hit:{cached:'old'}});assert.equal(await f.request(scope+'compose.html?workspace-embed=1').pending,f.response);
+ });
+ test('HTML falls back to the scoped shell when offline', async () => {
+ const hit={cached:'offline'},f=boot({hit,fetch:()=>Promise.reject(new Error('offline'))});assert.equal(await f.request().pending,hit);
+ });

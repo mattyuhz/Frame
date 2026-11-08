@@ -14,6 +14,13 @@
   ------------------------------------------------------------------
 -->
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self' blob: data: filesystem:; media-src 'self' blob: data: filesystem:; style-src 'unsafe-inline'; script-src 'unsafe-inline'; worker-src 'self'; connect-src 'none'; form-action 'none'; base-uri 'none'; frame-src 'none'; object-src 'none';">
+<script data-workspace-entry>
+// Direct Compose links enter the same app shell before any editor is painted.
+if(new URLSearchParams(location.search).get('workspace-embed')!=='1'){
+  document.documentElement.style.visibility='hidden';
+  location.replace('./index.html?workspace=compose');
+}
+</script>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -428,7 +435,7 @@
     share:(typeof navigator.canShare==='function'),
     secure:(window.isSecureContext===true)
   };
-  var inApp=false;try{inApp=!!window.frameElement&&window.frameElement.id==='composeworkspace';}catch(_){}
+  var inApp=new URLSearchParams(location.search).get('workspace-embed')==='1';
   if(inApp)document.documentElement.classList.add('in-app');
   env.restricted = (env.framed&&!inApp) || env.opaque;
   // Embedding alone is not evidence that local video playback is blocked.
