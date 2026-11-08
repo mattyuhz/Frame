@@ -16,7 +16,8 @@ function boot(options={}){
   const current={scriptURL:'https://example.test/Frame/sw.js',postMessage(data,ports){ports[0].postMessage({build:options.controllerBuild||'old'});}};
   const waiting={scriptURL:current.scriptURL,postMessage:data=>requests.push(data)};
   const registration={waiting:options.waiting===false?null:waiting,installing:null,addEventListener(){},update:async()=>{updates++;}};
-  const document={hidden:false,activeElement:null,addEventListener:on('document')};
+  const controls=Object.fromEntries(['appinfo','appupdatestatus','appupdate','appversion'].map(id=>[id,{textContent:'',disabled:false,addEventListener(type,fn){this[type]=fn;}}]));
+  const document={hidden:false,activeElement:null,addEventListener:on('document'),getElementById:id=>controls[id]};
   const location={protocol:'https:',href:'https://example.test/Frame/',reload:()=>reloads++};
   const window={getSelection:()=>({isCollapsed:true}),addEventListener:on('window')};window.self=window;window.top=window;
   const navigator={onLine:true,serviceWorker:{controller:options.noController?null:current,addEventListener:on('sw'),register:async(url,config)=>{assert.equal(config.updateViaCache,'none');return registration;}}};
@@ -25,7 +26,7 @@ function boot(options={}){
   async function prepare(build='new',token='test'){
     let answer;emit('sw','message',{source:waiting,data:{type:'FRAME_PREPARE',build,token},ports:[{postMessage:data=>answer=data,close(){}}]});await settle();return answer;
   }
-  return {emit,prepare,window,document,navigator,registration,requests,timers,get reloads(){return reloads;},get updates(){return updates;},set ready(value){ready=value;},advance:ms=>time+=ms};
+  return {emit,prepare,window,document,navigator,registration,requests,timers,controls,get reloads(){return reloads;},get updates(){return updates;},set ready(value){ready=value;},advance:ms=>time+=ms};
 }
 test('startup, foreground and online check updates with a one-minute network throttle',async()=>{
   const f=boot();await settle();assert.equal(f.updates,1);assert.ok(f.requests.length>0);f.emit('window','online');await settle();assert.equal(f.updates,1);f.advance(60001);f.emit('document','visibilitychange');await settle();assert.equal(f.updates,2);
@@ -59,4 +60,21 @@ test('same-build or unprepared controller changes never reload',async()=>{
 });
 test('an old controller cannot trigger rollback reload before waiting worker activation',async()=>{
   const f=boot({controllerBuild:'old'});await settle();await f.prepare();f.emit('sw','controllerchange');await settle();assert.equal(f.reloads,0);
+});
+
+test('information shows the running build and a manual check bypasses automatic throttling',async()=>{
+  const f=boot({waiting:false});await settle();
+  assert.equal(f.controls.appversion.textContent,'old');
+  assert.equal(f.controls.appupdate.disabled,false);
+  f.controls.appupdate.click();await settle();
+  assert.equal(f.updates,2);
+  assert.equal(f.controls.appupdatestatus.textContent,'No new update found.');
+});
+test('manual checks report offline and waiting states without claiming latest or losing work',async()=>{
+  const f=boot();await settle();f.ready=false;f.navigator.onLine=false;
+  f.controls.appupdate.click();await settle();assert.match(f.controls.appupdatestatus.textContent,/offline/);assert.equal(f.updates,1);
+  f.navigator.onLine=true;f.controls.appupdate.click();await settle();
+  assert.match(f.controls.appupdatestatus.textContent,/Update ready/);assert.equal(f.reloads,0);
+  f.registration.update=()=>Promise.reject(new Error('offline'));
+  f.controls.appupdate.click();await settle();assert.match(f.controls.appupdatestatus.textContent,/Could not check/);assert.equal(f.controls.appupdate.disabled,false);
 });

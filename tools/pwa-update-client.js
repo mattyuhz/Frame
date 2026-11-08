@@ -1,5 +1,18 @@
   /* Kept inline by prepare-release.py so the app has no runtime dependency. */
   function startFrameUpdates(options){
+    var info=document.getElementById && document.getElementById('appinfo');
+    var status=info && document.getElementById('appupdatestatus');
+    var updateButton=info && document.getElementById('appupdate');
+    function report(message){if(status)status.textContent=message;}
+    if(info){
+      document.getElementById('appversion').textContent=options.build;
+      updateButton.disabled=true;
+      report('Update checks are available in the online web app.');
+      info.addEventListener('keydown',function(event){
+        event.stopPropagation();
+        if(event.key==='Escape'){info.open=false;info.querySelector('summary').focus();}
+      });
+    }
     if(!('serviceWorker' in navigator) || location.protocol!=='https:')return;
     try{if(window.self!==window.top)return;}catch(_){return;}
     var registration=null, checking=false, lastCheck=0, targetBuild=null;
@@ -64,9 +77,24 @@
     function watchInstalling(){
       var worker=registration && registration.installing;
       if(worker)worker.addEventListener('statechange',function(){
-        if(worker.state==='installed')tryWaiting();
+        if(worker.state==='installed'){
+          report('Update ready. It will apply when all Frame and Compose pages are idle.');
+          tryWaiting();
+        }
+        if(worker.state==='redundant')report('The update could not be installed. Try again later.');
       });
     }
+    if(updateButton)updateButton.addEventListener('click',function(){
+      if(!registration)return;
+      if(navigator.onLine===false){report('You’re offline. Connect to check for updates.');return;}
+      updateButton.disabled=true;report('Checking for updates…');
+      registration.update().then(function(){
+        report(registration.waiting?'Update ready. It will apply when all Frame and Compose pages are idle.':
+          registration.installing?'Downloading and verifying an update…':'No new update found.');
+        tryWaiting();
+      }).catch(function(){report('Could not check for updates. Try again when connected.');})
+        .then(function(){updateButton.disabled=false;});
+    });
     function check(){
       if(!registration || document.hidden)return;
       tryWaiting();
@@ -76,6 +104,8 @@
     }
     navigator.serviceWorker.register('sw.js',{updateViaCache:'none'}).then(function(value){
       registration=value;registration.addEventListener('updatefound',watchInstalling);
+      if(updateButton)updateButton.disabled=false;
+      report('Checks automatically while online. Updates wait until your work is closed.');
       watchInstalling();check();
     }).catch(function(){/* Online use remains available if offline storage is denied. */});
     document.addEventListener('visibilitychange',function(){if(!document.hidden)check();});

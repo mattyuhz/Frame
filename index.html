@@ -327,11 +327,22 @@
     .wrap{--page-pad:20px;padding:20px 20px 50px}
     video{max-height:56vh}
   }
+
+  .appnav,#hdr{position:relative}
+  .appinfo{position:static;margin-left:auto;color:#fff;font-size:13px}
+  .appinfo summary{list-style:none;cursor:pointer;min-width:44px;min-height:44px;display:flex;align-items:center;justify-content:center;font-size:22px}
+  .appinfo summary::-webkit-details-marker{display:none}
+  .appinfo-panel{position:absolute;right:0;top:48px;z-index:90;width:min(310px,calc(100vw - 48px));padding:20px;background:#191919;border:1px solid #444;border-radius:16px;box-shadow:0 8px 30px #000;text-align:left;line-height:1.5}
+  .appinfo-panel p{margin:10px 0;color:#ccc;font-size:13px}
+  .appinfo-panel code{display:block;font-size:12px;overflow-wrap:anywhere;user-select:text;-webkit-user-select:text}
+  .appinfo-panel button{min-height:44px;padding:10px 16px;background:#fff;color:#000;border:0;border-radius:12px;font:inherit;cursor:pointer}
+  .appinfo-panel button:disabled{opacity:.5}
+  .appinfo summary:focus-visible,.appinfo-panel button:focus-visible{outline:2px solid white;outline-offset:2px}
 </style>
 </head>
 <body>
 <div class="wrap">
-  <nav class="appnav" aria-label="Apps"><span>Frame</span><a href="./compose.html" target="_blank" rel="noopener" aria-label="Compose layouts (opens in a new tab)">Compose ↗</a></nav>
+  <nav class="appnav" aria-label="Apps"><span>Frame</span><details class="appinfo" id="appinfo"><summary aria-label="App information" title="App information">ⓘ</summary><div class="appinfo-panel"><strong>App information</strong><p>Running version <code id="appversion">Unavailable in this preview</code></p><button type="button" id="appupdate" disabled>Check for updates</button><p id="appupdatestatus" role="status" aria-live="polite">Update checks are available in the online web app.</p></div></details><a href="./compose.html" target="_blank" rel="noopener" aria-label="Compose layouts (opens in a new tab)">Compose ↗</a></nav>
 
   <div class="banner" id="banner">
     <h2>Open this in Safari itself</h2>
@@ -2899,6 +2910,19 @@ function injectPng(bytes, payload){
   /* FRAME_UPDATE_CLIENT_BEGIN */
   /* Kept inline by prepare-release.py so the app has no runtime dependency. */
   function startFrameUpdates(options){
+    var info=document.getElementById && document.getElementById('appinfo');
+    var status=info && document.getElementById('appupdatestatus');
+    var updateButton=info && document.getElementById('appupdate');
+    function report(message){if(status)status.textContent=message;}
+    if(info){
+      document.getElementById('appversion').textContent=options.build;
+      updateButton.disabled=true;
+      report('Update checks are available in the online web app.');
+      info.addEventListener('keydown',function(event){
+        event.stopPropagation();
+        if(event.key==='Escape'){info.open=false;info.querySelector('summary').focus();}
+      });
+    }
     if(!('serviceWorker' in navigator) || location.protocol!=='https:')return;
     try{if(window.self!==window.top)return;}catch(_){return;}
     var registration=null, checking=false, lastCheck=0, targetBuild=null;
@@ -2963,9 +2987,24 @@ function injectPng(bytes, payload){
     function watchInstalling(){
       var worker=registration && registration.installing;
       if(worker)worker.addEventListener('statechange',function(){
-        if(worker.state==='installed')tryWaiting();
+        if(worker.state==='installed'){
+          report('Update ready. It will apply when all Frame and Compose pages are idle.');
+          tryWaiting();
+        }
+        if(worker.state==='redundant')report('The update could not be installed. Try again later.');
       });
     }
+    if(updateButton)updateButton.addEventListener('click',function(){
+      if(!registration)return;
+      if(navigator.onLine===false){report('You’re offline. Connect to check for updates.');return;}
+      updateButton.disabled=true;report('Checking for updates…');
+      registration.update().then(function(){
+        report(registration.waiting?'Update ready. It will apply when all Frame and Compose pages are idle.':
+          registration.installing?'Downloading and verifying an update…':'No new update found.');
+        tryWaiting();
+      }).catch(function(){report('Could not check for updates. Try again when connected.');})
+        .then(function(){updateButton.disabled=false;});
+    });
     function check(){
       if(!registration || document.hidden)return;
       tryWaiting();
@@ -2975,6 +3014,8 @@ function injectPng(bytes, payload){
     }
     navigator.serviceWorker.register('sw.js',{updateViaCache:'none'}).then(function(value){
       registration=value;registration.addEventListener('updatefound',watchInstalling);
+      if(updateButton)updateButton.disabled=false;
+      report('Checks automatically while online. Updates wait until your work is closed.');
       watchInstalling();check();
     }).catch(function(){/* Online use remains available if offline storage is denied. */});
     document.addEventListener('visibilitychange',function(){if(!document.hidden)check();});
@@ -2983,7 +3024,7 @@ function injectPng(bytes, payload){
     setInterval(check,60000);
   }
   /* FRAME_UPDATE_CLIENT_END */
-  if(!env.restricted) startFrameUpdates({build: /* FRAME_RELEASE_ID */ '65f7ee188ef3c0ad71c4', safeToReload:function(){
+  if(!env.restricted) startFrameUpdates({build: /* FRAME_RELEASE_ID */ 'aff0f4bfb1206abf9662', safeToReload:function(){
     return !lastFile && !state.url && !saving && !sharing && !preparedSave && !filePickerPending &&
       !(typeof historyOpenBusy!=='undefined' && historyOpenBusy) &&
       !document.querySelector('.sheet.on,.cmpab.on,dialog[open]');

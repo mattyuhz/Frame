@@ -2,7 +2,7 @@
    refreshed by python3 tools/prepare-release.py. Media never enters this cache. */
 
 /* FRAME_RELEASE_BEGIN */
-var RELEASE = {"id":"65f7ee188ef3c0ad71c4","files":{"index.html":"7487a299e95bee00d8e4db9cc0ea5a01c83876a67d1fa7a17478db52ecc844ba","compose.html":"d5cbeb8d7ed86c3efb65ffcd0cda94346bb619a5d4e25f91b108d801948cc757"}};
+var RELEASE = {"id":"aff0f4bfb1206abf9662","files":{"index.html":"02c7f1a250c8b34abf83f08a8a83d94b3a5879d6167cb37c158441470f805ac7","compose.html":"250eb66485d36f9420e84b4ff0e8bb61ee31b65aa33f659672b113e5f8e5891a"}};
 /* FRAME_RELEASE_END */
 
 var CACHE_PREFIX = 'frame:' + self.registration.scope + ':release:';
