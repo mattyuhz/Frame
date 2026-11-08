@@ -37,14 +37,14 @@ const instrumented = html.replace(/\}\)\(\);\s*<\/script>/, `window.__sceneQA={s
     assert.equal(await page.locator('#bsections').getAttribute('aria-expanded'), 'false');
     assert.equal(await page.locator('#bsections').textContent(), 'Sections');
     assert.equal(await page.locator('#readout #bsections').count(), 1);
-    assert.equal(await page.locator('#scenes').isVisible(), false);
+    await page.locator('#scenes').waitFor({state:'hidden'});assert.equal(await page.locator('#scenes').isVisible(), false);
     assert.equal(await page.locator('#scenebody').isVisible(), false);
     assert.equal(await page.locator('#videoinfo').isVisible(), false);
     assert.equal(await page.locator('#mFrame').isVisible(), false);
     assert.equal(await page.locator('#bvideoinfo').getAttribute('aria-expanded'), 'false');
     assert.match(await page.locator('#tc').textContent(), /^\d{2}:\d{2}\.\d{3}$/);
     if (scan) {
-      await page.locator('#bsections').click();
+      await page.locator('#bsections').click();await page.waitForFunction(()=>!document.getElementById('scenes')._motion);
       assert.equal(await page.locator('#bsections').getAttribute('aria-checked'), 'true');
       assert.equal(await page.locator('#bsections').getAttribute('aria-expanded'), 'true');
       assert.equal(await page.locator('#bsections').textContent(), 'Sections');
@@ -122,13 +122,13 @@ const instrumented = html.replace(/\}\)\(\);\s*<\/script>/, `window.__sceneQA={s
   }
   await page.waitForTimeout(650);
   assert.deepEqual(await page.evaluate(() => [window.__sceneQA.sceneNav.scan, window.__sceneQA.sceneNav.samples.length]), [null, 0]);
-  await page.locator('#bsections').click();
+  await page.locator('#bsections').click();await page.waitForFunction(()=>!document.getElementById('scenes')._motion);
   await page.locator('.scenecard').nth(2).click();
   await page.waitForFunction(() => !window.__sceneQA.state.seeking);
   const offFrame = await page.evaluate(() => window.__sceneQA.state.frame);
-  await page.locator('#bsections').click();
+  await page.locator('#bsections').click();await page.waitForFunction(()=>!document.getElementById('scenes')._motion);
   assert.equal(await page.locator('#scenebody').isVisible(), false);
-  assert.equal(await page.locator('#scenes').isVisible(), false);
+  await page.locator('#scenes').waitFor({state:'hidden'});assert.equal(await page.locator('#scenes').isVisible(), false);
   assert.deepEqual(await page.evaluate(() => [window.__sceneQA.state.frame, window.__sceneQA.sceneNav.active, window.__sceneQA.sceneNav.samples.length]), [offFrame, -1, 0]);
   for (const fixture of fixtures) {
     const start = Date.now();
@@ -158,7 +158,7 @@ const instrumented = html.replace(/\}\)\(\);\s*<\/script>/, `window.__sceneQA={s
       assert.equal(await page.locator('#bscanscenes').isVisible(), false, 'completed single-range scans have no Scan complete button');
       assert.equal(await page.locator('#scenefocus').isVisible(), false);
       assert.equal(result.status, 'No scene changes found.');
-      await page.locator('#bsections').click();await page.locator('#bsections').click();
+      await page.locator('#bsections').click();await page.waitForFunction(()=>!document.getElementById('scenes')._motion);await page.locator('#bsections').click();await page.waitForFunction(()=>!document.getElementById('scenes')._motion);
       assert.equal(await page.locator('#sceneoptions').isVisible(), false, 'mode toggle preserves compact state');
       assert.equal(await page.locator('#scenefocus').isVisible(), false);
       assert.equal(await page.locator('.scenecard').count(), 0);
@@ -240,7 +240,7 @@ const instrumented = html.replace(/\}\)\(\);\s*<\/script>/, `window.__sceneQA={s
   assert.equal(editedRanges[0].start, 0);assert.equal(editedRanges.at(-1).end, 16);
   assert.equal(editedRanges[0].end, 130 / 30);assert.equal(editedRanges[1].start, 130 / 30);
   assert.equal(await page.locator('#bscanscenes').isDisabled(), true);
-  await page.locator('#bsections').click();await page.locator('#bsections').click();
+  await page.locator('#bsections').click();await page.waitForFunction(()=>!document.getElementById('scenes')._motion);await page.locator('#bsections').click();await page.waitForFunction(()=>!document.getElementById('scenes')._motion);
   assert.deepEqual(await page.evaluate(() => window.__sceneQA.sceneNav.items), editedRanges, 'mode toggles preserve applied boundaries');
   assert.equal(await page.evaluate(() => window.__sceneQA.sceneNav.scan), null);
   console.log(JSON.stringify({ boundaryReview: 'passed', beforeAfter: pair, appliedFrame: 130 }));
@@ -259,7 +259,7 @@ const instrumented = html.replace(/\}\)\(\);\s*<\/script>/, `window.__sceneQA={s
   assert.equal(await page.locator('#bsections').getAttribute('aria-checked'), 'false', 'new files start with Sections off');
   assert.equal(await page.locator('#scenebody').isVisible(), false);
   assert.deepEqual(await page.evaluate(() => [window.__sceneQA.sceneNav.scan, window.__sceneQA.sceneNav.samples.length]), [null, 0]);
-  await page.locator('#bsections').click();
+  await page.locator('#bsections').click();await page.waitForFunction(()=>!document.getElementById('scenes')._motion);
   assert.equal(await page.locator('#bscanscenes').isVisible(), true, 'replacement restores Find scenes');
   assert.equal(await page.locator('#bscanscenes').isEnabled(), true);
   await page.locator('#bscanscenes').click();
@@ -270,7 +270,7 @@ const instrumented = html.replace(/\}\)\(\);\s*<\/script>/, `window.__sceneQA={s
   await page.unroute(base + '/');await page.goto(base + '/');
   await page.locator('#file').setInputFiles(path.join(__dirname, 'fixtures/scenes/01-hard-cuts.mp4'));
   await page.locator('#bsections').waitFor({ state: 'visible' });
-  await page.locator('#bsections').click();
+  await page.locator('#bsections').click();await page.waitForFunction(()=>!document.getElementById('scenes')._motion);
   await page.locator('#bscanscenes').click();
   await page.waitForFunction(() => document.querySelector('#bscanscenes').textContent === 'Scan complete', {}, { timeout: 60000 });
   await page.locator('.scenecard').nth(1).click();await page.waitForTimeout(5000);

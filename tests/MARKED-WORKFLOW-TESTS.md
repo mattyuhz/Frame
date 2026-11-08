@@ -32,7 +32,7 @@ Duel into the real-video preview. The V2 prototype files remain unchanged.
 6. **Undo** reverses the latest decision, including the keeper and candidate
    position. Return to the board whenever you want.
 7. **Save keeper** exports the pinned frame even when B is currently displayed.
-   **Save selected** on the board keeps the existing multiple-image workflow.
+   **Save · N** on the board keeps the existing multiple-image workflow.
 
 Check these on a phone: 0/1/2/many marks, a portrait video, zoomed comparisons,
 promotion while A is displayed, Undo on the final comparison, removing a keeper
@@ -133,3 +133,24 @@ Its line is clipped to the picture bounds, including after zoom, pan and rotatio
 There is no secondary bottom slider. Neither A/B button is selected in Reveal;
 choosing A or B returns to single-image comparison. Toggling Reveal must preserve
 the viewer geometry and surrounding controls.
+
+## Full mobile UI audit
+
+The November 8 audit covers upload, marking, the board, selection/filtering,
+inspection, pin/unpin, Undo, zoom, Reveal/A-B, export, source replacement, the
+three earlier workflow variants, and section/boundary navigation.
+
+Additional fixes: selection retains thumbnail DOM nodes; keeper badges overlay
+cards; placeholders reserve the final image aspect; inspector feedback and
+action slots retain their size; transient seeks preserve disabled boundary
+arrow appearance; filmstrip redraws preserve scroll; mode changes close stale
+popovers; the zoom value follows gestures; concise labels avoid footer wrapping.
+Sections and main viewer height changes ease over 180ms unless reduced motion
+is requested. Landscape comparison puts controls beside a usable image area.
+
+Browser checks include 320×568, 390×844, 430×932 and 844×390, animation-frame
+measurements during delayed decoding, selection DOM identity, pin/zoom geometry,
+keyboard and pointer Reveal operation, reduced-motion behavior, and real
+900×1600 keeper exports. The earlier workflow suite and eight-fixture scene suite
+also run, including a 3840×2160 export. Physical iPhone share-sheet behavior and
+codec-specific performance still need on-device testing.

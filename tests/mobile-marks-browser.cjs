@@ -55,27 +55,30 @@ const instrumented=html.replace(/\}\)\(\);\s*<\/script>/,`window.__mobileMarks={
    assert.deepEqual(measurement.overlaps,[],name+' controls do not overlap');
    assert.ok(measurement.pane.left>=-1&&measurement.pane.right<=width+1&&measurement.pane.bottom<=height+1);
    for(const control of measurement.controls){assert.ok(control.height>=44,control.id+' is a 44px target');assert.ok(control.bottom<=height+1,control.id+' stays on screen');}
-   if(name==='board')assert.equal(measurement.gridColumns,2,'phone contact board uses two columns');
+   if(name==='board')assert.equal(measurement.gridColumns,width<600?2:3,'contact board fits the viewport');
    await page.screenshot({path:path.join(output,name+'-'+width+'.png')});
    return {name,width,height,...measurement};
  }
- await open('01-hard-cuts.mp4');for(const frame of [30,120,240,360])await add(frame);
+ await open('01-hard-cuts.mp4');
+ await page.emulateMedia({reducedMotion:'reduce'});await page.evaluate(()=>window.__mobileMarks.setSections(true));assert.equal(await page.evaluate(()=>!!document.getElementById('scenes')._motion),false,'reduced motion disables section animation');await page.evaluate(()=>window.__mobileMarks.setSections(false));await page.emulateMedia({reducedMotion:'no-preference'});
+ await page.evaluate(()=>window.__mobileMarks.setSections(true));assert.equal(await page.evaluate(()=>document.getElementById('scenes')._motion.effect.getTiming().duration),180,'section expansion is eased');await page.waitForFunction(()=>!document.getElementById('scenes')._motion);await page.evaluate(()=>window.__mobileMarks.setSections(false));await page.waitForFunction(()=>!document.getElementById('scenes')._motion);
+ for(const frame of [30,120,240,360])await add(frame);
  await page.evaluate(async()=>{const q=window.__mobileMarks;q.sceneNav.items=q.buildSceneRanges(16,[4,8,12]);q.setSections(true);q.paintSceneCards();q.selectScene(1);await q.goToFrame(180);});
  await page.locator('#markedentry').click();await settled();
  assert.equal((await snapshot()).view,'grid');
  assert.equal(await page.locator('#markviewer').isVisible(),false,'ready contact board gives its space to thumbnails');
  assert.equal(await page.locator('#markgrid .marktile').count(),4);
- const boardTop=await page.locator('#markgrid').evaluate(e=>e.getBoundingClientRect().top);await page.locator('#markpick-30').click();assert.equal(await page.locator('#markgrid').evaluate(e=>e.getBoundingClientRect().top),boardTop,'first selection does not push thumbnails down');await page.locator('#markpick-240').click();assert.equal(await page.locator('#markgrid').evaluate(e=>e.getBoundingClientRect().top),boardTop,'second selection keeps thumbnails anchored');
+ await page.evaluate(()=>window.originalTile=document.getElementById('markthumb-30'));const boardTop=await page.locator('#markgrid').evaluate(e=>e.getBoundingClientRect().top);await page.locator('#markpick-30').click();assert.equal(await page.locator('#markgrid').evaluate(e=>e.getBoundingClientRect().top),boardTop,'first selection does not push thumbnails down');await page.locator('#markpick-240').click();assert.equal(await page.locator('#markgrid').evaluate(e=>e.getBoundingClientRect().top),boardTop,'second selection keeps thumbnails anchored');assert.ok(await page.evaluate(()=>window.originalTile===document.getElementById('markthumb-30')),'selection preserves existing thumbnail nodes');
  await page.locator('#markfilterselected').click();assert.equal(await page.locator('#markgrid .marktile').count(),2);
  await page.locator('#markfilterall').click();assert.equal(await page.locator('#markgrid .marktile').count(),4);
  const layouts=[];
 
- await inspect(120);await page.locator('#markpin').click();
+ await inspect(120);await page.locator('#markpin').scrollIntoViewIfNeeded();const beforePin=await page.locator('#markviewer').boundingBox();const beforePinFooter=await page.locator('.markfooter').boundingBox();await page.locator('#markpin').click();assert.deepEqual(await page.locator('#markviewer').boundingBox(),beforePin,'pin feedback does not shift inspector');assert.deepEqual(await page.locator('.markfooter').boundingBox(),beforePinFooter,'pin keeps action area anchored');
  assert.equal((await snapshot()).keeper,120);
  assert.deepEqual((await snapshot()).selected,[30,240],'pin does not change save selection');
  await inspect(30);await page.locator('#markcompare').click();await ready();
  assert.deepEqual((await snapshot()).pair,[120,30]);
- await page.locator('#markzoomtools summary').click();await page.locator('#markzoomrange').fill('3');
+ const beforeZoom=await page.locator('#markviewer').boundingBox();await page.locator('#markzoomtools summary').click();assert.deepEqual(await page.locator('#markviewer').boundingBox(),beforeZoom,'zoom popover does not shift image');await page.locator('#markzoomrange').fill('3');
  await page.evaluate(()=>{const f=window.__mobileMarks.markFlow;f.state.zoom.x=8;f.state.zoom.y=6;f.layout();});
  const zoom=(await snapshot()).zoom;
  const renderedZoom=()=>page.locator('#video').evaluate(v=>({width:v.style.width,height:v.style.height,transform:document.getElementById('vframe').style.transform}));
@@ -132,15 +135,15 @@ const instrumented=html.replace(/\}\)\(\);\s*<\/script>/,`window.__mobileMarks={
  // Start each device size fresh: resizing a mobile Chrome compositor can produce
  // tiled fixed-layer screenshots even when DOM rects report the new viewport.
  await page.close();
- for(const [width,height] of [[320,568],[390,844],[430,932]]){
+ for(const [width,height] of [[320,568],[390,844],[430,932],[844,390]]){
    await newPage(width,height);await open('01-hard-cuts.mp4');
    for(const frame of [30,120,240,360])await add(frame);
    await board();await page.locator('#markpick-30').click();await page.locator('#markpick-240').click();
    layouts.push(await checkLayout('board',width,height));
-   await inspect(120);await page.locator('#markpin').click();await inspect(30);
+   await inspect(120);layouts.push(await checkLayout('inspect',width,height));await page.locator('#markpin').scrollIntoViewIfNeeded();const beforePin=await page.locator('#markviewer').boundingBox();const beforePinFooter=await page.locator('.markfooter').boundingBox();await page.locator('#markpin').click();assert.deepEqual(await page.locator('#markviewer').boundingBox(),beforePin,'pin feedback does not shift inspector');assert.deepEqual(await page.locator('.markfooter').boundingBox(),beforePinFooter,'pin keeps action area anchored');await inspect(30);
    await page.locator('#markcompare').click();await ready();
    await page.locator('#markshowa').click();await ready();await page.locator('#markshowb').click();await ready();
-   layouts.push(await checkLayout('compare',width,height));await page.close();
+   layouts.push(await checkLayout('compare',width,height));if(width>height){const picture=await page.locator('#markviewer').boundingBox();assert.ok(picture.height>180,'landscape comparison keeps a useful image area');assert.equal(await page.locator('#markreveal').isVisible(),true,'landscape retains comparison tools');}await page.close();
  }
  assert.deepEqual(errors,[]);assert.deepEqual(externalRequests,[]);
  const result={workflow:'passed',selectionIndependent:'passed',finiteProgression:'passed',undo:'passed',matchedZoom:'passed',returnContext:'passed',sourceReplacement:'passed',visibleThumbnailDecoder:'passed',layouts,export:{dimensions,mean},errors,externalRequests};
