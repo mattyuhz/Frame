@@ -65,9 +65,9 @@
   .banner p{font-size:13px;line-height:1.55;color:var(--dim)}
 
   .stage{position:relative;background:#000;border:0;border-radius:0;
-    overflow:hidden;display:flex;align-items:center;justify-content:center;min-height:210px}
+    overflow:hidden;display:flex;align-items:center;justify-content:center;min-height:210px;aspect-ratio:16/9;width:100%}
   .stage.dragging{border-color:var(--phos)}
-  .viewport{position:relative;overflow:hidden;width:100%;display:none;
+  .viewport{position:absolute;inset:0;overflow:hidden;width:100%;height:100%;display:none;
     align-items:center;justify-content:center;touch-action:pan-y}
   .viewport.live{display:flex}
   .vframe{position:relative;flex:none;line-height:0;transform-origin:center center;will-change:transform}
@@ -76,6 +76,7 @@
   .drop h1{font-size:22px;font-weight:500;letter-spacing:-.01em;margin-bottom:8px}
   .drop p{color:var(--dim);font-size:13px;line-height:1.6;max-width:36ch;margin:0 auto 20px}
   .drop.gone{display:none}
+  .stage[data-load-phase="reading"] .pick{visibility:hidden}
   .pick{font-family:var(--sans);font-size:15px;font-weight:500;
     background:var(--read);color:var(--void);border:0;border-radius:var(--r-lg);
     padding:17px 28px;cursor:pointer}
@@ -339,8 +340,8 @@
   .group .eyebrow{display:block;margin-bottom:9px}
   .group .row2{margin-top:0}
   .group button.wide{margin-top:7px}
-  .iconbar{display:none;align-items:center;gap:6px;margin-bottom:10px}
-  .iconbar.on{display:flex}
+  .iconbar{display:flex;visibility:hidden;align-items:center;gap:6px;margin-bottom:10px}
+  .iconbar.on{display:flex;visibility:visible}
   button.ic{width:48px;height:48px;display:flex;align-items:center;justify-content:center;
     background:var(--raise);color:var(--read);border:0;border-radius:var(--r-md);
     cursor:pointer;padding:0;flex:none;touch-action:manipulation;min-height:0}
@@ -490,8 +491,6 @@
 
   <div class="stage" id="stage">
     <div class="drop" id="drop">
-      <h1>Choose a video</h1>
-      <p>Scrub to an exact frame and save it at full resolution. Your video is read on this device and never uploaded.</p>
       <button class="pick" id="pick">Choose a video</button>
       <input type="file" id="file" accept="video/*" class="hidden">
     </div>
@@ -3111,12 +3110,12 @@ function injectPng(bytes, payload){
     var r=cropMode?{w:W,h:H}:cropRect();
     var dispW=rotSwap()?r.h:r.w, dispH=rotSwap()?r.w:r.h;
     var cw=viewport.clientWidth || 320;
-    var s=cw/dispW;
+    var s=Math.min(cw/dispW,stage.clientHeight/dispH);
     if(!(s>0)) return;
     video.style.maxWidth='none'; video.style.maxHeight='none';
     video.style.width=Math.round(W*s)+'px';
     video.style.height=Math.round(H*s)+'px';
-    viewport.style.height=Math.round(dispH*s)+'px';
+    viewport.style.height='100%';
     applyZoom();
     layoutCrop();
   }

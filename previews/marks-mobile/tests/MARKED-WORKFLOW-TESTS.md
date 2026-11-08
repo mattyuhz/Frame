@@ -187,3 +187,12 @@ browser-toolbar resizing and background/resume; long 4K memory pressure and
 HEVC/HDR/ProRes device behavior. Desktop Chromium phone emulation cannot establish
 those results. These recordings focus on Board + keeper; the other variants have
 automated regression coverage, not equivalent recorded lifecycle review.
+
+### v28 empty state
+
+The chooser and editor now share a reserved 16:9 viewing area (minimum 210 px)
+and toolbar space. Portrait and cropped pictures fit inside it; their aspect
+ratio no longer moves the controls. The redundant chooser heading and paragraph
+are removed. The lifecycle harness now also fails if timecode, scrubber, Mark or
+Save move between the empty state and completed upload. Recorded 390 px review
+also measured zero control displacement when replacing with a portrait source.
