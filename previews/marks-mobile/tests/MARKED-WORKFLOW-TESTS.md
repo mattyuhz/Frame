@@ -196,3 +196,18 @@ ratio no longer moves the controls. The redundant chooser heading and paragraph
 are removed. The lifecycle harness now also fails if timecode, scrubber, Mark or
 Save move between the empty state and completed upload. Recorded 390 px review
 also measured zero control displacement when replacing with a portrait source.
+
+### v30 available-height viewer
+
+The editor now reserves its controls and uses the remaining small-viewport height
+for the image, with a reserved marked-frames slot to avoid first-mark movement.
+Portrait sources fit without cropping. At 390×844 the portrait image height is
+386 px (previously 210 px); at 720×1000 it is 538 px (previously about 383 px).
+Short landscape screens place the image beside the controls.
+
+Recorded and reviewed the 390×844 loading/source-replacement sequence; measured
+zero movement of timecode, scrubber, Mark and Save across replacement and first
+mark. `mobile-editor-layout-browser.cjs` checks on-screen, non-overlapping actions
+at 320×568, 390×844, 720×1000 and 844×390, video rotation, and a portrait →
+landscape → portrait viewport round trip. These are Chromium checks; physical
+Safari toolbar resizing and safe-area behavior still need device verification.

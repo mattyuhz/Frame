@@ -465,6 +465,25 @@
 .markreview[data-mode="board"][data-view="compare"] .markfeedback{grid-column:2;grid-row:4}
 .markreview[data-mode="board"][data-view="compare"] .markfooter{grid-column:2;grid-row:5}
 }
+/* Reserve controls first; the picture uses the remaining screen height. */
+@media (orientation:portrait), (min-height:560px){
+  .wrap{height:calc(100svh - env(safe-area-inset-top) - env(safe-area-inset-bottom));display:flex;flex-direction:column;padding-bottom:12px}
+  .wrap>*{flex-shrink:0}
+  .wrap>.stage{flex:1 1 auto;min-height:80px;aspect-ratio:auto}
+  .wrap>#markedentry[hidden]{display:block!important;visibility:hidden;pointer-events:none}
+}
+@media (orientation:landscape) and (max-height:559px){
+  .wrap{max-width:none;height:calc(100svh - env(safe-area-inset-top) - env(safe-area-inset-bottom));padding:8px 12px;display:grid;grid-template-columns:minmax(0,1fr) 280px;grid-template-rows:32px 48px 50px 56px 56px 44px minmax(0,1fr);gap:6px 12px}
+  .wrap>.appnav{grid-column:1/-1;grid-row:1;margin:0}
+  .wrap>.iconbar{grid-column:1;grid-row:2;margin:0}
+  .wrap>.stage{grid-column:1;grid-row:3/8;min-height:0;aspect-ratio:auto}
+  .wrap>.readout{grid-column:2;grid-row:2;padding:0}
+  .wrap>.scrubwrap{grid-column:2;grid-row:3}
+  .wrap>.transport{grid-column:2;grid-row:4;margin:0}
+  .wrap>.actions{grid-column:2;grid-row:5;margin:0}
+  .wrap>#markedentry{grid-column:2;grid-row:6;margin:0}
+  .wrap>#markedentry[hidden]{display:block!important;visibility:hidden;pointer-events:none}
+}
 </style>
 </head>
 <body>
@@ -2676,6 +2695,7 @@ function injectPng(bytes, payload){
       var p={x:b.x+b.w/2,y:b.y+b.h/2}; zoomCrop(e.key==='-'?1.1:1/1.1,p,p);
     }
   });
+  if(typeof ResizeObserver!=='undefined'){new ResizeObserver(function(){layoutViewer();}).observe(stage);}
   window.addEventListener('blur',clearCropGesture);
   document.addEventListener('visibilitychange',function(){ if(document.hidden) clearCropGesture(); });
   window.addEventListener('resize',function(){ clearCropGesture(); cropView=null; layoutViewer(); });
