@@ -5,7 +5,7 @@
    its Content-Security-Policy. */
 
 var CACHE_PREFIX = 'frame:' + self.registration.scope + ':';
-var CACHE = CACHE_PREFIX + 'v31-compact-editor';
+var CACHE = CACHE_PREFIX + 'v32-mock-proportions';
 var SHELL = ['./', './index.html', './compose.html'];
 
 self.addEventListener('install', function(e){

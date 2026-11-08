@@ -225,3 +225,20 @@ source replacement and recovery. Per-frame geometry/opacity assertions pass;
 reviewed sampled recording frames. Editor tests also open tools and crop at all
 four sizes and assert Save does not move, then exercise video/device rotation.
 Physical iPhone Safari and native sharing remain outside this desktop coverage.
+
+### v32 supplied-mock proportions
+
+Uses the user-provided CSS/SVG reference for a 48 px centered header, 48 px action
+buttons, larger timecode, 16 px gutters and a wider central playback target.
+The dynamic video is not replaced by the reference photo, repeated placeholder
+icons retain real playback actions, and Mark/Save retain explicit text. Metadata
+stays behind Info per the earlier user preference.
+
+Landscape footage now uses its natural height, with controls directly beneath;
+portrait footage grows only into the height left above the controls. Necessary
+source/rotation aspect changes ease over 200 ms (disabled for reduced motion).
+The source replacement recording measured a 328.625 px total repositioning with
+nine sampled intermediate positions; the largest adjacent-frame step was 45.47 px,
+not a single jump. Steady-state A/B/Reveal/save controls retain their geometry and
+opacity checks. This supersedes the fixed-height source-replacement requirement
+of v30/v31: the accepted requirement now permits an eased aspect change.

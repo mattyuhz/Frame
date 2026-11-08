@@ -65,11 +65,16 @@ const html=original.replace(/\}\)\(\);\s*<\/script>/,injection+'\n})();\n</scrip
   const ys=emptyToReady.map(s=>s.rects[id][1]);
   assert.ok(Math.max(...ys)-Math.min(...ys)<1,id+' moved from empty to loaded');
  }
- for(const label of ['mark-30','source-replacement-portrait']){
+ for(const label of ['mark-30']){
   const rows=samples.filter(s=>s.label===label);if(!rows.length)continue;
   for(const id of ['tc','scrub','bmark','bsave']){
    const ys=rows.map(s=>s.rects[id][1]);assert.ok(Math.max(...ys)-Math.min(...ys)<1,label+' moved '+id);
   }
+ }
+ const replacement=samples.filter(s=>s.label==='source-replacement-portrait');
+ if(replacement.length){
+  const ys=replacement.map(s=>s.rects.bsave[1]),span=Math.max(...ys)-Math.min(...ys);
+  if(span>1){const step=Math.max(...ys.slice(1).map((y,i)=>Math.abs(y-ys[i])));assert.ok(new Set(ys).size>3&&step<span/2,'source aspect change must ease through intermediate positions');}
  }
  const transitionChecks=[];
  for(const label of ['A-B-delayed-seek','reveal-keyboard-toggle','zoom-open-close','share-cancel-simulated','save-real-png']){

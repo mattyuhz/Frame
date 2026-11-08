@@ -69,7 +69,7 @@
     }
     function show(id,on){node(id).hidden=!on;}
     function onFrame(){
-      var marked=contains(state.frame);btns.bmark.textContent=marked?'✓ Marked':'Mark';
+      var marked=contains(state.frame);btns.bmark.textContent=marked?'Marked':'Mark';
       btns.bmark.setAttribute('aria-pressed',String(marked));
       if(m.open)node('marktime').textContent=elapsed(state.frame);
       var buttons=node('markstrip').children;
