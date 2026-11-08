@@ -13,7 +13,7 @@
   Verify it: turn on Airplane Mode. Everything below still works.
   ------------------------------------------------------------------
 -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self' blob: data: filesystem:; media-src 'self' blob: data: filesystem:; style-src 'unsafe-inline'; script-src 'unsafe-inline'; worker-src 'self'; connect-src 'none'; form-action 'none'; base-uri 'none'; frame-src 'none'; object-src 'none';">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self' blob: data: filesystem:; media-src 'self' blob: data: filesystem:; style-src 'unsafe-inline'; script-src 'unsafe-inline'; worker-src 'self'; connect-src 'none'; form-action 'none'; base-uri 'none'; frame-src 'self'; object-src 'none';">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -488,7 +488,7 @@
 /* Primary actions share the timecode row; secondary tools open over the image. */
 .readout{gap:6px;flex-wrap:nowrap}
 .readout .tc{flex:1;min-width:0;font-size:clamp(16px,4.4vw,28px)}
-.readout .tc .fraction{font-size:.8em}
+.readout .tc .fraction{font-size:1em}
 .readout .actions{display:flex;gap:6px;margin:0;flex-shrink:0}
 .readout .actions button{font-size:13px;min-height:44px;height:44px;padding:8px;border-radius:14px;white-space:nowrap}
 .readout #bmark{width:68px}.readout #bsave{width:56px}
@@ -516,9 +516,9 @@
  .appnav>span:first-child{text-align:right;color:#fff}.appnav>span:nth-child(2){text-align:center;color:#555}.appnav>a{text-align:left;color:#555}
  .wrap>.stage{flex:0 1 auto;aspect-ratio:16/9;min-height:80px}
  .readout{padding:16px 0;gap:10px;min-height:80px}
- .readout .tc{font-size:clamp(22px,calc(20vw - 42px),48px);line-height:1;font-weight:300;letter-spacing:-.04em}
- .readout .tc .fraction{font-size:.48em;letter-spacing:-.02em}
- .readout .tc[data-long="true"]{font-size:clamp(20px,7vw,32px)}
+ .readout .tc{font-size:clamp(20px,calc(16vw - 32px),40px);line-height:1;font-weight:300;letter-spacing:-.04em}
+ .readout .tc .fraction{font-size:1em;letter-spacing:inherit}
+ .readout .tc[data-long="true"]{font-size:clamp(16px,5vw,27px)}
  .readout .actions{gap:10px}
  .readout .actions button{width:48px!important;height:48px;min-height:48px;border-radius:16px;font-size:12px;padding:4px}
  .edittools summary{width:48px;height:48px;border-radius:16px}
@@ -529,11 +529,22 @@
 }
 @media(max-width:360px){.readout{gap:6px}.readout .actions{gap:6px}.transport{grid-template-columns:44px 44px minmax(44px,1fr) 44px 44px;gap:6px}}
 @media(prefers-reduced-motion:no-preference){.stage{transition:aspect-ratio 200ms ease-out}}
+
+.appnav button{font:inherit;color:#555;background:none;border:0;padding:8px 0;cursor:pointer;min-height:44px}
+.appnav button[aria-selected="true"]{color:#fff}
+.appnav #tabframe{text-align:right}.appnav #tabcompose{text-align:left}
+.appnav{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px}
+.appnav>span{text-align:center}
+body[data-workspace="compose"] .wrap>:not(.appnav){display:none!important}
+#composepanel{position:fixed;inset:calc(48px + env(safe-area-inset-top)) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);background:#000;z-index:30}
+#composepanel[hidden],#composeworkspace[hidden]{display:none}
+#composepanel>p{color:#aaa;text-align:center;margin:40px 0}
+#composeworkspace{width:100%;height:100%;border:0;display:block;background:#000}
 </style>
 </head>
 <body>
 <div class="wrap">
-  <nav class="appnav" aria-label="Apps"><span aria-current="page">Frame</span><span aria-hidden="true">/</span><a href="./compose.html" target="_blank" rel="noopener" aria-label="Compose layouts (opens in a new tab)">Compose</a></nav>
+  <nav class="appnav" aria-label="Workspace" role="tablist"><button type="button" id="tabframe" role="tab" aria-selected="true">Frame</button><span aria-hidden="true">/</span><button type="button" id="tabcompose" role="tab" aria-selected="false">Compose</button></nav>
   <select id="markworkflow" hidden aria-label="Marked-frame workflow"><option value="board" selected>Board + keeper</option><option value="drawer">Marks drawer</option><option value="filmstrip">Filmstrip</option><option value="review">Review pass</option></select>
 
   <div class="banner" id="banner">
@@ -670,6 +681,7 @@
 
 </div>
 
+<section id="composepanel" aria-label="Compose workspace" hidden><p id="composeloading" role="status">Opening Compose…</p></section>
 <div class="markbackdrop" id="markbackdrop" aria-hidden="true" hidden></div>
 <section class="markreview" id="markreview" role="dialog" aria-modal="true" aria-labelledby="marktitle" data-mode="review" hidden>
   <div class="markbar"><h2 id="marktitle">Marked frames</h2><button type="button" id="markback">All marks</button><button type="button" id="markclose">Done</button></div>
@@ -3176,6 +3188,7 @@ function injectPng(bytes, payload){
   function rotSwap(){ return state.rot===90 || state.rot===270; }
 
   function layoutViewer(){
+    if(document.body.getAttribute('data-workspace')==='compose')return;
     if(markFlow&&markFlow.opened){markFlow.layout();return;}
     if(!video.videoWidth) return;
     var W=video.videoWidth, H=video.videoHeight;
@@ -3705,6 +3718,31 @@ function injectPng(bytes, payload){
   /* MARKED_FRAME_EXPLORATIONS_END */
 
   setFrameUI(0);
+
+
+  /* Keep both local workspaces alive while switching in-app tabs. */
+  var composeFrame=null, workspace='frame';
+  function switchWorkspace(next){
+    if(next===workspace)return;
+    if(saving){say('Finish saving before switching workspaces.');return;}
+    var api=composeFrame&&composeFrame.contentWindow.frameWorkspace;
+    if(workspace==='compose'&&api&&!api.canLeave())return;
+    video.pause();
+    if(api)api.setActive(next==='compose');
+    workspace=next;document.body.setAttribute('data-workspace',next);
+    $('tabframe').setAttribute('aria-selected',String(next==='frame'));
+    $('tabcompose').setAttribute('aria-selected',String(next==='compose'));
+    $('composepanel').hidden=next!=='compose';$('edittools').open=false;
+    if(next==='compose'&&!composeFrame){
+      composeFrame=document.createElement('iframe');composeFrame.id='composeworkspace';composeFrame.title='Compose workspace';composeFrame.hidden=true;
+      composeFrame.onload=function(){ $('composeloading').hidden=true;composeFrame.hidden=false;if(composeFrame.contentWindow.frameWorkspace)composeFrame.contentWindow.frameWorkspace.setActive(workspace==='compose'); };
+      composeFrame.src='./compose.html';$('composepanel').appendChild(composeFrame);
+    }
+    if(next==='frame'){layoutViewer();if(state.ready)goToFrame(state.frame);}
+  }
+  $('tabframe').addEventListener('click',function(){switchWorkspace('frame');});
+  $('tabcompose').addEventListener('click',function(){switchWorkspace('compose');});
+  [$('tabframe'),$('tabcompose')].forEach(function(tab){tab.addEventListener('keydown',function(e){if(e.key==='ArrowLeft'||e.key==='ArrowRight'){e.preventDefault();var next=workspace==='frame'?'compose':'frame';switchWorkspace(next);$(next==='frame'?'tabframe':'tabcompose').focus();}});});
 
   /* ---- offline shell: after the first visit, the page itself opens
      with no network. Registration is skipped in restricted frames. ---- */
