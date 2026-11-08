@@ -484,6 +484,30 @@
   .wrap>#markedentry{grid-column:2;grid-row:6;margin:0}
   .wrap>#markedentry[hidden]{display:block!important;visibility:hidden;pointer-events:none}
 }
+
+/* Primary actions share the timecode row; secondary tools open over the image. */
+.readout{gap:6px;flex-wrap:nowrap}
+.readout .tc{flex:1;min-width:0;font-size:clamp(16px,4.4vw,28px)}
+.readout .tc .fraction{font-size:.8em}
+.readout .actions{display:flex;gap:6px;margin:0;flex-shrink:0}
+.readout .actions button{font-size:13px;min-height:44px;height:44px;padding:8px;border-radius:14px;white-space:nowrap}
+.readout #bmark{width:68px}.readout #bsave{width:56px}
+.edittools{flex-shrink:0}.edittools summary{list-style:none;cursor:pointer;width:44px;height:44px;display:flex;align-items:center;justify-content:center;background:var(--raise);border-radius:14px;letter-spacing:2px}
+.edittools summary::-webkit-details-marker{display:none}
+.editorpopover{position:absolute;z-index:20;right:0;bottom:100%;width:300px;max-width:100%;padding:12px;border:1px solid #444;border-radius:16px;background:#161616;box-shadow:0 -8px 24px #0008}
+.editorpopover .iconbar{display:flex;visibility:visible;margin:0 0 8px;flex-wrap:wrap}
+.editorpopover .readouttools{justify-content:space-between}
+.videoinfo{top:auto;bottom:100%}
+.transport{grid-template-columns:1fr 1fr 2fr 1fr 1fr}
+.stage>.cropbar{position:absolute;z-index:15;bottom:8px;left:8px;right:8px;background:#161616;padding:8px;border-radius:14px;margin:0}
+@media(orientation:landscape) and (max-height:559px){
+ .wrap>.stage{grid-row:2/8}
+ .wrap>.readout{grid-row:2}
+ .wrap>.scrubwrap{grid-row:3}
+ .wrap>.transport{grid-row:4}
+ .wrap>#markedentry{grid-row:5}
+ .editorpopover{bottom:auto;top:100%}
+}
 </style>
 </head>
 <body>
@@ -496,17 +520,7 @@
     <p>The video could not load in this preview. Open this page directly in Safari or another browser, then choose the video again.</p>
   </div>
 
-  <div class="iconbar" id="iconbar">
-    <button class="ic" id="brotate" aria-label="Rotate 90 degrees" title="Rotate 90&deg;"><svg viewBox="0 0 20 20" aria-hidden="true"><rect x="6" y="7" width="9" height="10" rx="1" transform="rotate(20 10.5 12)"/><path d="M4 6a7 7 0 0 1 12-2M16 1v3h-3"/></svg></button>
-    <button class="ic" id="bcrop" disabled aria-label="Crop" title="Crop"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5.5 1.5v13h13"/><path d="M1.5 5.5h13v13"/></svg></button>
-    <div class="cropactions" id="cropactions" role="group" aria-label="Crop actions">
-      <button class="ic" id="bfitpic" aria-label="Fit to picture" title="Fit to picture"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 3H3v4m10-4h4v4M3 13v4h4m10-4v4h-4"/><rect x="6" y="6" width="8" height="8" rx="1"/></svg></button>
-      <button class="ic" id="bcropreset" aria-label="Reset crop" title="Reset crop"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 7a6 6 0 1 1 0 6M4 3v4h4"/></svg></button>
-      <button class="ic" id="bcropdone" aria-label="Done cropping" title="Done cropping"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m4 10 4 4 8-8"/></svg></button>
-    </div>
-    <button class="ic mono" id="bzoomtoggle" aria-label="Show actual pixels" title="Show actual pixels"><span class="zoom-one" aria-hidden="true">1:1</span><svg class="zoom-fit" viewBox="0 0 20 20" aria-hidden="true"><rect x="2.5" y="4.5" width="15" height="11" rx="1"/><polyline points="6 8 6 12 10 12"/></svg></button>
-    <button class="ic" id="bnew" aria-label="Open another video" title="Open another video"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 13V3"/><polyline points="6.2 6.6 10 2.8 13.8 6.6"/><path d="M3 12.5v3a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-3"/></svg></button>
-  </div>
+
 
   <div class="stage" id="stage">
     <div class="drop" id="drop">
@@ -520,8 +534,6 @@
       <div class="cropwrap" id="cropwrap"><div class="cropbox" id="cropbox" role="group" aria-label="Crop. Arrow keys move the picture; plus and minus zoom." tabindex="-1"></div></div>
     </div>
     <div class="busy" id="busy"><span id="busytext">Reading</span></div>
-  </div>
-
   <div class="cropbar" id="cropbar">
     <div class="croporientation" role="group" aria-label="Crop orientation">
       <button type="button" id="bcropportrait" aria-label="Portrait" title="Portrait" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="2" width="12" height="20" rx="1.5"/></svg></button>
@@ -529,13 +541,30 @@
     </div>
     <div class="ratios" id="cropstrip" aria-label="Crop aspect ratio"></div>
   </div>
+  </div>
+
+
 
   <div class="readout" id="readout">
     <div class="tc" id="tc" aria-label="Video position">00:00<span class="fraction">.000</span></div>
-    <div class="readouttools">
+<div class="actions" id="actions">
+    <button class="t" id="bmark" disabled>Mark</button>
+    <button class="t primary" id="bsave" disabled>Save</button>
+  </div>
+    <details class="edittools" id="edittools"><summary aria-label="More video tools" title="More video tools">•••</summary><div class="editorpopover"><div class="iconbar" id="iconbar">
+    <button class="ic" id="brotate" aria-label="Rotate 90 degrees" title="Rotate 90&deg;"><svg viewBox="0 0 20 20" aria-hidden="true"><rect x="6" y="7" width="9" height="10" rx="1" transform="rotate(20 10.5 12)"/><path d="M4 6a7 7 0 0 1 12-2M16 1v3h-3"/></svg></button>
+    <button class="ic" id="bcrop" disabled aria-label="Crop" title="Crop"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5.5 1.5v13h13"/><path d="M1.5 5.5h13v13"/></svg></button>
+    <div class="cropactions" id="cropactions" role="group" aria-label="Crop actions">
+      <button class="ic" id="bfitpic" aria-label="Fit to picture" title="Fit to picture"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 3H3v4m10-4h4v4M3 13v4h4m10-4v4h-4"/><rect x="6" y="6" width="8" height="8" rx="1"/></svg></button>
+      <button class="ic" id="bcropreset" aria-label="Reset crop" title="Reset crop"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 7a6 6 0 1 1 0 6M4 3v4h4"/></svg></button>
+      <button class="ic" id="bcropdone" aria-label="Done cropping" title="Done cropping"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m4 10 4 4 8-8"/></svg></button>
+    </div>
+    <button class="ic mono" id="bzoomtoggle" aria-label="Show actual pixels" title="Show actual pixels"><span class="zoom-one" aria-hidden="true">1:1</span><svg class="zoom-fit" viewBox="0 0 20 20" aria-hidden="true"><rect x="2.5" y="4.5" width="15" height="11" rx="1"/><polyline points="6 8 6 12 10 12"/></svg></button>
+    <button class="ic" id="bnew" aria-label="Open another video" title="Open another video"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 13V3"/><polyline points="6.2 6.6 10 2.8 13.8 6.6"/><path d="M3 12.5v3a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-3"/></svg></button>
+  </div><div class="readouttools">
       <button type="button" class="sectionswitch" id="bsections" role="switch" aria-checked="false" aria-expanded="false" aria-controls="scenebody" aria-label="Sections" disabled>Sections</button>
       <button type="button" class="infotoggle" id="bvideoinfo" aria-label="Video information" title="Video information" aria-expanded="false" aria-controls="videoinfo" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v6m0-10v1"/></svg></button>
-    </div>
+    </div></div></details>
     <div class="videoinfo" id="videoinfo" role="region" aria-label="Video information" hidden>
       <h3>Video information</h3>
       <p id="mFilename"></p>
@@ -597,10 +626,7 @@
     <button class="t" id="b10fwd" disabled>+10</button>
   </div>
 
-  <div class="actions" id="actions">
-    <button class="t" id="bmark" disabled>Mark</button>
-    <button class="t primary" id="bsave" disabled>Save</button>
-  </div>
+
 
   <button type="button" class="markedentry" id="markedentry" aria-controls="markreview" aria-expanded="false" hidden>Marked frames</button>
   <div class="markstrip" id="markstrip" aria-label="Marked frames" hidden></div>
@@ -1663,6 +1689,9 @@ function injectPng(bytes, payload){
     return err<0.02?best:null;
   }
 
+  ['bnew','bsections','bvideoinfo','bcropdone'].forEach(function(id){$(id).addEventListener('click',function(){$('edittools').open=false;});});
+  document.addEventListener('pointerdown',function(e){if(!$('edittools').contains(e.target))$('edittools').open=false;});
+  document.addEventListener('keydown',function(e){if(e.key==='Escape')$('edittools').open=false;});
   /* ---------- loading ---------- */
   function loadFile(file){
     if(!file) return;
