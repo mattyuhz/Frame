@@ -75,7 +75,7 @@ const instrumented=html.replace(/\}\)\(\);\s*<\/script>/,`window.__mobileMarks={
  assert.deepEqual((await snapshot()).selected,[30,240],'pin does not change save selection');
  await inspect(30);await page.locator('#markcompare').click();await ready();
  assert.deepEqual((await snapshot()).pair,[120,30]);
- await page.locator('#markactual').click();
+ await page.locator('#markzoomtools summary').click();await page.locator('#markzoomrange').fill('3');
  await page.evaluate(()=>{const f=window.__mobileMarks.markFlow;f.state.zoom.x=8;f.state.zoom.y=6;f.layout();});
  const zoom=(await snapshot()).zoom;
  const renderedZoom=()=>page.locator('#video').evaluate(v=>({width:v.style.width,height:v.style.height,transform:document.getElementById('vframe').style.transform}));
@@ -85,8 +85,9 @@ const instrumented=html.replace(/\}\)\(\);\s*<\/script>/,`window.__mobileMarks={
  await page.locator('#markshowb').click();await ready();assert.equal((await snapshot()).current,30);
  assert.deepEqual((await snapshot()).zoom,zoom,'B keeps the keeper zoom and pan');
  assert.deepEqual(await renderedZoom(),renderedBefore,'A/B preserves rendered scale and pan, not just stored zoom');
- await page.locator('#markfit').click();
+ await page.locator('#markresetzoom').click();await page.locator('#markzoomtools summary').click();
 
+ await page.locator('#markreveal').click();await ready();await page.waitForFunction(()=>!document.getElementById('markoverlay').hidden);await page.locator('#markrevealrange').fill('25');const halves=await page.locator('#markoverlay').evaluate(c=>{const x=c.getContext('2d');return [.1,.75].map(p=>Array.from(x.getImageData(Math.floor(c.width*p),Math.floor(c.height/2),1,1).data));});assert.ok(halves[0][0]>halves[0][2]&&halves[1][2]>halves[1][0],'reveal shows real A on left and B on right');await page.locator('#markrevealhandle').focus();await page.keyboard.press('ArrowRight');assert.equal(await page.locator('#markrevealrange').inputValue(),'30');await page.screenshot({path:path.join(output,'reveal.png')});await page.locator('#markreveal').click();
  await page.locator('#markaccepta').click();await ready();
  let state=await snapshot();assert.equal(state.keeper,120);assert.deepEqual(state.pair,[120,240]);
  await page.locator('#markshowa').click();await ready();

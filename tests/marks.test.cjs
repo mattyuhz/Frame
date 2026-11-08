@@ -66,7 +66,7 @@ test('workflow changes preserve the same marks and save selection',async()=>{
 
 test('mark removal and undo restore the removed source position and its selected state',async()=>{
   const f=setup();await mark(f,100);await mark(f,200);
-  f.flow.state.selected=[100];f.m.setFrameUI(100);f.flow.toggle();await flush();
+  f.flow.state.selected=[100];f.m.setFrameUI(100);f.flow.remove(100);await flush();
   assert.deepEqual(plain(f.api.state.marks),[200]);
   assert.deepEqual(plain(f.flow.state.selected),[]);
   f.ids.get('markundo').click();await flush();

@@ -157,3 +157,5 @@ test('interrupting thumbnail generation clears progress and scroll hides its tem
   f.ids.get('markreviewbody').scrollTop=10;f.dispatch(f.ids.get('markreviewbody'),'scroll');
   assert.equal(f.ids.get('markviewer').hidden,true);await flush();assert.equal(f.flow.state.queueRunning,false);
 });
+
+ test('marking the same source frame twice preserves the mark and reports Already marked',async()=>{const f=setup();f.api.state.frame=30;const before=plain(f.api.state.marks);f.flow.toggle();assert.deepEqual(plain(f.api.state.marks),before);assert.match(f.ids.get('savetoast').textContent,/Already marked/);});

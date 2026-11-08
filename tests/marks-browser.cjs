@@ -46,7 +46,7 @@ const instrumented=html.replace(/\}\)\(\);\s*<\/script>/,`window.__marksQA={stat
    assert.deepEqual(await page.evaluate(()=>[window.__marksQA.state.marks,window.__marksQA.markFlow.state.selected]),[[30,120,150,240,300,360],[30,300]]);
  }
  // Removing a selected mark is recoverable, including selection membership.
- await page.evaluate(()=>window.__marksQA.goToFrame(30));await page.locator('#bmark').click();
+ await page.evaluate(()=>window.__marksQA.markFlow.remove(30));
  assert.deepEqual(await page.evaluate(()=>window.__marksQA.markFlow.state.selected),[300]);
  await page.locator('#markundoinline').click();
  assert.deepEqual((await page.evaluate(()=>window.__marksQA.markFlow.state.selected)).sort((a,b)=>a-b),[30,300]);
