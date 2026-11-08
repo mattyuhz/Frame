@@ -80,10 +80,12 @@ const instrumented=html.replace(/\}\)\(\);\s*<\/script>/,`window.__mobileMarks={
  const zoom=(await snapshot()).zoom;
  const renderedZoom=()=>page.locator('#video').evaluate(v=>({width:v.style.width,height:v.style.height,transform:document.getElementById('vframe').style.transform}));
  const renderedBefore=await renderedZoom();
+ await page.evaluate(()=>{window.hopSamples=[];window.hopSampling=true;function sample(){const el=document.getElementById('markviewer'),r=el.getBoundingClientRect(),c=document.getElementById('markoverlay');window.hopSamples.push([r.x,r.y,r.width,r.height,document.getElementById('markreviewbody').scrollTop,c.hidden]);if(window.hopSampling)requestAnimationFrame(sample);}sample();});
  await page.locator('#markshowa').click();await ready();assert.equal((await snapshot()).current,120);
  assert.deepEqual((await snapshot()).zoom,zoom,'A keeps the candidate zoom and pan');
  await page.locator('#markshowb').click();await ready();assert.equal((await snapshot()).current,30);
  assert.deepEqual((await snapshot()).zoom,zoom,'B keeps the keeper zoom and pan');
+ const hopSamples=await page.evaluate(async()=>{await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));window.hopSampling=false;return window.hopSamples;});assert.ok(hopSamples.length>2);for(const sample of hopSamples){assert.deepEqual(sample.slice(0,5),hopSamples[0].slice(0,5),'viewer position and scroll remain stable throughout A/B');assert.equal(sample[5],false,'same canvas remains visible through loading and ready states');}
  assert.deepEqual(await renderedZoom(),renderedBefore,'A/B preserves rendered scale and pan, not just stored zoom');
  await page.locator('#markresetzoom').click();await page.locator('#markzoomtools summary').click();
 

@@ -5,7 +5,7 @@
    its Content-Security-Policy. */
 
 var CACHE_PREFIX = 'frame:' + self.registration.scope + ':';
-var CACHE = CACHE_PREFIX + 'v22-mobile-reveal';
+var CACHE = CACHE_PREFIX + 'v23-stable-comparison';
 var SHELL = ['./', './index.html', './compose.html'];
 
 self.addEventListener('install', function(e){
