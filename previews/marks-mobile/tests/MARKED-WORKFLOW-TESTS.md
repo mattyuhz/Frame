@@ -154,3 +154,36 @@ keyboard and pointer Reveal operation, reduced-motion behavior, and real
 900×1600 keeper exports. The earlier workflow suite and eight-fixture scene suite
 also run, including a 3840×2160 export. Physical iPhone share-sheet behavior and
 codec-specific performance still need on-device testing.
+
+## Loading and recorded-transition regression (November 8, v27)
+
+The earlier audit missed the loading-to-ready lifecycle: it waited for readiness
+before measuring. `mobile-transitions-browser.cjs` now records before upload and
+samples geometry/opacity on every animation frame with deliberately delayed
+metadata, FPS detection, seeks and export. On the prior commit it fails: viewer
+height changed 159 px and editor controls moved 150 px during FPS detection.
+Sizing at metadata arrival reduces both to 0 px at 320×568, 390×844 and the
+720×1000 embedded-preview size (the last uses the loading-only run).
+
+The recorded walkthrough covers upload, sections, three marks, duplicate marking,
+board selection/filtering, inspection/pinning, zoom, remove/Undo, A/B, Reveal,
+simulated failed seek/retry, decisions/Undo, simulated share cancellation, real
+PNG download, portrait replacement, invalid input and recovery with a short clip.
+A/B, Reveal, zoom, share cancellation and save have explicit per-animation-frame
+geometry/opacity assertions. These also caught a 54 px save-time shift from an
+empty feedback row being hidden; its space now remains reserved. Save guards
+remain active without dimming unrelated review controls.
+
+Reviewed decoded recording frame sequences at 0.5-second intervals for the
+390×844 and 320×568 walkthroughs, alongside continuous numerical measurements.
+This is sampled visual review, not a claim that every painted pixel in every
+frame was manually inspected. Existing mobile tests additionally cover pointer
+Reveal, matched zoom, reduced motion, portrait/landscape layouts and export
+pixels. Unit, mobile, older workflow and scene suites are separate checks.
+
+Remaining gaps: physical iPhone Safari and Home Screen mode; real native share
+sheet/Photos cancellation and saving (cancellation here is simulated); Safari
+browser-toolbar resizing and background/resume; long 4K memory pressure and
+HEVC/HDR/ProRes device behavior. Desktop Chromium phone emulation cannot establish
+those results. These recordings focus on Board + keeper; the other variants have
+automated regression coverage, not equivalent recorded lifecycle review.
