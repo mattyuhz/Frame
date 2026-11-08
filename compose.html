@@ -269,6 +269,7 @@
   .ratio-options button:active:not([aria-pressed="true"]){background:var(--raise-hi)}
   .hidden{display:none}
   @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+.in-app #hdr{display:none}
 </style>
 </head>
 <body>
@@ -427,7 +428,9 @@
     share:(typeof navigator.canShare==='function'),
     secure:(window.isSecureContext===true)
   };
-  env.restricted = env.framed || env.opaque;
+  var inApp=false;try{inApp=!!window.frameElement&&window.frameElement.id==='composeworkspace';}catch(_){}
+  if(inApp)document.documentElement.classList.add('in-app');
+  env.restricted = (env.framed&&!inApp) || env.opaque;
   if(env.restricted) banner.className='banner on';
 
   /* ---------- constants + state ---------- */
@@ -2175,6 +2178,15 @@
       }).catch(function(){});
     }catch(_){}
   }
+  var workspacePlaying=state.previewPlay;
+  window.frameWorkspace={
+    canLeave:function(){return !state.exporting&&!sharing;},
+    setActive:function(active){
+      if(!active){workspacePlaying=state.previewPlay;state.previewPlay=false;document.querySelectorAll('video').forEach(function(v){v.pause();});}
+      else{state.previewPlay=workspacePlaying;sizePreview();}
+      paintPlayIcon();
+    }
+  };
 })();
 </script>
 </body>
