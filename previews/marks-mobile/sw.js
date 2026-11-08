@@ -5,7 +5,7 @@
    its Content-Security-Policy. */
 
 var CACHE_PREFIX = 'frame:' + self.registration.scope + ':';
-var CACHE = CACHE_PREFIX + 'v33-workspace-tabs';
+var CACHE = CACHE_PREFIX + 'v34-workspace-cache';
 var SHELL = ['./', './index.html', './compose.html'];
 
 self.addEventListener('install', function(e){
@@ -39,9 +39,9 @@ self.addEventListener('fetch', function(e){
         }
         return res;
       }).catch(function(){ return hit; });
-      /* Serve the cached copy instantly; refresh it in the background
-         so future updates still arrive. */
-      return hit || refresh;
+      /* Keep HTML workspaces on the same current release when online.
+         The cached shell remains available offline. */
+      return e.request.mode === 'navigate' || /\.html$/.test(url.pathname) ? refresh : (hit || refresh);
     })
   );
 });
