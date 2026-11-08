@@ -116,3 +116,14 @@ contains that code inline and loads no external script. Unit checks are
 and `tests/mobile-marks-browser.cjs`, using the same Playwright/Chrome environment
 variables as `scenes-browser.cjs`. The mobile harness defaults to localhost:8877;
 set `FRAME_PREVIEW_URL` to override it.
+
+## Mobile refinement checks
+
+Repeated Mark taps retain the existing mark and show “Already marked”. Remove
+is explicit under More, with Undo. Zoom expands to a slider and Reset; pinch
+and pan remain available on the image. Reveal overlays A on the left and B on
+the right with a draggable divider (also keyboard adjustable). Both sides use
+the same crop, rotation, zoom and pan; no automatic image alignment is applied.
+Comparison holds a captured source image while seeking instead of dimming it.
+Full-resolution source snapshots are bounded to the active comparison and held
+frame; reveal is a viewing aid and does not become the exported image.
