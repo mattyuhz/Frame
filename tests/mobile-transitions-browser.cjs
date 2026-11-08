@@ -65,6 +65,12 @@ const html=original.replace(/\}\)\(\);\s*<\/script>/,injection+'\n})();\n</scrip
   const ys=emptyToReady.map(s=>s.rects[id][1]);
   assert.ok(Math.max(...ys)-Math.min(...ys)<1,id+' moved from empty to loaded');
  }
+ for(const label of ['mark-30','source-replacement-portrait']){
+  const rows=samples.filter(s=>s.label===label);if(!rows.length)continue;
+  for(const id of ['tc','scrub','bmark','bsave']){
+   const ys=rows.map(s=>s.rects[id][1]);assert.ok(Math.max(...ys)-Math.min(...ys)<1,label+' moved '+id);
+  }
+ }
  const transitionChecks=[];
  for(const label of ['A-B-delayed-seek','reveal-keyboard-toggle','zoom-open-close','share-cancel-simulated','save-real-png']){
   const rows=samples.filter(s=>s.label===label);if(!rows.length)continue;
