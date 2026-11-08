@@ -5,7 +5,7 @@
    its Content-Security-Policy. */
 
 var CACHE_PREFIX = 'frame:' + self.registration.scope + ':';
-var CACHE = CACHE_PREFIX + 'v24-stable-controls';
+var CACHE = CACHE_PREFIX + 'v25-image-divider';
 var SHELL = ['./', './index.html', './compose.html'];
 
 self.addEventListener('install', function(e){

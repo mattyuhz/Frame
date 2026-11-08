@@ -127,3 +127,9 @@ the same crop, rotation, zoom and pan; no automatic image alignment is applied.
 Comparison holds a captured source image while seeking instead of dimming it.
 Full-resolution source snapshots are bounded to the active comparison and held
 frame; reveal is a viewing aid and does not become the exported image.
+
+Reveal uses one keyboard-accessible slider handle directly on the visible image.
+Its line is clipped to the picture bounds, including after zoom, pan and rotation.
+There is no secondary bottom slider. Neither A/B button is selected in Reveal;
+choosing A or B returns to single-image comparison. Toggling Reveal must preserve
+the viewer geometry and surrounding controls.
