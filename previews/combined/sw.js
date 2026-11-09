@@ -5,7 +5,7 @@
    its Content-Security-Policy. */
 
 var CACHE_PREFIX = 'frame:' + self.registration.scope + ':';
-var CACHE = CACHE_PREFIX + 'v36-combined-stable-workspaces';
+var CACHE = CACHE_PREFIX + 'v37-responsive-photo-sliders';
 var SHELL = ['./', './index.html', './compose.html'];
 
 self.addEventListener('install', function(e){

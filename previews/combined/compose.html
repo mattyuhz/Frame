@@ -241,7 +241,12 @@ if(new URLSearchParams(location.search).get('workspace-embed')!=='1'){
   .photo-slider{display:flex;align-items:center;gap:12px;height:48px;margin:6px 0}
   .photo-slider label{width:60px;font-size:12px;color:var(--mid)}
   .photo-slider output{width:30px;text-align:right;font-size:12px;font-variant-numeric:tabular-nums;color:var(--mid)}
-  .photo-slider input{flex:1;min-width:40px;accent-color:#eee;height:44px}
+  .photo-slider input{flex:1;min-width:40px;height:48px;margin:0;touch-action:none;-webkit-appearance:none;appearance:none;background:transparent;cursor:ew-resize}
+  .photo-slider input::-webkit-slider-runnable-track{height:3px;border-radius:3px;background:#666}
+  .photo-slider input::-webkit-slider-thumb{-webkit-appearance:none;width:28px;height:28px;border-radius:50%;background:#eee;border:0;margin-top:-12.5px;box-shadow:0 1px 4px #0006}
+  .photo-slider input::-moz-range-track{height:3px;border-radius:3px;background:#666}
+  .photo-slider input::-moz-range-thumb{width:28px;height:28px;border-radius:50%;background:#eee;border:0}
+  .photo-slider input:disabled{opacity:.3}
   .photo-foot{display:flex;justify-content:space-between;align-items:center;font-size:11px;color:var(--dim)}
   .photo-foot #photoreset{font-size:12px;color:var(--dim)}
   .photo-editor:not(.photo-cropping) .editorframe::after{display:none}
@@ -1138,10 +1143,11 @@ return Object.freeze({normalizeOptions:normalizeOptions,renderPixels:renderPixel
   /* ---------- export drawing (the preview itself is DOM) ---------- */
   /* Cache at cell output size, never at full camera resolution. The same
      pixels serve the editor, mixed grid and export; video ticks reuse them. */
-  function renderedPhoto(c,w,h){
+  function renderedPhoto(c,w,h,draft){
     var key=JSON.stringify([w,h,c.view.cx,c.view.cy,c.view.s,c.appearance||null]);
-    if(c.lookCache && c.lookCache.key===key)return c.lookCache.canvas;
-    var canvas=c.lookCache?c.lookCache.canvas:document.createElement('canvas');
+    var slot=draft?'editorLookCache':'lookCache',cache=c[slot];
+    if(cache && cache.key===key)return cache.canvas;
+    var canvas=cache?cache.canvas:document.createElement('canvas');
     canvas.width=w;canvas.height=h;
     var g=canvas.getContext('2d',{willReadFrequently:true});
     var scale=Math.max(w/c.w,h/c.h)*c.view.s,sw=w/scale,sh=h/scale;
@@ -1150,10 +1156,10 @@ return Object.freeze({normalizeOptions:normalizeOptions,renderPixels:renderPixel
     g.drawImage(c.el,sx,sy,sw,sh,0,0,w,h);
     var pixels=g.getImageData(0,0,w,h);
     pixels.data.set(PhotoRendering.renderPixels(pixels.data,w,h,c.appearance));
-    g.putImageData(pixels,0,0);c.lookCache={key:key,canvas:canvas};return canvas;
+    g.putImageData(pixels,0,0);c[slot]={key:key,canvas:canvas};return canvas;
   }
   function paintCellLook(i){
-    var c=state.cells[i],box=boxes[i];if(!c || !box)return;
+    var c=state.cells[i],box=boxes[i];if(!c || !box || i===editorIndex)return;
     if(c.kind==='image' && c.appearance){
       var r=rectsFor(OUT_W,OUT_H)[i],surface=renderedPhoto(c,r.w,r.h);
       surface.className='cell-look';
@@ -1218,6 +1224,7 @@ return Object.freeze({normalizeOptions:normalizeOptions,renderPixels:renderPixel
   photoSurface.setAttribute('aria-hidden','true');
   function paintPhotoPreview(){
     photoPaintPending=false;
+    if(editorIndexActive())return;
     var cells=visibleCells();
     var photos=allFilled() && cells.every(function(c){return c.kind==='image';});
     var context=photos?photoSurface.getContext('2d'):null;
@@ -1693,6 +1700,7 @@ return Object.freeze({normalizeOptions:normalizeOptions,renderPixels:renderPixel
   $('suggestsubject').addEventListener('click',function(){pickCropSubject(!cropIdeas.picking);});
   $('suggestauto').addEventListener('click',function(){cropIdeas.anchor=null;makeCropIdeas();});
   var photoComparing=false,photoUpdatePending=false,photoMode='looks',photoAdjustment='light',photoHold=null,photoThumbSource=null;
+  var photoDragging=false,photoSettleTimer=null,photoSliderHeld=false;
   var photoFields=['light','shadows','highlights','warmth','tint'];
   function photoSliderField(){return photoMode==='adjust'?photoAdjustment:photoMode==='texture'?'grain':'amount';}
   function updatePhotoControls(){
@@ -1709,7 +1717,8 @@ return Object.freeze({normalizeOptions:normalizeOptions,renderPixels:renderPixel
     $('photosliderrow').hidden=photoMode==='crop';$('photoreset').hidden=photoMode==='crop';
     $('photosliderlabel').textContent=field.charAt(0).toUpperCase()+field.slice(1);
     $('photoslider').min=field==='amount'||field==='grain'?'0':'-100';
-    $('photoslider').value=String(field==='amount' && options.look==='none'?0:Math.round(options[field]*100));$('photoslidervalue').textContent=$('photoslider').value;
+    if(!photoDragging)$('photoslider').value=String(field==='amount' && options.look==='none'?0:Math.round(options[field]*100));
+    $('photoslidervalue').textContent=$('photoslider').value;
     $('photoslider').disabled=field==='amount' && options.look==='none';
     $('photohint').textContent=photoMode==='crop'?'Drag photo to reframe':'Hold photo to compare';
     ['looks','adjust','texture','crop'].forEach(function(mode){$('mode'+mode).setAttribute('aria-pressed',String(mode===photoMode));});
@@ -1732,6 +1741,7 @@ return Object.freeze({normalizeOptions:normalizeOptions,renderPixels:renderPixel
     if(!photoUpdatePending){photoUpdatePending=true;requestAnimationFrame(function(){photoUpdatePending=false;if(editorIndex>=0)paintEditor();});}
   }
   function setPhotoMode(mode){
+    clearTimeout(photoSettleTimer);photoDragging=false;photoSliderHeld=false;
     if(cropIdeas.picking)pickCropSubject(false);
     if(photoMode==='crop' && mode!=='crop')resetCropIdeas();
     photoMode=mode;photoComparing=false;photoHold=null;editorPtrs={};
@@ -1743,7 +1753,18 @@ return Object.freeze({normalizeOptions:normalizeOptions,renderPixels:renderPixel
     changePhotoAppearance('look',look);
   });});
   photoFields.forEach(function(key){$('adjust'+key).addEventListener('click',function(){photoAdjustment=key;paintEditor();});});
-  $('photoslider').addEventListener('input',function(){changePhotoAppearance(photoSliderField(),Number(this.value)/100);});
+  function finishPhotoDrag(){
+    clearTimeout(photoSettleTimer);photoSettleTimer=null;photoSliderHeld=false;
+    if(!photoDragging)return;photoDragging=false;
+    if(!photoUpdatePending){photoUpdatePending=true;requestAnimationFrame(function(){photoUpdatePending=false;if(editorIndex>=0)paintEditor();});}
+  }
+  $('photoslider').addEventListener('pointerdown',function(){photoSliderHeld=true;});
+  $('photoslider').addEventListener('input',function(){
+    photoDragging=true;$('photoslidervalue').textContent=this.value;
+    changePhotoAppearance(photoSliderField(),Number(this.value)/100);
+    clearTimeout(photoSettleTimer);if(!photoSliderHeld)photoSettleTimer=setTimeout(finishPhotoDrag,180);
+  });
+  ['change','pointerup','pointercancel','blur'].forEach(function(type){$('photoslider').addEventListener(type,finishPhotoDrag);});
   $('photocompare').addEventListener('click',function(){photoComparing=!photoComparing;paintEditor();});
   $('photoreset').addEventListener('click',function(){var c=editorWorkingCell();if(c && c.kind==='image'){c.appearance=null;photoComparing=false;paintEditor();}});
   $('photochangeframe').addEventListener('click',function(){var c=state.cells[editorIndex];if(!c || !c.videoSource)return;photoComparing=false;editor.className='crop-editor video-editor';$('editorvideocontrols').className='video-controls';openSourceVideo(c);paintEditor();});
@@ -1765,7 +1786,11 @@ return Object.freeze({normalizeOptions:normalizeOptions,renderPixels:renderPixel
     updatePhotoControls();
     if(cropIdeas.picking){paintCropSubject(c);return;}
     $('editordims').textContent=r.w+' × '+r.h+' px';
-    editorCanvas.width=r.w; editorCanvas.height=r.h;
+    var draft=c.kind==='image' && photoDragging;
+    var sample=draft?Math.min(1,480/Math.max(r.w,r.h)):1;
+    var renderW=Math.max(1,Math.round(r.w*sample)),renderH=Math.max(1,Math.round(r.h*sample));
+    if(editorCanvas.width!==renderW)editorCanvas.width=renderW;
+    if(editorCanvas.height!==renderH)editorCanvas.height=renderH;
     var area=$('editorstage'),k=Math.min((area.clientWidth||300)/r.w,Math.max(1,area.clientHeight||400)/r.h);
     editorCanvas.style.width=r.w*k+'px';editorCanvas.style.height=r.h*k+'px';
     if(c.kind==='video'){
@@ -1777,11 +1802,10 @@ return Object.freeze({normalizeOptions:normalizeOptions,renderPixels:renderPixel
       return;
     }
     var g=editorCanvas.getContext('2d');if(!g)return;
-    g.fillStyle='#000';g.fillRect(0,0,r.w,r.h);
+    g.fillStyle='#000';g.fillRect(0,0,renderW,renderH);
     var scale=Math.max(r.w/c.w,r.h/c.h)*c.view.s,sw=r.w/scale,sh=r.h/scale;
-    if(c.appearance && !photoComparing)g.drawImage(renderedPhoto(c,r.w,r.h),0,0);
-    else g.drawImage(c.el,clamp(c.view.cx*c.w-sw/2,0,Math.max(0,c.w-sw)),clamp(c.view.cy*c.h-sh/2,0,Math.max(0,c.h-sh)),sw,sh,0,0,r.w,r.h);
-    applyCellTransform(editorIndex);
+    if(c.appearance && !photoComparing)g.drawImage(renderedPhoto(c,renderW,renderH,draft),0,0);
+    else g.drawImage(c.el,clamp(c.view.cx*c.w-sw/2,0,Math.max(0,c.w-sw)),clamp(c.view.cy*c.h-sh/2,0,Math.max(0,c.h-sh)),sw,sh,0,0,renderW,renderH);
   }
   function openCellEditor(i){
     var c=state.cells[i];if(state.exporting || sharing || !c || !c.ready)return;
@@ -1789,6 +1813,7 @@ return Object.freeze({normalizeOptions:normalizeOptions,renderPixels:renderPixel
     if(historyIndex>=0){historyEntries[historyIndex].selected=i;historyEntries[historyIndex].selectionAnchor=i;}
     editorReturn=document.activeElement;
     videoCells().forEach(function(v){try{v.el.pause();}catch(_){}});
+    clearTimeout(photoSettleTimer);photoDragging=false;photoSliderHeld=false;
     var isVideo=c.kind==='video';photoComparing=false;photoMode='looks';photoHold=null;photoThumbSource=null;
     editor.className='crop-editor'+(isVideo?' video-editor':'');
     $('editorvideocontrols').className='video-controls'+(isVideo?'':' hidden');
@@ -1802,6 +1827,8 @@ return Object.freeze({normalizeOptions:normalizeOptions,renderPixels:renderPixel
   }
   function closeCellEditor(cancel){
     if(editorIndex<0 || editorCapturing)return;
+    clearTimeout(photoSettleTimer);photoSettleTimer=null;photoDragging=false;photoSliderHeld=false;
+    var edited=state.cells[editorIndex];if(edited && edited.editorLookCache){edited.editorLookCache.canvas.width=0;edited.editorLookCache.canvas.height=0;edited.editorLookCache=null;}
     var saved=editorBefore;editorBefore=null;stopVideoEditor();
     editorIndex=-1;editorPtrs={};photoHold=null;photoComparing=false;photoThumbSource=null;editor.close();
     resetCropIdeas();
@@ -2092,6 +2119,7 @@ return Object.freeze({normalizeOptions:normalizeOptions,renderPixels:renderPixel
   function releaseCell(c){
     if(!c || c.released) return;
     c.released=true;
+    if(c.editorLookCache){c.editorLookCache.canvas.width=0;c.editorLookCache.canvas.height=0;c.editorLookCache=null;}
     if(c.lookCache){c.lookCache.canvas.width=0;c.lookCache.canvas.height=0;c.lookCache=null;}
     if(c.sourceLoadTimer)clearTimeout(c.sourceLoadTimer);
     if(c.rateCallback && c.el.cancelVideoFrameCallback)c.el.cancelVideoFrameCallback(c.rateCallback);
