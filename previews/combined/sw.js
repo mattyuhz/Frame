@@ -5,8 +5,8 @@
    its Content-Security-Policy. */
 
 var CACHE_PREFIX = 'frame:' + self.registration.scope + ':';
-var CACHE = CACHE_PREFIX + 'v41-photo-control-settling';
-var SHELL = ['./', './index.html', './compose.html'];
+var CACHE = CACHE_PREFIX + 'v42-live-photo-worker';
+var SHELL = ['./', './index.html', './compose.html', './photo-worker.js'];
 
 self.addEventListener('install', function(e){
   e.waitUntil(
