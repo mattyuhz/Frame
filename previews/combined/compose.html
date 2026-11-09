@@ -1791,7 +1791,7 @@ return Object.freeze({normalizeOptions:normalizeOptions,renderPixels:renderPixel
     if(typeof Worker==='undefined' || livePhotoFailed)return false;
     try{
       if(!livePhotoWorker){
-        livePhotoWorker=new Worker('./photo-worker.js');
+        livePhotoWorker=new Worker('./photo-worker.js?v=43');
         livePhotoWorker.onmessage=function(e){
           livePhotoBusy=false;
           if(editorIndex<0)return;
@@ -2096,7 +2096,7 @@ return Object.freeze({normalizeOptions:normalizeOptions,renderPixels:renderPixel
         var still={kind:'image',file:new File([blob],'frame.png',{type:'image/png'}),url:url,el:im,w:c.w,h:c.h,ready:true,view:view,videoSource:source};
         var old=state.cells[index];still.appearance=old.appearance?Object.assign({},old.appearance):null;
         editorCapturing=false;stopVideoEditor();releaseCell(old);state.cells[index]=still;state.selected=index;
-        recalcStarts();closeCellEditor();
+        recalcStarts();closeCellEditor();openCellEditor(index);
       };
       im.src=url;
     },'image/png');
@@ -3098,7 +3098,7 @@ return Object.freeze({normalizeOptions:normalizeOptions,renderPixels:renderPixel
      with no network. Registration is skipped in restricted frames. ---- */
   if('serviceWorker' in navigator && location.protocol==='https:' && !env.restricted){
     try{
-      navigator.serviceWorker.register('sw.js').then(function(){
+      navigator.serviceWorker.register('sw.js',{updateViaCache:'none'}).then(function(){
         env.sw=true;
       }).catch(function(){});
     }catch(_){}

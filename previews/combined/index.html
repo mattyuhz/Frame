@@ -3738,7 +3738,7 @@ function injectPng(bytes, payload){
     if(next==='compose'&&!composeFrame){
       composeFrame=document.createElement('iframe');composeFrame.id='composeworkspace';composeFrame.title='Compose workspace';composeFrame.hidden=true;
       composeFrame.onload=function(){ $('composeloading').hidden=true;composeFrame.hidden=false;var readyApi=composeFrame.contentWindow.frameWorkspace;if(readyApi){readyApi.setActive(workspace==='compose');if(workspace==='compose'&&readyApi.receiveClip)readyApi.receiveClip(lastFile);} };
-      composeFrame.src='./compose.html?workspace-embed=1';$('composepanel').appendChild(composeFrame);
+      composeFrame.src='./compose.html?workspace-embed=1&v=43';$('composepanel').appendChild(composeFrame);
     }
     if(next==='frame')layoutViewer();
   }
@@ -3752,7 +3752,7 @@ function injectPng(bytes, payload){
      with no network. Registration is skipped in restricted frames. ---- */
   if('serviceWorker' in navigator && location.protocol==='https:' && !env.restricted){
     try{
-      navigator.serviceWorker.register('sw.js').then(function(){
+      navigator.serviceWorker.register('sw.js',{updateViaCache:'none'}).then(function(){
         env.sw=true;
       }).catch(function(){});
     }catch(_){}

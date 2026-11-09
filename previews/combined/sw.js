@@ -5,7 +5,7 @@
    its Content-Security-Policy. */
 
 var CACHE_PREFIX = 'frame:' + self.registration.scope + ':';
-var CACHE = CACHE_PREFIX + 'v42-live-photo-worker';
+var CACHE = CACHE_PREFIX + 'v43-effects-handoff';
 var SHELL = ['./', './index.html', './compose.html', './photo-worker.js'];
 
 self.addEventListener('install', function(e){
@@ -32,7 +32,7 @@ self.addEventListener('fetch', function(e){
      e.request.method !== 'GET' || e.request.headers.has('range')) return;
   e.respondWith(
     caches.open(CACHE).then(function(cache){ return cache.match(e.request, {ignoreSearch:true}); }).then(function(hit){
-      var refresh = fetch(e.request).then(function(res){
+      var refresh = fetch(e.request,{cache:'no-cache'}).then(function(res){
         if(res && res.ok){
           var copy = res.clone();
           caches.open(CACHE).then(function(c){ c.put(e.request, copy); });
@@ -41,7 +41,7 @@ self.addEventListener('fetch', function(e){
       }).catch(function(){ return hit; });
       /* Keep HTML workspaces on the same current release when online.
          The cached shell remains available offline. */
-      return e.request.mode === 'navigate' || /\.html$/.test(url.pathname) ? refresh : (hit || refresh);
+      return e.request.mode === 'navigate' || /\.(?:html|js)$/.test(url.pathname) ? refresh : (hit || refresh);
     })
   );
 });
