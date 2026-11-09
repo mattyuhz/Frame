@@ -5,7 +5,7 @@
    its Content-Security-Policy. */
 
 var CACHE_PREFIX = 'frame:' + self.registration.scope + ':';
-var CACHE = CACHE_PREFIX + 'v43-effects-handoff';
+var CACHE = CACHE_PREFIX + 'v45-renderer-status';
 var SHELL = ['./', './index.html', './compose.html', './photo-worker.js'];
 
 self.addEventListener('install', function(e){

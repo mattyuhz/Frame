@@ -1721,7 +1721,7 @@ return Object.freeze({normalizeOptions:normalizeOptions,renderPixels:renderPixel
     if(!photoDragging)$('photoslider').value=String(field==='amount' && options.look==='none'?0:Math.round(options[field]*100));
     $('photoslidervalue').textContent=$('photoslider').value;
     $('photoslider').disabled=field==='amount' && options.look==='none';
-    $('photohint').textContent=photoMode==='crop'?'Drag photo to reframe':'Hold photo to compare';
+    $('photohint').textContent=photoMode==='crop'?'Drag photo to reframe':livePhotoFailed?'Live preview unavailable · updates on release':livePhotoBusy?'Updating preview…':'Hold photo to compare';
     ['looks','adjust','texture','crop'].forEach(function(mode){$('mode'+mode).setAttribute('aria-pressed',String(mode===photoMode));});
     photoFields.forEach(function(key){$('adjust'+key).setAttribute('aria-pressed',String(key===photoAdjustment));});
     ['none','daylight','mineral'].forEach(function(look){$('look'+look).setAttribute('aria-pressed',String(look===options.look));});
@@ -1791,17 +1791,17 @@ return Object.freeze({normalizeOptions:normalizeOptions,renderPixels:renderPixel
     if(typeof Worker==='undefined' || livePhotoFailed)return false;
     try{
       if(!livePhotoWorker){
-        livePhotoWorker=new Worker('./photo-worker.js?v=43');
+        livePhotoWorker=new Worker('./photo-worker.js?v=45');
         livePhotoWorker.onmessage=function(e){
-          livePhotoBusy=false;
+          livePhotoBusy=false;editorCanvas.setAttribute('data-live-renderer','ready');
           if(editorIndex<0)return;
           if(e.data.source===livePhotoSource && !photoComparing && photoMode!=='crop'){
             var g=editorCanvas.getContext('2d'),im=g.createImageData(e.data.w,e.data.h);
             im.data.set(new Uint8ClampedArray(e.data.pixels));g.putImageData(im,0,0);
           }
-          sendLivePhoto();
+          sendLivePhoto();$('photohint').textContent=livePhotoBusy?'Updating preview…':'Hold photo to compare';
         };
-        livePhotoWorker.onerror=function(){stopLivePhoto();livePhotoFailed=true;if(editorIndex>=0)paintEditor();};
+        livePhotoWorker.onerror=function(e){editorCanvas.setAttribute('data-live-renderer','failed: '+(e.message||'worker startup'));stopLivePhoto();livePhotoFailed=true;if(editorIndex>=0)paintEditor();};
       }
       var key=JSON.stringify([editorIndex,w,h,c.view.cx,c.view.cy,c.view.s]);
       var job={source:key,w:w,h:h,options:c.appearance||{look:'none'}};
@@ -1813,7 +1813,7 @@ return Object.freeze({normalizeOptions:normalizeOptions,renderPixels:renderPixel
         livePhotoSource=key;
       }else if(livePhotoPending && livePhotoPending.pixels)job.pixels=livePhotoPending.pixels;
       livePhotoPending=job;sendLivePhoto();return true;
-    }catch(_){stopLivePhoto();livePhotoFailed=true;return false;}
+    }catch(error){editorCanvas.setAttribute('data-live-renderer','failed: '+error.message);stopLivePhoto();livePhotoFailed=true;return false;}
   }
   function sendLivePhoto(){
     if(livePhotoBusy || !livePhotoPending || !livePhotoWorker)return;
@@ -1854,6 +1854,7 @@ return Object.freeze({normalizeOptions:normalizeOptions,renderPixels:renderPixel
     var c=state.cells[i];if(state.exporting || sharing || !c || !c.ready)return;
     state.selected=i;state.selectionAnchor=i;editorBefore=snapshotComposition();editorIndex=i;editorPtrs={};ptrs={};pinch=null;
     if(historyIndex>=0){historyEntries[historyIndex].selected=i;historyEntries[historyIndex].selectionAnchor=i;}
+    livePhotoFailed=false;
     editorReturn=document.activeElement;
     videoCells().forEach(function(v){try{v.el.pause();}catch(_){}});
     clearTimeout(photoSettleTimer);photoDragging=false;photoSliderHeld=false;
