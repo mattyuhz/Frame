@@ -5,7 +5,7 @@
    its Content-Security-Policy. */
 
 var CACHE_PREFIX = 'frame:' + self.registration.scope + ':';
-var CACHE = CACHE_PREFIX + 'v38-frame-compose-handoff';
+var CACHE = CACHE_PREFIX + 'v39-manual-crop';
 var SHELL = ['./', './index.html', './compose.html'];
 
 self.addEventListener('install', function(e){

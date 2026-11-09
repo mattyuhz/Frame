@@ -344,8 +344,8 @@ if(new URLSearchParams(location.search).get('workspace-embed')!=='1'){
   </div>
 
   <div class="crop-test hidden" id="croptestintro">
-    <div class="mark">Crop suggestions · offline test</div>
-    <p>Open a photo, then choose Suggest crops in Edit. Try Set subject if the automatic framing picks the wrong detail.</p>
+    <div class="mark">Photo crop test</div>
+    <p>Open a photo, then choose Crop in Edit to adjust framing manually.</p>
     <button class="t" id="croptestopen">Open a photo</button>
   </div>
 
@@ -433,7 +433,7 @@ if(new URLSearchParams(location.search).get('workspace-embed')!=='1'){
     <button id="editordone">Done</button>
   </div>
   <div class="editorstage" id="editorstage"><div class="editorframe" id="editorframe"><canvas id="editorcanvas" tabindex="0" aria-label="Crop image. Drag to move, pinch to zoom. Arrow keys move; plus and minus zoom."></canvas><span class="photo-before" id="photobeforebadge" hidden>Original</span></div></div>
-  <div class="crop-suggestions" id="editorsuggestions">
+  <div class="crop-suggestions" id="editorsuggestions" hidden inert>
     <div class="suggest-nav" id="suggestnav" hidden>
       <button id="suggestprev" aria-label="Previous crop suggestion">‹</button>
       <div class="suggest-label" aria-live="polite" aria-atomic="true"><span id="suggestname">Starting crop</span><small id="suggestcount"></small></div>
@@ -1613,7 +1613,8 @@ return Object.freeze({normalizeOptions:normalizeOptions,renderPixels:renderPixel
   }
   function updateCropIdeas(){
     var c=editorWorkingCell(),available=!!(c && c.ready && c.kind==='image' && !c.videoSource);
-    $('editorsuggestions').hidden=!available;
+    /* Retired experiment: keep manual crop controls only. */
+    $('editorsuggestions').hidden=true;
     $('suggestnav').hidden=!cropIdeas.items.length || cropIdeas.picking;
     $('editorsuggest').disabled=!available || cropIdeas.busy || cropIdeas.picking;
     $('editorsuggest').textContent=cropIdeas.busy?'Finding crops…':cropIdeas.items.length?'Starting crop':'Suggest crops';
