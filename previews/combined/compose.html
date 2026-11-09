@@ -3059,8 +3059,18 @@ return Object.freeze({normalizeOptions:normalizeOptions,renderPixels:renderPixel
       }).catch(function(){});
     }catch(_){}
   }
+  var frameSourceSeen=null;
+  function receiveFrameClip(file){
+    if(!file || file===frameSourceSeen || guessKind(file)!=='video')return false;
+    if(state.exporting || sharing || editorIndexActive() || state.cells.some(function(c){return !!c;}))return false;
+    frameSourceSeen=file;
+    state.layout='1';state.durOverride=null;
+    assign(file,0);updateUI(true);commitHistory();
+    return true;
+  }
   var workspacePlaying=state.previewPlay;
   window.frameWorkspace={
+    receiveClip:receiveFrameClip,
     canLeave:function(){return !state.exporting&&!sharing;},
     setActive:function(active){
       if(!active){workspacePlaying=state.previewPlay;state.previewPlay=false;document.querySelectorAll('video').forEach(function(v){v.pause();});}
