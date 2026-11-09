@@ -956,7 +956,7 @@ return Object.freeze({normalizeOptions:normalizeOptions,renderPixels:renderPixel
     {id:'4', label:'2×2',    n:4}
   ];
 
-  var state={ layout:'2',artboard:'9:16', cells:[null,null,null,null], selected:-1,selectionAnchor:-1,
+  var state={ layout:'1',artboard:'9:16', cells:[null,null,null,null], selected:-1,selectionAnchor:-1,
               durOverride:null, exporting:false, previewPlay:true };
   var pendingBlob=null, pendingName='', sheetUrl=null;
 
@@ -1764,9 +1764,10 @@ return Object.freeze({normalizeOptions:normalizeOptions,renderPixels:renderPixel
   $('photoslider').addEventListener('input',function(){
     photoDragging=true;$('photoslidervalue').textContent=this.value;
     changePhotoAppearance(photoSliderField(),Number(this.value)/100);
-    clearTimeout(photoSettleTimer);if(!photoSliderHeld)photoSettleTimer=setTimeout(finishPhotoDrag,180);
+    clearTimeout(photoSettleTimer);photoSettleTimer=setTimeout(finishPhotoDrag,250);
   });
   ['change','pointerup','pointercancel','blur'].forEach(function(type){$('photoslider').addEventListener(type,finishPhotoDrag);});
+  ['pointerup','pointercancel','touchend','touchcancel'].forEach(function(type){window.addEventListener(type,finishPhotoDrag);});
   $('photocompare').addEventListener('click',function(){photoComparing=!photoComparing;paintEditor();});
   $('photoreset').addEventListener('click',function(){var c=editorWorkingCell();if(c && c.kind==='image'){c.appearance=null;photoComparing=false;paintEditor();}});
   $('photochangeframe').addEventListener('click',function(){var c=state.cells[editorIndex];if(!c || !c.videoSource)return;photoComparing=false;editor.className='crop-editor video-editor';$('editorvideocontrols').className='video-controls';openSourceVideo(c);paintEditor();});

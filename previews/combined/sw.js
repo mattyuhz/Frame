@@ -5,7 +5,7 @@
    its Content-Security-Policy. */
 
 var CACHE_PREFIX = 'frame:' + self.registration.scope + ':';
-var CACHE = CACHE_PREFIX + 'v40-stable-photo-detail';
+var CACHE = CACHE_PREFIX + 'v41-photo-control-settling';
 var SHELL = ['./', './index.html', './compose.html'];
 
 self.addEventListener('install', function(e){
