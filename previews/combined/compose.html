@@ -1739,6 +1739,7 @@ return Object.freeze({normalizeOptions:normalizeOptions,renderPixels:renderPixel
     var c=editorWorkingCell();if(!c || c.kind!=='image' || state.exporting || editorCapturing)return;
     var options=PhotoRendering.normalizeOptions(c.appearance||{look:'none'});options[key]=value;
     c.appearance=PhotoRendering.normalizeOptions(options);photoComparing=false;
+    if(photoDragging)return;
     if(!photoUpdatePending){photoUpdatePending=true;requestAnimationFrame(function(){photoUpdatePending=false;if(editorIndex>=0)paintEditor();});}
   }
   function setPhotoMode(mode){
@@ -1787,9 +1788,9 @@ return Object.freeze({normalizeOptions:normalizeOptions,renderPixels:renderPixel
     updatePhotoControls();
     if(cropIdeas.picking){paintCropSubject(c);return;}
     $('editordims').textContent=r.w+' × '+r.h+' px';
-    var draft=c.kind==='image' && photoDragging;
-    var sample=draft?Math.min(1,480/Math.max(r.w,r.h)):1;
-    var renderW=Math.max(1,Math.round(r.w*sample)),renderH=Math.max(1,Math.round(r.h*sample));
+    /* Keep the last exact image while dragging; never magnify a draft grain field. */
+    if(c.kind==='image' && photoDragging)return;
+    var draft=false,renderW=r.w,renderH=r.h;
     if(editorCanvas.width!==renderW)editorCanvas.width=renderW;
     if(editorCanvas.height!==renderH)editorCanvas.height=renderH;
     var area=$('editorstage'),k=Math.min((area.clientWidth||300)/r.w,Math.max(1,area.clientHeight||400)/r.h);
